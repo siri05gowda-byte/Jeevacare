@@ -1,0 +1,131 @@
+# Dependencies
+node_modules/
+*.lock
+yarn.lock
+pnpm-lock.yaml
+
+# Environment & Secrets (NEVER COMMIT)
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+
+# API Keys & Credentials (NEVER COMMIT)
+server/.env
+server/.env.local
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+
+# Build outputs
+dist/
+build/
+.next/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+coverage/
+.nyc_output/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# MongoDB
+.mongo_history
+dump/
+
+# Temporary files
+*.tmp
+temp/
+
+# Dataset files (NEVER COMMIT RAW DATA)
+/data/
+/datasets/
+/training/
+*.csv
+*.zip
+*.tar.gz
+*.tar
+*.7z
+*.rar
+
+# Model binaries (if large)
+*.pkl
+*.h5
+*.pt
+*.pth
+*.onnx
+*.pb
+
+# Private configuration
+config/private/
+secrets/
+
+# IDE temporary files
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+desktop.ini
+$RECYCLE.BIN/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# IntelliJ
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Vim
+.vim
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+.netrwhist
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Jupyter
+.ipynb_checkpoints
+*.ipynb
+
+# Private research/experiments
+research/private/
+experiments/private/
+notes/private/
