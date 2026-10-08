@@ -41,7 +41,17 @@ class ClinicalAuthorizationBoundary {
       };
 
       // ===== CHECK 1: USER =====
-      const user = await User.findById(userId);
+      let user;
+      try {
+        user = await User.findById(userId);
+      } catch (e) {
+        result.checks.user = {
+          passed: false,
+          error: `Failed to look up user: ${e.message}`,
+        };
+        result.error = `Failed to look up user: ${e.message}`;
+        return result;
+      }
 
       if (!user) {
         result.checks.user = {
@@ -64,9 +74,19 @@ class ClinicalAuthorizationBoundary {
       result.checks.user = { passed: true };
 
       // ===== CHECK 2: PROFESSIONAL =====
-      const professional = await HealthcareProfessional.findOne({
-        userId: userId,
-      });
+      let professional;
+      try {
+        professional = await HealthcareProfessional.findOne({
+          userId: userId,
+        });
+      } catch (e) {
+        result.checks.professional = {
+          passed: false,
+          error: `Failed to look up professional profile: ${e.message}`,
+        };
+        result.error = `Failed to look up professional profile: ${e.message}`;
+        return result;
+      }
 
       if (!professional) {
         result.checks.professional = {
@@ -114,7 +134,17 @@ class ClinicalAuthorizationBoundary {
       };
 
       // ===== CHECK 3: FACILITY =====
-      const hospital = await Hospital.findById(hospitalId);
+      let hospital;
+      try {
+        hospital = await Hospital.findById(hospitalId);
+      } catch (e) {
+        result.checks.facility = {
+          passed: false,
+          error: `Failed to look up facility: ${e.message}`,
+        };
+        result.error = `Failed to look up facility: ${e.message}`;
+        return result;
+      }
 
       if (!hospital) {
         result.checks.facility = {
@@ -149,14 +179,24 @@ class ClinicalAuthorizationBoundary {
       };
 
       // ===== CHECK 4: STAFF ASSOCIATION =====
-      const staff = await HospitalStaff.findOne({
-        userId: userId,
-        hospitalId: hospitalId,
-        $or: [
-          { endDate: { $exists: false } },
-          { endDate: { $gte: new Date() } },
-        ],
-      });
+      let staff;
+      try {
+        staff = await HospitalStaff.findOne({
+          userId: userId,
+          hospitalId: hospitalId,
+          $or: [
+            { endDate: { $exists: false } },
+            { endDate: { $gte: new Date() } },
+          ],
+        });
+      } catch (e) {
+        result.checks.staff = {
+          passed: false,
+          error: `Failed to look up staff association: ${e.message}`,
+        };
+        result.error = `Failed to look up staff association: ${e.message}`;
+        return result;
+      }
 
       if (!staff) {
         result.checks.staff = {
@@ -203,7 +243,7 @@ class ClinicalAuthorizationBoundary {
       result.checks.role = { passed: true, role: staff.role };
 
       // ===== CHECK 6: PERMISSIONS =====
-      if (!staff.permissions.createClinicalRecords) {
+      if (!staff.permissions || !staff.permissions.createClinicalRecords) {
         result.checks.permissions = {
           passed: false,
           error: 'Permission to create clinical records is not granted',
@@ -215,14 +255,24 @@ class ClinicalAuthorizationBoundary {
       result.checks.permissions = { passed: true };
 
       // ===== CHECK 7: CREDENTIALS =====
-      const validCredential = await ProfessionalCredential.findOne({
-        professionalId: professional._id,
-        status: 'verified',
-        $or: [
-          { expiryDate: { $exists: false } },
-          { expiryDate: { $gt: new Date() } },
-        ],
-      });
+      let validCredential;
+      try {
+        validCredential = await ProfessionalCredential.findOne({
+          professionalId: professional._id,
+          status: 'verified',
+          $or: [
+            { expiryDate: { $exists: false } },
+            { expiryDate: { $gt: new Date() } },
+          ],
+        });
+      } catch (e) {
+        result.checks.credentials = {
+          passed: false,
+          error: `Failed to look up credentials: ${e.message}`,
+        };
+        result.error = `Failed to look up credentials: ${e.message}`;
+        return result;
+      }
 
       if (!validCredential) {
         result.checks.credentials = {
@@ -239,7 +289,17 @@ class ClinicalAuthorizationBoundary {
       };
 
       // ===== CHECK 8: PATIENT ACCESS =====
-      const patient = await Patient.findById(patientId);
+      let patient;
+      try {
+        patient = await Patient.findById(patientId);
+      } catch (e) {
+        result.checks.patientAccess = {
+          passed: false,
+          error: `Failed to look up patient: ${e.message}`,
+        };
+        result.error = `Failed to look up patient: ${e.message}`;
+        return result;
+      }
 
       if (!patient) {
         result.checks.patientAccess = {
@@ -253,7 +313,7 @@ class ClinicalAuthorizationBoundary {
       // Check if professional has access to patient
       // For now, this is facility-based: if patient is registered at this facility,
       // active staff at this facility can access
-      const patientAtFacility = patient.facilities?.some(
+      const patientAtFacility = patient.facilities && Array.isArray(patient.facilities) && patient.facilities.some(
         (f) => f.facilityId?.toString() === hospitalId.toString()
       );
 

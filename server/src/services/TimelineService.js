@@ -13,7 +13,7 @@
 import Encounter from '../models/Encounter.js';
 import Appointment from '../models/Appointment.js';
 import ClinicalRecord from '../models/ClinicalRecord.js';
-import { ClinicalAuthorizationBoundary } from '../utils/clinicalAuthorizationBoundary.js';
+import ClinicalAuthorizationBoundary from '../utils/clinicalAuthorizationBoundary.js';
 import AuditService from './AuditService.js';
 
 class TimelineService {
@@ -53,6 +53,9 @@ class TimelineService {
       if (patientDoc.userId?.toString() !== requestingUserId) {
         throw new Error(`Patients can only view their own timeline`);
       }
+    } else if (requestingUser.role === 'SYSTEM_ADMIN') {
+      // System admins have unrestricted access
+      // No additional authorization checks needed
     } else {
       // Healthcare professional - check authorization through ClinicalAuthorizationBoundary
       // Use first facility patient is registered at (or require it to be passed)

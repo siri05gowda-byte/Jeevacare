@@ -13,10 +13,12 @@
  * GET    /encounters/by-appointment/:appointmentId - Get encounter for appointment
  */
 
-const express = require('express');
+import express from 'express';
+import EncounterService from '../services/EncounterService.js';
+import { authMiddleware, requireRole } from '../middleware/authentication.js';
+
 const router = express.Router();
-const EncounterService = require('../services/EncounterService');
-const { authenticateToken, authorize } = require('../middleware/authMiddleware');
+const { authorize } = { authorize: requireRole };
 
 /**
  * POST /encounters
@@ -32,7 +34,7 @@ const { authenticateToken, authorize } = require('../middleware/authMiddleware')
  *   notes: string (optional)
  * }
  */
-router.post('/', authenticateToken, authorize(['DOCTOR', 'STAFF', 'ADMIN']), async (req, res) => {
+router.post('/', authMiddleware, authorize(['DOCTOR', 'STAFF', 'ADMIN']), async (req, res) => {
   try {
     const { appointmentId, patientId, doctorId, facilityId, encounterType, notes } = req.body;
 
@@ -75,7 +77,7 @@ router.post('/', authenticateToken, authorize(['DOCTOR', 'STAFF', 'ADMIN']), asy
  * GET /encounters/:encounterId
  * Get encounter details
  */
-router.get('/:encounterId', authenticateToken, async (req, res) => {
+router.get('/:encounterId', authMiddleware, async (req, res) => {
   try {
     const { encounterId } = req.params;
 
@@ -106,7 +108,7 @@ router.get('/:encounterId', authenticateToken, async (req, res) => {
  *   status: string (optional, e.g., 'in_progress', 'completed')
  * }
  */
-router.patch('/:encounterId', authenticateToken, authorize(['DOCTOR', 'STAFF', 'ADMIN']), async (req, res) => {
+router.patch('/:encounterId', authMiddleware, authorize(['DOCTOR', 'STAFF', 'ADMIN']), async (req, res) => {
   try {
     const { encounterId } = req.params;
     const { notes, status } = req.body;
@@ -148,7 +150,7 @@ router.patch('/:encounterId', authenticateToken, authorize(['DOCTOR', 'STAFF', '
  *   completionNotes: string (optional, final notes)
  * }
  */
-router.post('/:encounterId/complete', authenticateToken, authorize(['DOCTOR', 'STAFF', 'ADMIN']), async (req, res) => {
+router.post('/:encounterId/complete', authMiddleware, authorize(['DOCTOR', 'STAFF', 'ADMIN']), async (req, res) => {
   try {
     const { encounterId } = req.params;
     const { completionNotes } = req.body;
@@ -187,7 +189,7 @@ router.post('/:encounterId/complete', authenticateToken, authorize(['DOCTOR', 'S
  * - startDate: optional ISO8601
  * - endDate: optional ISO8601
  */
-router.get('/patient/:patientId', authenticateToken, async (req, res) => {
+router.get('/patient/:patientId', authMiddleware, async (req, res) => {
   try {
     const { patientId } = req.params;
     const { status, startDate, endDate } = req.query;
@@ -219,7 +221,7 @@ router.get('/patient/:patientId', authenticateToken, async (req, res) => {
  * GET /encounters/by-appointment/:appointmentId
  * Get encounter linked to specific appointment
  */
-router.get('/by-appointment/:appointmentId', authenticateToken, async (req, res) => {
+router.get('/by-appointment/:appointmentId', authMiddleware, async (req, res) => {
   try {
     const { appointmentId } = req.params;
 
@@ -256,4 +258,4 @@ router.get('/by-appointment/:appointmentId', authenticateToken, async (req, res)
   }
 });
 
-module.exports = router;
+export default router;

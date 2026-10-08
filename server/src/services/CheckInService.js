@@ -81,6 +81,18 @@ class CheckInService {
         throw new Error('Patient can only check in themselves');
       }
 
+      // Healthcare staff can only check in at their own facility
+      if (requestingUser.role !== 'PATIENT') {
+        // Non-patient must have a facilityId
+        if (!requestingUser.facilityId) {
+          throw new Error('Healthcare staff must have an assigned facility');
+        }
+        // Facility must match appointment's hospital
+        if (requestingUser.facilityId.toString() !== appointment.hospitalId.toString()) {
+          throw new Error('Not authorized to check in patients at a different facility');
+        }
+      }
+
       // Check if appointment is in correct status for check-in
       if (!['scheduled', 'confirmed'].includes(appointment.status)) {
         throw new Error(

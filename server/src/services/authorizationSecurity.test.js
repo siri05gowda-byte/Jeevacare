@@ -260,6 +260,12 @@ describe('Authorization and Security Test Suite - Phase 4', () => {
         status: 'active',
       });
       await rejectFacility.save();
+      
+      // Verify facility was persisted
+      const verifiedRejectFacility = await Hospital.findById(rejectFacility._id);
+      if (!verifiedRejectFacility) {
+        throw new Error(`Failed to persist rejectFacility: ${rejectFacility._id}`);
+      }
 
       // Create HospitalVerification record (required by rejectFacility)
       const rejectVerification = new HospitalVerification({
@@ -639,6 +645,12 @@ describe('Authorization and Security Test Suite - Phase 4', () => {
         status: 'active',
       });
       await facility.save();
+      
+      // Verify facility was persisted
+      const verifiedFacility = await Hospital.findById(facility._id);
+      if (!verifiedFacility) {
+        throw new Error(`Failed to persist facility: ${facility._id}`);
+      }
 
       // Create verification for the facility
       const verification = new HospitalVerification({
@@ -775,6 +787,12 @@ describe('Authorization and Security Test Suite - Phase 4', () => {
         status: 'active',
       });
       await unverifiedFacility.save();
+      
+      // Verify facility was persisted
+      const verifiedUnverifiedFacility = await Hospital.findById(unverifiedFacility._id);
+      if (!verifiedUnverifiedFacility) {
+        throw new Error(`Failed to persist unverifiedFacility: ${unverifiedFacility._id}`);
+      }
 
       const result = await ClinicalAuthorizationBoundary.canCreateOfficialClinicalRecord(
         testUser._id,

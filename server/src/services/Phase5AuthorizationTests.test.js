@@ -22,7 +22,7 @@ import ScheduleService from './ScheduleService.js';
 import CheckInService from './CheckInService.js';
 import ClinicalRecordService from './ClinicalRecordService.js';
 import TimelineService from './TimelineService.js';
-import { ClinicalAuthorizationBoundary } from '../utils/clinicalAuthorizationBoundary.js';
+import ClinicalAuthorizationBoundary from '../utils/clinicalAuthorizationBoundary.js';
 import Hospital from '../models/Hospital.js';
 import HealthcareProfessional from '../models/HealthcareProfessional.js';
 import User from '../models/User.js';
@@ -208,7 +208,7 @@ describe('Phase 5 Authorization Tests', () => {
       // Should throw authorization error
       await expect(
         TimelineService.getPatientTimeline(patientB._id.toString(), requestingUser)
-      ).rejects.toThrow(/Not authorized/i);
+      ).rejects.toThrow(/only view their own|not authorized/i);
     });
 
     it('Patient A cannot view Patient B clinical records', async () => {
@@ -221,7 +221,7 @@ describe('Phase 5 Authorization Tests', () => {
       // Should throw authorization error
       await expect(
         ClinicalRecordService.getPatientRecords(patientB._id.toString(), requestingUser)
-      ).rejects.toThrow(/Not authorized/i);
+      ).rejects.toThrow(/only view their own|not authorized/i);
     });
   });
 
@@ -408,7 +408,7 @@ describe('Phase 5 Authorization Tests', () => {
 
       // Should fail: Cannot directly modify provider-verified record
       // (This test assumes pre-save hook enforces immutability)
-      expect(record.provider_verified).toBe(true);
+      expect(record.verificationStatus).toBe('provider_verified');
       // Patient should not have ability to save changes to provider_verified record
     });
 
@@ -420,8 +420,11 @@ describe('Phase 5 Authorization Tests', () => {
         recordType: 'diagnosis',
         recordDate: new Date(),
         data: { condition: 'Hypertension', severity: 'moderate' },
-        provider_verified: true,
-        verifiedAt: new Date(),
+        verificationStatus: 'provider_verified',
+        verificationDetails: {
+          verifiedBy: doctorAtFacilityA.userId,
+          verifiedAt: new Date(),
+        },
       };
 
       const record = new ClinicalRecord(recordData);
@@ -434,7 +437,7 @@ describe('Phase 5 Authorization Tests', () => {
       };
 
       const correctionData = {
-        reason: 'Incorrect severity listed',
+        reason: 'inaccurate_information',
         changedFields: { severity: { oldValue: 'moderate', newValue: 'mild' } },
         suggestedData: { severity: 'mild' },
         requestedBy: patientA.userId.toString(),
@@ -467,7 +470,7 @@ describe('Phase 5 Authorization Tests', () => {
 
       // Patient requests correction
       const correctionData = {
-        reason: 'Incorrect severity',
+        reason: 'inaccurate_information',
         changedFields: { severity: { oldValue: 'moderate', newValue: 'mild' } },
         requestedBy: patientA.userId.toString(),
       };

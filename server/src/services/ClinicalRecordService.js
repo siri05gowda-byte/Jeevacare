@@ -422,6 +422,18 @@ class ClinicalRecordService {
         throw new Error('Patients can only view their own records');
       }
 
+      // For healthcare professionals, check authorization via ClinicalAuthorizationBoundary
+      if (requestingUser.role !== 'PATIENT' && requestingUser.facilityId) {
+        const { authorized, error } = await ClinicalAuthorizationBoundary.canCreateOfficialClinicalRecord(
+          requestingUser._id,
+          requestingUser.facilityId,
+          patientId
+        );
+        if (!authorized) {
+          throw new Error(`Not authorized to view patient records: ${error}`);
+        }
+      }
+
       const query = { patientId };
 
       if (filters.recordType) {

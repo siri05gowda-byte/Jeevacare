@@ -12,10 +12,11 @@
  * GET    /timeline/encounter/:encounterId/context - Get encounter in timeline context
  */
 
-const express = require('express');
+import express from 'express';
+import TimelineService from '../services/TimelineService.js';
+import { authMiddleware } from '../middleware/authentication.js';
+
 const router = express.Router();
-const TimelineService = require('../services/TimelineService');
-const { authenticateToken } = require('../middleware/authMiddleware');
 
 /**
  * GET /timeline/patient/:patientId
@@ -48,7 +49,7 @@ const { authenticateToken } = require('../middleware/authMiddleware');
  *   }
  * }
  */
-router.get('/patient/:patientId', authenticateToken, async (req, res) => {
+router.get('/patient/:patientId', authMiddleware, async (req, res) => {
   try {
     const { patientId } = req.params;
     const { sortOrder = 'desc', startDate, endDate, types } = req.query;
@@ -95,7 +96,7 @@ router.get('/patient/:patientId', authenticateToken, async (req, res) => {
  *   totalAvailable: number
  * }
  */
-router.get('/patient/:patientId/recent', authenticateToken, async (req, res) => {
+router.get('/patient/:patientId/recent', authMiddleware, async (req, res) => {
   try {
     const { patientId } = req.params;
     const limit = Math.min(parseInt(req.query.limit) || 10, 100); // Cap at 100
@@ -132,7 +133,7 @@ router.get('/patient/:patientId/recent', authenticateToken, async (req, res) => 
  *   appointmentStats: { completed, cancelled, total }
  * }
  */
-router.get('/patient/:patientId/stats', authenticateToken, async (req, res) => {
+router.get('/patient/:patientId/stats', authMiddleware, async (req, res) => {
   try {
     const { patientId } = req.params;
 
@@ -164,7 +165,7 @@ router.get('/patient/:patientId/stats', authenticateToken, async (req, res) => {
  *   relatedRecords: [...]
  * }
  */
-router.get('/encounter/:encounterId/context', authenticateToken, async (req, res) => {
+router.get('/encounter/:encounterId/context', authMiddleware, async (req, res) => {
   try {
     const { encounterId } = req.params;
 
@@ -185,4 +186,4 @@ router.get('/encounter/:encounterId/context', authenticateToken, async (req, res
   }
 });
 
-module.exports = router;
+export default router;

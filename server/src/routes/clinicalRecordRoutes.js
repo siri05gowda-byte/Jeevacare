@@ -14,10 +14,12 @@
  * POST   /records/:recordId/amendments/:amendmentId/reject - Reject correction
  */
 
-const express = require('express');
+import express from 'express';
+import ClinicalRecordService from '../services/ClinicalRecordService.js';
+import { authMiddleware, requireRole } from '../middleware/authentication.js';
+
 const router = express.Router();
-const ClinicalRecordService = require('../services/ClinicalRecordService');
-const { authenticateToken, authorize } = require('../middleware/authMiddleware');
+const { authorize } = { authorize: requireRole };
 
 /**
  * POST /records
@@ -35,7 +37,7 @@ const { authenticateToken, authorize } = require('../middleware/authMiddleware')
  *   verifiedAt: ISO8601 (optional, if provider_verified=true)
  * }
  */
-router.post('/', authenticateToken, authorize(['DOCTOR', 'STAFF', 'ADMIN']), async (req, res) => {
+router.post('/', authMiddleware, authorize(['DOCTOR', 'STAFF', 'ADMIN']), async (req, res) => {
   try {
     const { patientId, encounterId, facilityId, providerId, recordType, data, provider_verified, verifiedAt } = req.body;
 
@@ -80,7 +82,7 @@ router.post('/', authenticateToken, authorize(['DOCTOR', 'STAFF', 'ADMIN']), asy
  * Get clinical record details
  * Patient can view their own records, doctor/staff can view authorized patient records
  */
-router.get('/:recordId', authenticateToken, async (req, res) => {
+router.get('/:recordId', authMiddleware, async (req, res) => {
   try {
     const { recordId } = req.params;
 
@@ -111,7 +113,7 @@ router.get('/:recordId', authenticateToken, async (req, res) => {
  * - startDate: optional ISO8601
  * - endDate: optional ISO8601
  */
-router.get('/patient/:patientId', authenticateToken, async (req, res) => {
+router.get('/patient/:patientId', authMiddleware, async (req, res) => {
   try {
     const { patientId } = req.params;
     const { recordType, provider_verified, startDate, endDate } = req.query;
@@ -151,7 +153,7 @@ router.get('/patient/:patientId', authenticateToken, async (req, res) => {
  *   suggestedData: object (optional suggested changes)
  * }
  */
-router.post('/:recordId/request-correction', authenticateToken, async (req, res) => {
+router.post('/:recordId/request-correction', authMiddleware, async (req, res) => {
   try {
     const { recordId } = req.params;
     const { reason, changedFields, suggestedData } = req.body;
@@ -198,7 +200,7 @@ router.post('/:recordId/request-correction', authenticateToken, async (req, res)
  *   acceptanceNotes: string (optional, why correction was accepted)
  * }
  */
-router.post('/:recordId/amendments/:amendmentId/accept', authenticateToken, authorize(['DOCTOR', 'ADMIN']), async (req, res) => {
+router.post('/:recordId/amendments/:amendmentId/accept', authMiddleware, authorize(['DOCTOR', 'ADMIN']), async (req, res) => {
   try {
     const { recordId, amendmentId } = req.params;
     const { amendedData, acceptanceNotes } = req.body;
@@ -245,7 +247,7 @@ router.post('/:recordId/amendments/:amendmentId/accept', authenticateToken, auth
  *   rejectionReason: string (why correction was rejected)
  * }
  */
-router.post('/:recordId/amendments/:amendmentId/reject', authenticateToken, authorize(['DOCTOR', 'ADMIN']), async (req, res) => {
+router.post('/:recordId/amendments/:amendmentId/reject', authMiddleware, authorize(['DOCTOR', 'ADMIN']), async (req, res) => {
   try {
     const { recordId, amendmentId } = req.params;
     const { rejectionReason } = req.body;
@@ -282,4 +284,4 @@ router.post('/:recordId/amendments/:amendmentId/reject', authenticateToken, auth
   }
 });
 
-module.exports = router;
+export default router;

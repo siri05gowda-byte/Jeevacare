@@ -66,6 +66,12 @@ describe('Phase 5 End-to-End Patient Journey Test', () => {
         status: 'active',
       });
       await facility.save();
+      
+      // Verify facility was persisted
+      const verifiedFacility = await Hospital.findById(facility._id);
+      if (!verifiedFacility) {
+        throw new Error(`Failed to persist facility: ${facility._id}`);
+      }
 
       // Create doctor user and professional
       doctorUser = new User({
@@ -75,6 +81,12 @@ describe('Phase 5 End-to-End Patient Journey Test', () => {
         status: 'active',
       });
       await doctorUser.save();
+      
+      // Verify doctor user was persisted
+      const verifiedDoctorUser = await User.findById(doctorUser._id);
+      if (!verifiedDoctorUser) {
+        throw new Error(`Failed to persist doctorUser: ${doctorUser._id}`);
+      }
 
       doctor = new HealthcareProfessional({
         professionalId: `HP-${Date.now()}-E2E${Math.random().toString(36).substring(2, 5)}`,
@@ -87,6 +99,12 @@ describe('Phase 5 End-to-End Patient Journey Test', () => {
         accountStatus: 'active',
       });
       await doctor.save();
+      
+      // Verify doctor was persisted
+      const verifiedDoctor = await HealthcareProfessional.findById(doctor._id);
+      if (!verifiedDoctor) {
+        throw new Error(`Failed to persist doctor: ${doctor._id}`);
+      }
 
       // Create HospitalStaff association for doctor at facility
       const doctorStaff = new HospitalStaff({
@@ -136,6 +154,12 @@ describe('Phase 5 End-to-End Patient Journey Test', () => {
         status: 'active',
       });
       await staff.save();
+      
+      // Verify staff was persisted
+      const verifiedStaff = await HospitalStaff.findById(staff._id);
+      if (!verifiedStaff) {
+        throw new Error(`Failed to persist staff: ${staff._id}`);
+      }
 
       // Create patient user and patient
       patientUser = new User({
@@ -145,6 +169,12 @@ describe('Phase 5 End-to-End Patient Journey Test', () => {
         status: 'active',
       });
       await patientUser.save();
+      
+      // Verify patient user was persisted
+      const verifiedPatientUser = await User.findById(patientUser._id);
+      if (!verifiedPatientUser) {
+        throw new Error(`Failed to persist patientUser: ${patientUser._id}`);
+      }
 
       patient = new Patient({
         jeevaId: `JJ26_E2E_${Date.now()}`,
@@ -163,6 +193,12 @@ describe('Phase 5 End-to-End Patient Journey Test', () => {
         status: 'active',
       });
       await patient.save();
+      
+      // Verify patient was persisted
+      const verifiedPatient = await Patient.findById(patient._id);
+      if (!verifiedPatient) {
+        throw new Error(`Failed to persist patient: ${patient._id}`);
+      }
     } catch (error) {
       console.error('E2E test setup error:', error.message);
       throw error;
@@ -200,15 +236,9 @@ describe('Phase 5 End-to-End Patient Journey Test', () => {
 
     // Step 2: Patient checks in
     console.log('Step 2: Patient checks in');
-    const checkInData = {
-      patientPhone: '+91-9876543210',
-      notes: 'Patient arrived on time',
-      checkedInBy: staffUser._id.toString(),
-    };
-
+    
     appointmentToken = await CheckInService.checkInPatient(
       appointment._id.toString(),
-      checkInData,
       {
         _id: staffUser._id,
         role: 'RECEPTION_STAFF',
@@ -457,7 +487,6 @@ describe('Phase 5 End-to-End Patient Journey Test', () => {
     // Check in
     const token = await CheckInService.checkInPatient(
       appointmentId,
-      { checkedInBy: staffUser._id.toString() },
       { _id: staffUser._id, role: 'RECEPTION_STAFF', facilityId: facility._id.toString() }
     );
 

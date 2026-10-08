@@ -14,10 +14,12 @@
  * GET    /checkin/queue/:facilityId/today   - Get today's queue (staff/doctor)
  */
 
-const express = require('express');
+import express from 'express';
+import CheckInService from '../services/CheckInService.js';
+import { authMiddleware, requireRole } from '../middleware/authentication.js';
+
 const router = express.Router();
-const CheckInService = require('../services/CheckInService');
-const { authenticateToken, authorize } = require('../middleware/authMiddleware');
+const { authorize } = { authorize: requireRole };
 
 /**
  * POST /checkin/check-in/:appointmentId
@@ -29,7 +31,7 @@ const { authenticateToken, authorize } = require('../middleware/authMiddleware')
  *   notes: string (optional, e.g., 'Running late')
  * }
  */
-router.post('/check-in/:appointmentId', authenticateToken, async (req, res) => {
+router.post('/check-in/:appointmentId', authMiddleware, async (req, res) => {
   try {
     const { appointmentId } = req.params;
     const { patientPhone, notes } = req.body;
@@ -65,7 +67,7 @@ router.post('/check-in/:appointmentId', authenticateToken, async (req, res) => {
  *   tokenNumber: number (e.g., 101, 102)
  * }
  */
-router.post('/:tokenId/assign-token', authenticateToken, authorize(['STAFF', 'ADMIN', 'DOCTOR']), async (req, res) => {
+router.post('/:tokenId/assign-token', authMiddleware, authorize(['STAFF', 'ADMIN', 'DOCTOR']), async (req, res) => {
   try {
     const { tokenId } = req.params;
     const { tokenNumber } = req.body;
@@ -102,7 +104,7 @@ router.post('/:tokenId/assign-token', authenticateToken, authorize(['STAFF', 'AD
  * Move patient from CHECKED_IN → WAITING state
  * Staff/Admin only
  */
-router.post('/:tokenId/move-to-waiting', authenticateToken, authorize(['STAFF', 'ADMIN']), async (req, res) => {
+router.post('/:tokenId/move-to-waiting', authMiddleware, authorize(['STAFF', 'ADMIN']), async (req, res) => {
   try {
     const { tokenId } = req.params;
 
@@ -135,7 +137,7 @@ router.post('/:tokenId/move-to-waiting', authenticateToken, authorize(['STAFF', 
  *   roomNumber: string (optional, e.g., 'Room 5')
  * }
  */
-router.post('/:tokenId/call-next', authenticateToken, authorize(['DOCTOR', 'STAFF', 'ADMIN']), async (req, res) => {
+router.post('/:tokenId/call-next', authMiddleware, authorize(['DOCTOR', 'STAFF', 'ADMIN']), async (req, res) => {
   try {
     const { tokenId } = req.params;
     const { roomNumber } = req.body;
@@ -170,7 +172,7 @@ router.post('/:tokenId/call-next', authenticateToken, authorize(['DOCTOR', 'STAF
  *   consultationNotes: string (optional)
  * }
  */
-router.post('/:tokenId/complete', authenticateToken, authorize(['DOCTOR', 'STAFF', 'ADMIN']), async (req, res) => {
+router.post('/:tokenId/complete', authMiddleware, authorize(['DOCTOR', 'STAFF', 'ADMIN']), async (req, res) => {
   try {
     const { tokenId } = req.params;
     const { consultationNotes } = req.body;
@@ -200,7 +202,7 @@ router.post('/:tokenId/complete', authenticateToken, authorize(['DOCTOR', 'STAFF
  * GET /checkin/:tokenId/status
  * Get current token status and queue position
  */
-router.get('/:tokenId/status', authenticateToken, async (req, res) => {
+router.get('/:tokenId/status', authMiddleware, async (req, res) => {
   try {
     const { tokenId } = req.params;
 
@@ -231,7 +233,7 @@ router.get('/:tokenId/status', authenticateToken, async (req, res) => {
  * - status: optional filter (CHECKED_IN, TOKEN_ASSIGNED, WAITING, IN_CONSULTATION, COMPLETED)
  * - doctorId: optional filter (for doctor's patients)
  */
-router.get('/queue/:facilityId/today', authenticateToken, authorize(['DOCTOR', 'STAFF', 'ADMIN']), async (req, res) => {
+router.get('/queue/:facilityId/today', authMiddleware, authorize(['DOCTOR', 'STAFF', 'ADMIN']), async (req, res) => {
   try {
     const { facilityId } = req.params;
     const { status, doctorId } = req.query;
@@ -265,4 +267,4 @@ router.get('/queue/:facilityId/today', authenticateToken, authorize(['DOCTOR', '
   }
 });
 
-module.exports = router;
+export default router;

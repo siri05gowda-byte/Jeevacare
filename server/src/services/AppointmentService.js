@@ -41,18 +41,8 @@ class AppointmentService {
         throw new Error('Patient can only book appointments for themselves');
       }
 
-      // 2. Verify provider exists
-      const provider = await User.findById(appointmentData.providerId);
-      if (!provider) {
-        throw new Error(`Provider not found: ${appointmentData.providerId}`);
-      }
-
-      const professional = await HealthcareProfessional.findOne({ userId: provider._id });
-      if (!professional) {
-        throw new Error(`Professional profile not found for provider: ${provider._id}`);
-      }
-
-      // 3. Verify facility exists and is verified
+      // 2. Verify facility exists and is verified BEFORE checking provider
+      // This ensures facility-level authorization is enforced first
       const facility = await Hospital.findById(appointmentData.hospitalId);
       if (!facility) {
         throw new Error(`Facility not found: ${appointmentData.hospitalId}`);
@@ -62,6 +52,17 @@ class AppointmentService {
         throw new Error(
           `Facility is not verified. Status: ${facility.verificationStatus}`
         );
+      }
+
+      // 3. Verify provider exists
+      const provider = await User.findById(appointmentData.providerId);
+      if (!provider) {
+        throw new Error(`Provider not found: ${appointmentData.providerId}`);
+      }
+
+      const professional = await HealthcareProfessional.findOne({ userId: provider._id });
+      if (!professional) {
+        throw new Error(`Professional profile not found for provider: ${provider._id}`);
       }
 
       // 4. Verify provider is authorized at this facility

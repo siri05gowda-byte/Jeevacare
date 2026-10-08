@@ -13,10 +13,12 @@
  * DELETE /appointments/:appointmentId    - Cancel appointment
  */
 
-const express = require('express');
+import express from 'express';
+import AppointmentService from '../services/AppointmentService.js';
+import { authMiddleware, requireRole } from '../middleware/authentication.js';
+
 const router = express.Router();
-const AppointmentService = require('../services/AppointmentService');
-const { authenticateToken, authorize } = require('../middleware/authMiddleware');
+const { authorize } = { authorize: requireRole };
 
 /**
  * POST /appointments/book
@@ -32,7 +34,7 @@ const { authenticateToken, authorize } = require('../middleware/authMiddleware')
  *   notes: string (optional)
  * }
  */
-router.post('/book', authenticateToken, async (req, res) => {
+router.post('/book', authMiddleware, async (req, res) => {
   try {
     const { patientId, providerId, facilityId, scheduledDateTime, duration, reason, notes } =
       req.body;
@@ -80,7 +82,7 @@ router.post('/book', authenticateToken, async (req, res) => {
  * - startDate: optional ISO8601
  * - endDate: optional ISO8601
  */
-router.get('/patient/:patientId', authenticateToken, async (req, res) => {
+router.get('/patient/:patientId', authMiddleware, async (req, res) => {
   try {
     const { patientId } = req.params;
     const { status, startDate, endDate } = req.query;
@@ -119,7 +121,7 @@ router.get('/patient/:patientId', authenticateToken, async (req, res) => {
  * - startDate: optional ISO8601
  * - endDate: optional ISO8601
  */
-router.get('/doctor/:doctorId', authenticateToken, authorize(['DOCTOR', 'ADMIN']), async (req, res) => {
+router.get('/doctor/:doctorId', authMiddleware, authorize(['DOCTOR', 'ADMIN']), async (req, res) => {
   try {
     const { doctorId } = req.params;
     const { facilityId, status, startDate, endDate } = req.query;
@@ -159,7 +161,7 @@ router.get('/doctor/:doctorId', authenticateToken, authorize(['DOCTOR', 'ADMIN']
  * GET /appointments/:appointmentId
  * Get appointment details
  */
-router.get('/:appointmentId', authenticateToken, async (req, res) => {
+router.get('/:appointmentId', authMiddleware, async (req, res) => {
   try {
     const { appointmentId } = req.params;
 
@@ -189,7 +191,7 @@ router.get('/:appointmentId', authenticateToken, async (req, res) => {
  *   reason: string (optional reschedule reason)
  * }
  */
-router.patch('/:appointmentId/reschedule', authenticateToken, async (req, res) => {
+router.patch('/:appointmentId/reschedule', authMiddleware, async (req, res) => {
   try {
     const { appointmentId } = req.params;
     const { newScheduledDateTime, reason } = req.body;
@@ -232,7 +234,7 @@ router.patch('/:appointmentId/reschedule', authenticateToken, async (req, res) =
  * Query params:
  * - reason: optional cancellation reason
  */
-router.delete('/:appointmentId', authenticateToken, async (req, res) => {
+router.delete('/:appointmentId', authMiddleware, async (req, res) => {
   try {
     const { appointmentId } = req.params;
     const { reason } = req.query;
@@ -258,4 +260,4 @@ router.delete('/:appointmentId', authenticateToken, async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

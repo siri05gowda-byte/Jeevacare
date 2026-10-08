@@ -354,13 +354,14 @@ clinicalRecordSchema.pre('save', function (next) {
   if (!this.isNew) {
     // Check if this is a provider-verified record
     if (this.verificationStatus === 'provider_verified') {
-      // Allow only amendmentHistory modifications and internal fields
+      // Allow only amendmentHistory modifications, verification details, and internal fields
       const modifiedPaths = this.modifiedPaths();
       const nonAmendmentChanges = modifiedPaths.filter(path => 
         !path.startsWith('amendmentHistory') && 
+        !path.startsWith('verificationDetails') &&
         path !== '__v' && 
         path !== 'updatedAt' &&
-        path !== 'verificationStatus' // Allow status to remain unchanged
+        path !== 'verificationStatus' // Allow status to remain unchanged or transition to verified
       );
       
       if (nonAmendmentChanges.length > 0) {

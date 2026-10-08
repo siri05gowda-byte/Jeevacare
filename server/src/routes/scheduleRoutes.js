@@ -12,10 +12,12 @@
  * GET    /schedules/facility/:facilityId    - Get all doctor schedules at facility (admin only)
  */
 
-const express = require('express');
+import express from 'express';
+import ScheduleService from '../services/ScheduleService.js';
+import { authMiddleware, requireRole } from '../middleware/authentication.js';
+
 const router = express.Router();
-const ScheduleService = require('../services/ScheduleService');
-const { authenticateToken, authorize } = require('../middleware/authMiddleware');
+const { authorize } = { authorize: requireRole };
 
 /**
  * POST /schedules
@@ -37,7 +39,7 @@ const { authenticateToken, authorize } = require('../middleware/authMiddleware')
  *   speciality: string (optional)
  * }
  */
-router.post('/', authenticateToken, authorize(['DOCTOR', 'ADMIN']), async (req, res) => {
+router.post('/', authMiddleware, authorize(['DOCTOR', 'ADMIN']), async (req, res) => {
   try {
     const { doctorId, facilityId, workingDays, capacityPerDay, speciality } = req.body;
 
@@ -85,7 +87,7 @@ router.post('/', authenticateToken, authorize(['DOCTOR', 'ADMIN']), async (req, 
  * GET /schedules/doctor/:doctorId
  * Get doctor's schedule
  */
-router.get('/doctor/:doctorId', authenticateToken, async (req, res) => {
+router.get('/doctor/:doctorId', authMiddleware, async (req, res) => {
   try {
     const { doctorId } = req.params;
 
@@ -121,7 +123,7 @@ router.get('/doctor/:doctorId', authenticateToken, async (req, res) => {
  * - date: optional (specific date to check, ISO8601)
  * - dateRange: optional ('today', 'week', 'month')
  */
-router.get('/doctor/:doctorId/slots', authenticateToken, async (req, res) => {
+router.get('/doctor/:doctorId/slots', authMiddleware, async (req, res) => {
   try {
     const { doctorId } = req.params;
     const { facilityId, date, dateRange } = req.query;
@@ -181,7 +183,7 @@ router.get('/doctor/:doctorId/slots', authenticateToken, async (req, res) => {
  *   reason: string (optional, e.g., 'Leave', 'Conference')
  * }
  */
-router.post('/:scheduleId/unavailable', authenticateToken, authorize(['DOCTOR', 'ADMIN']), async (req, res) => {
+router.post('/:scheduleId/unavailable', authMiddleware, authorize(['DOCTOR', 'ADMIN']), async (req, res) => {
   try {
     const { scheduleId } = req.params;
     const { type, date, startTime, endTime, reason } = req.body;
@@ -230,7 +232,7 @@ router.post('/:scheduleId/unavailable', authenticateToken, authorize(['DOCTOR', 
  * Get all doctor schedules at a facility
  * Admin or facility staff only
  */
-router.get('/facility/:facilityId', authenticateToken, authorize(['ADMIN', 'STAFF']), async (req, res) => {
+router.get('/facility/:facilityId', authMiddleware, authorize(['ADMIN', 'STAFF']), async (req, res) => {
   try {
     const { facilityId } = req.params;
 
@@ -259,4 +261,4 @@ router.get('/facility/:facilityId', authenticateToken, authorize(['ADMIN', 'STAF
   }
 });
 
-module.exports = router;
+export default router;
