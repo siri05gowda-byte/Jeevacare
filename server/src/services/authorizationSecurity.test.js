@@ -194,13 +194,7 @@ describe('Authorization and Security Test Suite - Phase 4', () => {
   // Clear data after each test
   afterEach(async () => {
     try {
-      await User.deleteMany({});
-      await Hospital.deleteMany({});
-      await HospitalVerification.deleteMany({});
-      await HealthcareProfessional.deleteMany({});
-      await HospitalStaff.deleteMany({});
-      await Patient.deleteMany({});
-      await ProfessionalCredential.deleteMany({});
+      await clearTestDatabase();
     } catch (err) {
       console.error('AfterEach cleanup error:', err);
     }

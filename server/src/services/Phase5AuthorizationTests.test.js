@@ -175,6 +175,18 @@ describe('Phase 5 Authorization Tests', () => {
     await clearTestDatabase();
   });
 
+  // Add afterAll to cleanup connections after suite completes
+  // This ensures connection pool is cleared before next suite runs
+  afterAll(async () => {
+    try {
+      await clearTestDatabase();
+      // Don't disconnect - other suites may still need the connection
+      // But ensure the database is completely clean
+    } catch (error) {
+      console.error('Phase5AuthorizationTests cleanup error:', error);
+    }
+  });
+
   describe('Cross-Patient Isolation', () => {
     it('Patient A cannot book appointment for Patient B', async () => {
       const appointmentData = {
@@ -392,8 +404,11 @@ describe('Phase 5 Authorization Tests', () => {
         recordType: 'diagnosis',
         recordDate: new Date(),
         data: { condition: 'Hypertension', severity: 'moderate' },
-        provider_verified: true,
-        verifiedAt: new Date(),
+        verificationStatus: 'provider_verified',
+        verificationDetails: {
+          verifiedBy: doctorAtFacilityA.userId,
+          verifiedAt: new Date(),
+        },
       };
 
       const record = new ClinicalRecord(recordData);
@@ -451,7 +466,8 @@ describe('Phase 5 Authorization Tests', () => {
       );
 
       expect(result).toBeDefined();
-      expect(result.amendmentHistory).toBeDefined();
+      expect(result._id).toBeDefined();
+      expect(result.status).toBe('pending');
     });
 
     it('Only provider can accept/reject amendments', async () => {
@@ -462,7 +478,11 @@ describe('Phase 5 Authorization Tests', () => {
         recordType: 'diagnosis',
         recordDate: new Date(),
         data: { condition: 'Hypertension', severity: 'moderate' },
-        provider_verified: true,
+        verificationStatus: 'provider_verified',
+        verificationDetails: {
+          verifiedBy: doctorAtFacilityA.userId,
+          verifiedAt: new Date(),
+        },
       };
 
       const record = new ClinicalRecord(recordData);
@@ -487,7 +507,7 @@ describe('Phase 5 Authorization Tests', () => {
         patientUser
       );
 
-      const amendmentId = result.amendmentHistory[0]._id;
+      const correctionRequestId = result._id;
 
       // Another patient tries to accept amendment (should fail)
       const unauthorizedUser = {
@@ -498,9 +518,8 @@ describe('Phase 5 Authorization Tests', () => {
 
       await expect(
         ClinicalRecordService.acceptCorrection(
-          record._id.toString(),
-          amendmentId.toString(),
-          { amendedData: { severity: 'mild' } },
+          correctionRequestId.toString(),
+          'Accepting correction as unauthorized user',
           unauthorizedUser
         )
       ).rejects.toThrow(/Not authorized|not authorized/i);

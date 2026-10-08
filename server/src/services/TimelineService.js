@@ -53,8 +53,8 @@ class TimelineService {
       if (patientDoc.userId?.toString() !== requestingUserId) {
         throw new Error(`Patients can only view their own timeline`);
       }
-    } else if (requestingUser.role === 'SYSTEM_ADMIN') {
-      // System admins have unrestricted access
+    } else if (requestingUser.role === 'SYSTEM_ADMIN' || requestingUser.role === 'HOSPITAL_ADMIN') {
+      // System admins and hospital admins have unrestricted access to patient timelines
       // No additional authorization checks needed
     } else {
       // Healthcare professional - check authorization through ClinicalAuthorizationBoundary

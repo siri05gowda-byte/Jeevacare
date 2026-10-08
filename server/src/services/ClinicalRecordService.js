@@ -229,6 +229,25 @@ class ClinicalRecordService {
         throw new Error('Original clinical record not found');
       }
 
+      // Authorization: Only the original provider or authorized healthcare professionals can accept corrections
+      if (requestingUser.role === 'PATIENT') {
+        throw new Error('Not authorized to accept corrections. Only healthcare providers can accept corrections.');
+      }
+
+      // For non-patient roles, verify they're authorized at the facility
+      if (!['SYSTEM_ADMIN', 'HOSPITAL_ADMIN'].includes(requestingUser.role)) {
+        // Check if provider is authorized at this facility
+        const { authorized } = await ClinicalAuthorizationBoundary.canCreateOfficialClinicalRecord(
+          requestingUser._id,
+          originalRecord.hospitalId,
+          originalRecord.patientId
+        );
+
+        if (!authorized) {
+          throw new Error('Not authorized to accept corrections at this facility');
+        }
+      }
+
       // Create amended record
       const amendedRecord = new ClinicalRecord({
         patientId: originalRecord.patientId,
@@ -269,12 +288,12 @@ class ClinicalRecordService {
       await correctionRequest.save();
 
       // Update original record
-      originalRecord.correctionRequest.status = 'amendment_created';
+      originalRecord.correctionRequest.status = 'accepted';
       await originalRecord.save();
 
       // Audit event
       await AuditService.logEvent({
-        action: 'correction_accepted_amendment_created',
+        action: 'correction_accepted',
         actor: requestingUser._id,
         actorRole: requestingUser.role,
         resource: amendedRecord._id,

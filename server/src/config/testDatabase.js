@@ -52,6 +52,14 @@ export const connectTestDatabase = async () => {
     await mongoose.connect(testUri, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
+      readPreference: 'primary',  // Always read from primary during tests
+      maxPoolSize: 10,
+      minPoolSize: 2,
+      maxIdleTimeMS: 30000,
+      waitQueueTimeoutMS: 10000,
+      // Apply write concern at connection level
+      writeConcern: { w: "majority", wtimeout: 10000 },
+      readConcern: { level: "majority" }
     });
 
     logger.info('✓ Test database connected (MongoDB Atlas jeevacare-test)');
@@ -67,8 +75,11 @@ export const connectTestDatabase = async () => {
  */
 export const disconnectTestDatabase = async () => {
   try {
-    await mongoose.disconnect();
-    logger.info('✓ Test database disconnected');
+    // Close all connections to clear connection pool state
+    if (mongoose.connection) {
+      await mongoose.connection.close();
+      logger.info('✓ Test database disconnected and connection pool cleared');
+    }
   } catch (error) {
     logger.error(`Failed to disconnect test database: ${error.message}`);
     throw error;
@@ -78,32 +89,59 @@ export const disconnectTestDatabase = async () => {
 /**
  * Clear all test data
  * Deletes all documents from all collections
- * Uses proper serialization to avoid race conditions
+ * Uses proper serialization and write concern to ensure MongoDB Atlas consistency
  */
 export const clearTestDatabase = async () => {
   try {
     const collections = mongoose.connection.collections;
     const collectionNames = Object.keys(collections);
     
-    // Clear collections serially to avoid race conditions
+    // Clear collections serially with majority write concern for Atlas consistency
     for (const key of collectionNames) {
       const collection = collections[key];
       try {
-        // Use deleteMany with explicit write concern for durability
-        await collection.deleteMany({}, { writeConcern: { w: 1, wtimeout: 5000 } });
+        // Use w: "majority" to ensure deletion is replicated across MongoDB Atlas replica set
+        // This prevents race conditions where secondary replicas retain stale data
+        await collection.deleteMany({}, { 
+          writeConcern: { w: "majority", wtimeout: 10000 },
+          maxTimeMS: 15000
+        });
       } catch (deleteError) {
-        // Log individual collection errors but continue with others
         logger.warn(`Failed to clear collection ${key}: ${deleteError.message}`);
       }
     }
     
-    // Wait for MongoDB Atlas to propagate deletes and ensure clean state
-    // This is crucial for shared database replication
-    await new Promise(resolve => setTimeout(resolve, 200));
+    // Additional confirmation wait for full propagation
+    await new Promise(resolve => setTimeout(resolve, 100));
     
-    logger.info('✓ Test database cleared');
+    logger.info('✓ Test database cleared (with majority write concern)');
   } catch (error) {
     logger.error(`Failed to clear test database: ${error.message}`);
+    throw error;
+  }
+};
+
+/**
+ * Verify all collections are empty
+ * Ensures cleanup completed before test starts
+ */
+export const verifyTestDatabaseEmpty = async () => {
+  try {
+    const collections = mongoose.connection.collections;
+    
+    for (const key of Object.keys(collections)) {
+      const collection = collections[key];
+      const count = await collection.countDocuments();
+      if (count > 0) {
+        logger.warn(`Collection ${key} still has ${count} documents before test started`);
+        // Force additional cleanup if needed
+        await collection.deleteMany({}, { writeConcern: { w: "majority", wtimeout: 10000 } });
+      }
+    }
+    
+    logger.info('✓ Test database verified empty');
+  } catch (error) {
+    logger.error(`Failed to verify empty test database: ${error.message}`);
     throw error;
   }
 };
@@ -131,4 +169,6 @@ export default {
   connectTestDatabase,
   disconnectTestDatabase,
   clearTestDatabase,
+  verifyTestDatabaseEmpty,
+  verifyFixturePersistence,
 };

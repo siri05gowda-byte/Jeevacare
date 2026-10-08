@@ -7,7 +7,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint src/",
-    "test": "vitest"
+    "test": "vitest run"
   },
   "dependencies": {
     "react": "^18.2.0",

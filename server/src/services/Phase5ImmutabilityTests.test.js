@@ -111,6 +111,15 @@ describe('Phase 5 Immutability Tests', () => {
     await clearTestDatabase();
   });
 
+  // Add afterAll to cleanup
+  afterAll(async () => {
+    try {
+      await clearTestDatabase();
+    } catch (error) {
+      console.error('Phase5ImmutabilityTests cleanup error:', error);
+    }
+  });
+
   describe('Unverified Records - Before Verification', () => {
     it('Provider CAN edit unverified clinical record before verification', async () => {
       const recordData = {

@@ -58,7 +58,6 @@ describe('Phase 5 End-to-End Patient Journey Test', () => {
       
       await clearTestDatabase();
 
-      // Create facility
       facility = new Hospital({
         facilityId: `E2E_FAC_${Date.now()}`,
         name: 'E2E Test Hospital',
@@ -206,7 +205,17 @@ describe('Phase 5 End-to-End Patient Journey Test', () => {
   });
 
   afterEach(async () => {
+    // Always clear between tests
     await clearTestDatabase();
+  });
+
+  // Add afterAll to cleanup
+  afterAll(async () => {
+    try {
+      await clearTestDatabase();
+    } catch (error) {
+      console.error('Phase5EndToEndTests cleanup error:', error);
+    }
   });
 
   it('Full patient journey: appointment → check-in → encounter → record → timeline', async () => {
