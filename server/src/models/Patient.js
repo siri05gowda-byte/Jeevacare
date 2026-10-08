@@ -70,6 +70,35 @@ const patientSchema = new mongoose.Schema(
       },
     },
 
+    // Blood Group - with source tracking and verification status
+    bloodGroup: {
+      group: {
+        type: String,
+        enum: ['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'Unknown'],
+      },
+      source: {
+        type: String,
+        enum: ['patient_reported', 'provider_verified', 'birth_record', 'lab_test', 'unknown'],
+        default: 'patient_reported',
+      },
+      verificationStatus: {
+        type: String,
+        enum: ['unverified', 'pending_review', 'verified', 'conflicting', 'restricted'],
+        default: 'unverified',
+      },
+      recordedAt: Date,
+      recordedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+      verifiedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+      verifiedAt: Date,
+      notes: String,
+    },
+
     // Identity Verification
     identityVerification: {
       status: {
@@ -129,6 +158,20 @@ const patientSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'EmergencyProfile',
     },
+
+    // Facilities where patient is registered
+    facilities: [
+      {
+        facilityId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Hospital',
+        },
+        registeredAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
 
     // Audit Information
     createdBy: {
@@ -203,5 +246,6 @@ patientSchema.pre('save', async function (next) {
   next();
 });
 
-const Patient = mongoose.model('Patient', patientSchema);
+const Patient = mongoose.models.Patient || mongoose.model('Patient', patientSchema);
 export default Patient;
+

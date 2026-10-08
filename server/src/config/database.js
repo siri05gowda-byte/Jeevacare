@@ -6,6 +6,12 @@ const connectDatabase = async () => {
   try {
     logger.info('Connecting to MongoDB...');
     
+    // Skip if already connected
+    if (mongoose.connection.readyState === 1) {
+      logger.info(`✓ Already connected to MongoDB: ${config.database.uri}`);
+      return mongoose.connection;
+    }
+
     await mongoose.connect(config.database.uri, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
@@ -15,7 +21,11 @@ const connectDatabase = async () => {
     return mongoose.connection;
   } catch (error) {
     logger.error(`MongoDB connection error: ${error.message}`);
-    process.exit(1);
+    // Only exit if not in test environment
+    if (process.env.NODE_ENV !== 'test') {
+      process.exit(1);
+    }
+    throw error;
   }
 };
 
@@ -25,7 +35,11 @@ const disconnectDatabase = async () => {
     logger.info('MongoDB disconnected');
   } catch (error) {
     logger.error(`MongoDB disconnection error: ${error.message}`);
-    process.exit(1);
+    // Only exit if not in test environment
+    if (process.env.NODE_ENV !== 'test') {
+      process.exit(1);
+    }
+    throw error;
   }
 };
 

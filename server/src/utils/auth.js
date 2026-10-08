@@ -1,5 +1,19 @@
 import jwt from 'jsonwebtoken';
+import bcryptjs from 'bcryptjs';
 import config from '../config/index.js';
+
+/**
+ * Hash a password using bcryptjs
+ * Used for test fixtures and manual password hashing
+ */
+export const hashPassword = async (password) => {
+  try {
+    const salt = await bcryptjs.genSalt(10);
+    return await bcryptjs.hash(password, salt);
+  } catch (error) {
+    throw new Error(`Password hashing failed: ${error.message}`);
+  }
+};
 
 /**
  * Generate JWT token

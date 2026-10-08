@@ -1,108 +1,142 @@
+/**
+ * Hospital/Facility Model
+ * Represents a healthcare facility with unique JeevaCare Facility ID
+ * Independent of government registration numbers
+ */
+
 import mongoose from 'mongoose';
+import { generateFacilityId } from '../utils/facilityIdGenerator.js';
 
 const hospitalSchema = new mongoose.Schema(
   {
+    // Unique JeevaCare Facility ID (different from gov registration)
+    facilityId: {
+      type: String,
+      unique: true,
+      sparse: true,
+      required: true,
+      index: true,
+    },
+
+    // Facility Information
     name: {
       type: String,
       required: true,
-      unique: true,
-      trim: true,
-    },
-
-    registrationNumber: {
-      type: String,
-      required: true,
-      unique: true,
+      index: true,
     },
 
     facilityType: {
       type: String,
-      enum: ['general', 'specialty', 'diagnostic', 'pharmacy', 'laboratory', 'clinic', 'nursing_home'],
-      required: true,
+      enum: [
+        'general_hospital',
+        'specialty_hospital',
+        'clinic',
+        'diagnostic_center',
+        'nursing_home',
+        'primary_health_center',
+        'community_health_center',
+        'other',
+      ],
+      default: 'general_hospital',
     },
 
-    contactInformation: {
-      phone: String,
-      email: {
-        type: String,
-        lowercase: true,
-      },
-      website: String,
-    },
-
+    // Address Information
     address: {
       street: String,
       city: String,
       state: String,
-      zipCode: String,
       country: String,
-      coordinates: {
-        type: {
-          type: String,
-          enum: ['Point'],
-          default: 'Point',
-        },
-        coordinates: [Number], // [longitude, latitude]
-      },
+      zipCode: String,
     },
 
+    // Contact Information
+    contactInfo: {
+      phone: String,
+      email: String,
+      website: String,
+      emergencyContact: String,
+    },
+
+    // Government Registration / Licensing
+    registration: {
+      registrationNumber: {
+        type: String,
+        unique: true,
+        sparse: true,
+      },
+      registrationType: {
+        type: String,
+        enum: ['state_registration', 'national_registration', 'private_registration', 'other'],
+      },
+      issuingAuthority: String,
+      issueDate: Date,
+      expiryDate: Date,
+      licenseNumber: String,
+      documentUrl: String,
+    },
+
+    // Departments/Specialties
     departments: [
       {
         name: String,
         head: {
           type: mongoose.Schema.Types.ObjectId,
-          ref: 'User',
+          ref: 'HealthcareProfessional',
         },
+        description: String,
       },
     ],
 
-    verificationStatus: {
-      status: {
-        type: String,
-        enum: ['pending', 'verified', 'rejected', 'suspended'],
-        default: 'pending',
-      },
-      verifiedBy: {
+    // Facility Administrator(s)
+    administrators: [
+      {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
+        index: true,
       },
-      verifiedAt: Date,
-      verificationNotes: String,
-      suspensionReason: String,
+    ],
+
+    // Verification Status
+    verificationStatus: {
+      type: String,
+      enum: ['pending', 'verified', 'suspended', 'rejected'],
+      default: 'pending',
+      index: true,
+    },
+
+    // Verification Details
+    verification: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'HospitalVerification',
+    },
+
+    // Facility Status
+    status: {
+      type: String,
+      enum: ['active', 'suspended', 'rejected', 'closed'],
+      default: 'active',
+      index: true,
+    },
+
+    // Suspension/Rejection Details
+    suspensionDetails: {
+      reason: String,
       suspendedAt: Date,
       suspendedBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
       },
+      resumeDate: Date,
     },
 
-    // Administrative Access
-    administratorUser: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
-    },
-
-    staff: [
-      {
-        userId: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: 'User',
-        },
-        role: {
-          type: String,
-          enum: ['DOCTOR', 'NURSE', 'LAB_TECHNICIAN', 'RADIOLOGY_TECHNICIAN', 
-                 'PHARMACIST', 'RECEPTION_STAFF', 'HOSPITAL_ADMIN'],
-        },
-        department: String,
-        joinedAt: Date,
-        status: {
-          type: String,
-          enum: ['active', 'inactive', 'suspended'],
-          default: 'active',
-        },
+    rejectionDetails: {
+      reason: String,
+      rejectedAt: Date,
+      rejectedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
       },
-    ],
+    },
 
     // Operational Information
     operationalHours: {
@@ -115,81 +149,65 @@ const hospitalSchema = new mongoose.Schema(
       sunday: { open: String, close: String },
     },
 
-    emergencyServicesAvailable: {
-      type: Boolean,
-      default: false,
+    // Capacity Information
+    capacity: {
+      beds: Number,
+      operatingTheatres: Number,
+      icuBeds: Number,
     },
 
-    icuBeds: Number,
-    totalBeds: Number,
+    // Services Offered
+    services: [String], // e.g., emergency, pediatrics, cardiology, etc.
 
-    // Accreditations and Certifications
-    accreditations: [
-      {
-        name: String,
-        issueDate: Date,
-        expiryDate: Date,
-        certificateUrl: String,
-      },
-    ],
-
-    // Integration Configuration
-    integrations: {
-      labSystem: {
-        enabled: Boolean,
-        provider: String,
-        credentials: {
-          apiKey: String,
-          endpoint: String,
-        },
-      },
-      radiologySystem: {
-        enabled: Boolean,
-        provider: String,
-        credentials: {
-          apiKey: String,
-          endpoint: String,
-        },
-      },
-      pharmacySystem: {
-        enabled: Boolean,
-        provider: String,
-      },
+    // Staff Information
+    staffCount: {
+      doctors: { type: Number, default: 0 },
+      nurses: { type: Number, default: 0 },
+      paramedicStaff: { type: Number, default: 0 },
+      administrativeStaff: { type: Number, default: 0 },
     },
 
-    status: {
-      type: String,
-      enum: ['active', 'inactive', 'suspended', 'deleted'],
-      default: 'active',
+    // Audit Information
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
     },
 
-    settings: {
-      appointmentDurationMinutes: {
-        type: Number,
-        default: 30,
-      },
-      maxDailyAppointmentsPerDoctor: {
-        type: Number,
-        default: 20,
-      },
-      allowPatientUploadDocuments: {
-        type: Boolean,
-        default: true,
-      },
+    lastModifiedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
     },
+
+    // Additional Metadata
+    notes: String,
+    metadata: mongoose.Schema.Types.Mixed,
   },
   {
     timestamps: true,
     indexes: [
+      { facilityId: 1 },
       { name: 1 },
-      { registrationNumber: 1 },
-      { 'verificationStatus.status': 1 },
-      { administratorUser: 1 },
-      { 'address.coordinates': '2dsphere' },
       { status: 1 },
+      { verificationStatus: 1 },
+      { 'address.city': 1 },
+      { administrators: 1 },
+      { createdAt: -1 },
     ],
   }
 );
 
-const Hospital = mongoose.model('Hospital', hospitalSchema);
+// Generate Facility ID before saving
+hospitalSchema.pre('save', async function (next) {
+  if (!this.facilityId) {
+    try {
+      this.facilityId = await generateFacilityId();
+    } catch (error) {
+      return next(error);
+    }
+  }
+  next();
+});
+
+const Hospital = mongoose.models.Hospital || mongoose.model('Hospital', hospitalSchema);
 export default Hospital;
+

@@ -196,7 +196,77 @@ const clinicalRecordSchema = new mongoose.Schema(
       followUpRequired: Boolean,
     },
 
-    // Verification details
+    // ===== PHASE 4 PROVIDER VERIFICATION TRACKING =====
+    // Comprehensive provider verification and attribution
+    providerVerification: {
+      // Professional who created this record
+      professionalId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'HealthcareProfessional',
+        index: true,
+      },
+      professionalIdString: String, // Denormalized: HP-YYMMDD-XXXXX for quick reference
+
+      // Professional details at time of creation (for historical accuracy)
+      professionalName: String,
+      professionalType: String, // doctor, nurse, etc.
+      professionalLicense: String, // License number if applicable
+
+      // Facility where record was created
+      facilityId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Hospital',
+        index: true,
+      },
+      facilityIdString: String, // Denormalized: FH-YYMMDD-XXXXX
+      facilityName: String,
+
+      // Staff association at time of creation
+      staffAssociationId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'HospitalStaff',
+      },
+      staffRole: String, // doctor, nurse, etc. (at facility)
+
+      // Authorization verification
+      authorizationVerifiedAt: Date,
+      authorizationDetails: {
+        userVerified: Boolean,
+        professionalVerified: Boolean,
+        facilityVerified: Boolean,
+        staffAssociationActive: Boolean,
+        roleAuthorized: Boolean,
+        permissionGranted: Boolean,
+        credentialsValid: Boolean,
+        patientAccessible: Boolean,
+        allChecksPassed: Boolean,
+      },
+
+      // Credentials at time of creation
+      validCredentials: [
+        {
+          credentialId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'ProfessionalCredential',
+          },
+          credentialType: String,
+          credentialName: String,
+          credentialNumber: String,
+          expiryDate: Date,
+          status: String,
+        },
+      ],
+
+      // Digital signature/attribution
+      createdAt: Date, // Record creation timestamp
+      createdByUserId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        index: true,
+      },
+    },
+
+    // Traditional verification (for reviewing/verifying provider-created records)
     verificationDetails: {
       verifiedBy: {
         type: mongoose.Schema.Types.ObjectId,
@@ -266,11 +336,42 @@ const clinicalRecordSchema = new mongoose.Schema(
       { 'data.icdCode': 1 },
       { 'data.allergen': 1 },
       { createdAt: -1 },
+      // Phase 4 provider verification indexes
+      { 'providerVerification.professionalId': 1 },
+      { 'providerVerification.facilityId': 1 },
+      { 'providerVerification.staffAssociationId': 1 },
+      { 'providerVerification.createdByUserId': 1 },
+      { 'providerVerification.professionalIdString': 1 },
+      { 'providerVerification.facilityIdString': 1 },
     ],
   }
 );
 
 // Prevent direct modification of provider-verified records (use amendments instead)
+// Pre-save hook for document.save()
+clinicalRecordSchema.pre('save', function (next) {
+  // Only enforce on updates (not initial creation)
+  if (!this.isNew) {
+    // Check if this is a provider-verified record
+    if (this.verificationStatus === 'provider_verified') {
+      // Allow only amendmentHistory modifications and internal fields
+      const modifiedPaths = this.modifiedPaths();
+      const nonAmendmentChanges = modifiedPaths.filter(path => 
+        !path.startsWith('amendmentHistory') && 
+        path !== '__v' && 
+        path !== 'updatedAt' &&
+        path !== 'verificationStatus' // Allow status to remain unchanged
+      );
+      
+      if (nonAmendmentChanges.length > 0) {
+        return next(new Error('Provider-verified clinical records are immutable. Use amendment workflow instead.'));
+      }
+    }
+  }
+  next();
+});
+
+// Pre-update hooks for query-based updates
 clinicalRecordSchema.pre('findByIdAndUpdate', async function (next) {
   const docToUpdate = await this.model.findOne(this.getFilter());
 
@@ -278,12 +379,90 @@ clinicalRecordSchema.pre('findByIdAndUpdate', async function (next) {
     const update = this.getUpdate();
 
     if (update.$set && Object.keys(update.$set).some((key) => key !== '_id' && key !== 'amendmentHistory')) {
-      throw new Error('Cannot directly modify provider-verified clinical records. Use amendment workflow instead.');
+      throw new Error('Provider-verified clinical records are immutable. Use amendment workflow instead.');
     }
   }
 
   next();
 });
 
-const ClinicalRecord = mongoose.model('ClinicalRecord', clinicalRecordSchema);
+clinicalRecordSchema.pre('findOneAndUpdate', async function (next) {
+  const docToUpdate = await this.model.findOne(this.getFilter());
+
+  if (docToUpdate && docToUpdate.verificationStatus === 'provider_verified') {
+    const update = this.getUpdate();
+
+    if (update.$set && Object.keys(update.$set).some((key) => key !== '_id' && key !== 'amendmentHistory')) {
+      throw new Error('Provider-verified clinical records are immutable. Use amendment workflow instead.');
+    }
+  }
+
+  next();
+});
+
+clinicalRecordSchema.pre('updateOne', async function (next) {
+  const docToUpdate = await this.model.findOne(this.getFilter());
+
+  if (docToUpdate && docToUpdate.verificationStatus === 'provider_verified') {
+    throw new Error('Provider-verified clinical records are immutable. Use amendment workflow instead.');
+  }
+
+  next();
+});
+
+clinicalRecordSchema.pre('updateMany', async function (next) {
+  const docsToUpdate = await this.model.find(this.getFilter());
+  const hasVerified = docsToUpdate.some(doc => doc.verificationStatus === 'provider_verified');
+
+  if (hasVerified) {
+    throw new Error('Provider-verified clinical records are immutable. Use amendment workflow instead.');
+  }
+
+  next();
+});
+
+// Prevent deletion of provider-verified records
+clinicalRecordSchema.pre('findOneAndDelete', async function (next) {
+  const docToDelete = await this.model.findOne(this.getFilter());
+
+  if (docToDelete && docToDelete.verificationStatus === 'provider_verified') {
+    throw new Error('Provider-verified clinical records cannot be deleted. Use amendment workflow to mark as restricted.');
+  }
+
+  next();
+});
+
+clinicalRecordSchema.pre('findByIdAndDelete', async function (next) {
+  const docToDelete = await this.model.findOne(this.getFilter());
+
+  if (docToDelete && docToDelete.verificationStatus === 'provider_verified') {
+    throw new Error('Provider-verified clinical records cannot be deleted. Use amendment workflow to mark as restricted.');
+  }
+
+  next();
+});
+
+clinicalRecordSchema.pre('deleteOne', async function (next) {
+  const docToDelete = await this.model.findOne(this.getFilter());
+
+  if (docToDelete && docToDelete.verificationStatus === 'provider_verified') {
+    throw new Error('Provider-verified clinical records cannot be deleted. Use amendment workflow to mark as restricted.');
+  }
+
+  next();
+});
+
+clinicalRecordSchema.pre('deleteMany', async function (next) {
+  const docsToDelete = await this.model.find(this.getFilter());
+  const hasVerified = docsToDelete.some(doc => doc.verificationStatus === 'provider_verified');
+
+  if (hasVerified) {
+    throw new Error('Provider-verified clinical records cannot be deleted. Use amendment workflow to mark as restricted.');
+  }
+
+  next();
+});
+
+const ClinicalRecord = mongoose.models.ClinicalRecord || mongoose.model('ClinicalRecord', clinicalRecordSchema);
 export default ClinicalRecord;
+

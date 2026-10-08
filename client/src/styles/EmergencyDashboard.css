@@ -1,0 +1,587 @@
+/**
+ * Emergency Dashboard Styles
+ * Red/Amber/Green visual hierarchy for quick comprehension
+ * Optimized for desktop, tablet, and mobile
+ */
+
+.emergency-dashboard-container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 20px;
+  background: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+}
+
+.emergency-dashboard-container.loading,
+.emergency-dashboard-container.error {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+}
+
+.loading-spinner {
+  font-size: 18px;
+  color: #666;
+  text-align: center;
+}
+
+.error-alert {
+  background: #fee;
+  border: 2px solid #c33;
+  border-radius: 8px;
+  padding: 30px;
+  text-align: center;
+}
+
+.error-icon {
+  font-size: 48px;
+  margin-bottom: 15px;
+}
+
+.error-message {
+  font-size: 16px;
+  color: #c33;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+/* ==================== HEADER ==================== */
+
+.emergency-header {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border: 2px solid #dee2e6;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 25px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.header-primary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.patient-identity {
+  flex: 1;
+}
+
+.patient-name {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 8px;
+}
+
+.patient-id {
+  font-size: 16px;
+  color: #666;
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.patient-age {
+  font-size: 14px;
+  color: #999;
+}
+
+.verification-status {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.status-badge {
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-badge.verified {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.status-badge.unverified {
+  background: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeaa7;
+}
+
+/* Access Info in Header */
+.header-access-info {
+  background: rgba(255, 255, 255, 0.8);
+  border-left: 4px solid #0066cc;
+  padding: 15px;
+  border-radius: 4px;
+}
+
+.access-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+}
+
+.access-time,
+.access-reason {
+  display: flex;
+  flex-direction: column;
+}
+
+.access-time .label,
+.access-reason .label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.access-time .time {
+  font-size: 20px;
+  font-weight: 700;
+  color: #0066cc;
+  font-family: 'Courier New', monospace;
+}
+
+.access-time .time.expired {
+  color: #dc3545;
+}
+
+.access-reason span:last-child {
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+}
+
+/* ==================== SECTIONS ==================== */
+
+.section {
+  margin-bottom: 20px;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.section-header {
+  padding: 16px 20px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  user-select: none;
+  transition: all 0.2s ease;
+}
+
+.section-header:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+}
+
+.section-header.critical {
+  background: #ffebee;
+  color: #c62828;
+  border-bottom: 3px solid #d32f2f;
+}
+
+.section-header.critical:hover {
+  background: #ffcdd2;
+}
+
+.expand-icon {
+  font-size: 12px;
+  color: inherit;
+}
+
+.section-content {
+  background: #fff;
+  padding: 20px;
+}
+
+/* ==================== CRITICAL ALERTS ==================== */
+
+.critical-section .alert-block {
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #eee;
+}
+
+.critical-section .alert-block:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
+.block-title {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #333;
+  margin-bottom: 12px;
+  letter-spacing: 0.5px;
+}
+
+.alert-items {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.alert-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 12px;
+  border-radius: 6px;
+  border-left: 4px solid #ccc;
+  background: #f8f9fa;
+  gap: 12px;
+}
+
+.alert-item.severity-life-threatening {
+  background: #ffe5e5;
+  border-left-color: #d32f2f;
+}
+
+.alert-item.severity-severe {
+  background: #fff3e0;
+  border-left-color: #f57c00;
+}
+
+.alert-item.severity-moderate {
+  background: #fffde7;
+  border-left-color: #fbc02d;
+}
+
+.alert-item.severity-mild {
+  background: #e8f5e9;
+  border-left-color: #388e3c;
+}
+
+.alert-content {
+  flex: 1;
+}
+
+.allergen,
+.condition,
+.medication {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 4px;
+}
+
+.severity,
+.reaction,
+.dosage,
+.frequency {
+  font-size: 13px;
+  color: #666;
+  margin: 2px 0;
+}
+
+.source-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  white-space: nowrap;
+  background: #f0f0f0;
+  color: #333;
+}
+
+.source-badge.provider_verified {
+  background: #d4edda;
+  color: #155724;
+}
+
+.source-badge.patient_reported {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.source-badge.verified {
+  background: #d4edda;
+  color: #155724;
+}
+
+.source-badge.unverified {
+  background: #f8f9fa;
+  color: #666;
+}
+
+/* Blood Group Display */
+.blood-group-display {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 6px;
+}
+
+.blood-type {
+  font-size: 32px;
+  font-weight: 700;
+  color: #d32f2f;
+  min-width: 60px;
+  text-align: center;
+}
+
+/* No Alerts Message */
+.no-alerts {
+  padding: 20px;
+  text-align: center;
+  color: #999;
+  font-size: 14px;
+  background: #f8f9fa;
+  border-radius: 6px;
+}
+
+/* ==================== HISTORY SECTION ==================== */
+
+.history-section .section-header {
+  background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+  border-bottom: 2px solid #90caf9;
+  color: #1565c0;
+}
+
+.history-block {
+  margin-bottom: 18px;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border-left: 4px solid #90caf9;
+}
+
+.history-block.verified {
+  background: #e8f5e9;
+  border-left-color: #66bb6a;
+}
+
+.history-block h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.history-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.history-item {
+  padding: 10px;
+  background: #fff;
+  border-radius: 4px;
+  border-left: 3px solid #2196f3;
+}
+
+.surgery-name {
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 4px;
+}
+
+.surgery-date {
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 4px;
+}
+
+.complications {
+  font-size: 13px;
+  color: #d32f2f;
+}
+
+.notes {
+  font-size: 14px;
+  color: #333;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ==================== ACCESS INFO ==================== */
+
+.access-info-section .section-header {
+  background: #f5f5f5;
+  color: #333;
+  border-bottom: 1px solid #ddd;
+}
+
+.access-metadata {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+  padding: 15px 20px;
+  background: #fafafa;
+}
+
+.metadata-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.metadata-item .label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.metadata-item .value {
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+}
+
+/* ==================== ACTIONS ==================== */
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 25px;
+  padding-top: 20px;
+  border-top: 1px solid #eee;
+}
+
+.btn-secondary {
+  padding: 10px 20px;
+  background: #f0f0f0;
+  color: #333;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+  background: #e0e0e0;
+  border-color: #999;
+}
+
+/* ==================== RESPONSIVE ==================== */
+
+@media (max-width: 768px) {
+  .emergency-dashboard-container {
+    padding: 15px;
+  }
+
+  .emergency-header {
+    grid-template-columns: 1fr;
+    padding: 15px;
+  }
+
+  .header-access-info {
+    padding: 12px;
+  }
+
+  .access-details {
+    grid-template-columns: 1fr;
+  }
+
+  .patient-name {
+    font-size: 22px;
+  }
+
+  .patient-id,
+  .patient-age {
+    font-size: 13px;
+  }
+
+  .alert-item {
+    flex-direction: column;
+  }
+
+  .source-badge {
+    align-self: flex-start;
+  }
+
+  .access-metadata {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .emergency-dashboard-container {
+    padding: 10px;
+  }
+
+  .section-header {
+    padding: 12px 15px;
+  }
+
+  .section-content {
+    padding: 15px;
+  }
+
+  .patient-name {
+    font-size: 18px;
+  }
+
+  .alert-item {
+    padding: 10px;
+  }
+
+  .blood-type {
+    font-size: 24px;
+    min-width: 50px;
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+
+  .btn-secondary {
+    width: 100%;
+  }
+}
+
+/* ==================== PRINT STYLES ==================== */
+
+@media print {
+  .emergency-dashboard-container {
+    box-shadow: none;
+    padding: 0;
+  }
+
+  .section-header {
+    background: #f0f0f0 !important;
+    page-break-inside: avoid;
+  }
+
+  .section-content {
+    page-break-inside: avoid;
+  }
+
+  .actions {
+    display: none;
+  }
+}

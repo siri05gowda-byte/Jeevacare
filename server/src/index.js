@@ -45,6 +45,18 @@ app.get('/health', (req, res) => {
 // API Routes
 app.use('/api/v1/auth', (await import('./routes/authRoutes.js')).default);
 app.use('/api/v1/health', (await import('./routes/healthRoutes.js')).default);
+app.use('/api/v1/patients', (await import('./routes/patientRoutes.js')).default);
+app.use('/api/v1/newborn', (await import('./routes/newbornRoutes.js')).default);
+app.use('/api/v1/guardians', (await import('./routes/guardianRoutes.js')).default);
+app.use('/api/v1/emergency', (await import('./routes/emergencyRoutes.js')).default);
+
+// Phase 5 Clinical Core Routes
+app.use('/api/v1/appointments', (await import('./routes/appointmentRoutes.js')).default);
+app.use('/api/v1/schedules', (await import('./routes/scheduleRoutes.js')).default);
+app.use('/api/v1/checkin', (await import('./routes/checkInRoutes.js')).default);
+app.use('/api/v1/encounters', (await import('./routes/encounterRoutes.js')).default);
+app.use('/api/v1/records', (await import('./routes/clinicalRecordRoutes.js')).default);
+app.use('/api/v1/timeline', (await import('./routes/timelineRoutes.js')).default);
 
 // 404 Not Found handler (must be after all routes)
 app.use(notFoundHandler);
@@ -55,8 +67,10 @@ app.use(errorHandler);
 // Database connection and server startup
 const startServer = async () => {
   try {
-    // Connect to MongoDB
-    await connectDatabase();
+    // Connect to MongoDB (only in production/development mode)
+    if (process.env.NODE_ENV !== 'test') {
+      await connectDatabase();
+    }
 
     // Start server
     app.listen(config.port, () => {
@@ -66,7 +80,11 @@ const startServer = async () => {
     });
   } catch (error) {
     logger.error(`Failed to start server: ${error.message}`);
-    process.exit(1);
+    // Only exit if not in test environment
+    if (process.env.NODE_ENV !== 'test') {
+      process.exit(1);
+    }
+    throw error;
   }
 };
 
@@ -81,7 +99,10 @@ process.on('SIGTERM', () => {
   process.exit(0);
 });
 
-// Start the server
-startServer();
+// Only start server if not in test mode
+if (process.env.NODE_ENV !== 'test') {
+  startServer();
+}
 
+// Export app for testing
 export default app;

@@ -32,7 +32,7 @@ describe('JeevaId Generator', () => {
   it('should extract year from JeevaId', () => {
     const jeevaId = 'JJ25-ABC12';
     const year = extractYearFromJeevaId(jeevaId);
-    expect(year).toBe('202025');
+    expect(year).toBe('2025');
   });
 
   it('should return null for invalid JeevaId when extracting year', () => {

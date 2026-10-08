@@ -1,0 +1,633 @@
+/**
+ * Professional Dashboard Page CSS
+ * Healthcare professional workspace
+ */
+
+.professional-dashboard-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+/* Header */
+.dashboard-header {
+  background: linear-gradient(135deg, #4CAF50 0%, #388E3C 100%);
+  color: white;
+  padding: 40px 20px;
+  border-radius: 8px;
+  margin-bottom: 30px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.dashboard-header h1 {
+  margin: 0 0 10px 0;
+  font-size: 28px;
+}
+
+.dashboard-header p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+}
+
+/* Error Alert */
+.error-alert {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background-color: #fee;
+  border: 1px solid #fcc;
+  border-radius: 8px;
+  color: #c33;
+  margin-bottom: 20px;
+}
+
+.error-alert .close-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: inherit;
+}
+
+/* Loading State */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  color: #666;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f0f0f0;
+  border-top: 4px solid #4CAF50;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Empty State */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  text-align: center;
+  background: #f5f5f5;
+  border-radius: 8px;
+  color: #666;
+}
+
+.empty-icon {
+  font-size: 60px;
+  margin-bottom: 20px;
+}
+
+.empty-state h2 {
+  color: #333;
+  margin: 0 0 10px 0;
+  font-size: 24px;
+}
+
+.empty-state p {
+  margin: 5px 0;
+  color: #666;
+}
+
+.empty-state .btn {
+  margin-top: 20px;
+}
+
+/* Professional Status Card */
+.professional-status-card {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 25px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.status-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.status-header h3 {
+  margin: 0;
+  color: #1a1a1a;
+  font-size: 20px;
+}
+
+.status-badge {
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.status-badge.status-verified {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.status-badge.status-pending {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.status-badge.status-unverified {
+  background-color: #f0f0f0;
+  color: #666;
+}
+
+.status-badge.status-suspended {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+/* Status Content */
+.status-content {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.status-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.status-row label {
+  font-weight: 600;
+  color: #666;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.status-row span {
+  color: #333;
+  font-size: 14px;
+}
+
+.status-row .professional-id {
+  font-family: monospace;
+  background: #f5f5f5;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.status-row .badge {
+  display: inline-block;
+  width: fit-content;
+  padding: 4px 10px;
+  background: #e8f5e9;
+  color: #2e7d32;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-row .account-status {
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 4px;
+  width: fit-content;
+}
+
+.status-row .account-status.active {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-row .account-status.suspended {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+/* Alert Boxes */
+.warning-box,
+.info-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 6px;
+  margin: 12px 0;
+  font-size: 13px;
+}
+
+.warning-box {
+  background: #fff3cd;
+  border: 1px solid #ffeeba;
+  color: #856404;
+}
+
+.info-box {
+  background: #e3f2fd;
+  border: 1px solid #bbdefb;
+  color: #1565c0;
+}
+
+.warning-icon,
+.info-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+/* Status Actions */
+.status-actions {
+  display: flex;
+  gap: 12px;
+  padding-top: 15px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.btn {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 14px;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background-color: #4CAF50;
+  color: white;
+  flex: 1;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #45a049;
+}
+
+.btn-secondary {
+  background-color: #2196F3;
+  color: white;
+  flex: 1;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: #0b7dda;
+}
+
+.btn-info {
+  background-color: #2196F3;
+  color: white;
+}
+
+.btn-info:hover:not(:disabled) {
+  background-color: #0b7dda;
+}
+
+/* Credentials Summary */
+.credentials-summary-card {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 25px;
+}
+
+.credentials-summary-card h3 {
+  margin: 0 0 15px 0;
+  color: #1a1a1a;
+  font-size: 18px;
+}
+
+.credentials-info {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.info-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: #f9f9f9;
+  border-radius: 6px;
+}
+
+.info-label {
+  font-weight: 600;
+  color: #666;
+}
+
+.info-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #4CAF50;
+}
+
+.eligibility-status {
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.eligibility-status.eligible {
+  background: #d4edda;
+  color: #155724;
+}
+
+.eligibility-status.ineligible {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+/* Facilities Section */
+.facilities-section {
+  margin-bottom: 25px;
+}
+
+.facilities-section h3 {
+  margin: 0 0 15px 0;
+  color: #1a1a1a;
+  font-size: 18px;
+}
+
+.empty-state-small {
+  background: #f5f5f5;
+  padding: 30px 20px;
+  border-radius: 8px;
+  text-align: center;
+  color: #666;
+}
+
+.empty-state-small p {
+  margin: 5px 0;
+}
+
+.facilities-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.facility-card {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.facility-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-color: #4CAF50;
+}
+
+.facility-card .facility-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 16px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #f9f9f9;
+}
+
+.facility-card h4 {
+  margin: 0;
+  color: #1a1a1a;
+  font-size: 16px;
+  flex: 1;
+}
+
+.facility-card .status-badge {
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.facility-info {
+  padding: 16px;
+}
+
+.facility-info .info-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.facility-info label {
+  font-weight: 600;
+  color: #666;
+  min-width: 100px;
+}
+
+.facility-info span {
+  color: #333;
+}
+
+.facility-info .badge {
+  display: inline-block;
+  padding: 3px 8px;
+  background: #e8f5e9;
+  color: #2e7d32;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.facility-card .btn-small {
+  width: 100%;
+  padding: 8px 12px;
+  margin: 12px 16px 16px 16px;
+  font-size: 13px;
+}
+
+/* Quick Actions Section */
+.quick-actions-section {
+  margin-bottom: 25px;
+}
+
+.quick-actions-section h3 {
+  margin: 0 0 15px 0;
+  color: #1a1a1a;
+  font-size: 18px;
+}
+
+.actions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 15px;
+}
+
+.action-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px;
+  background: white;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: center;
+  color: inherit;
+  font-family: inherit;
+  position: relative;
+}
+
+.action-card:hover:not(:disabled) {
+  border-color: #4CAF50;
+  box-shadow: 0 4px 8px rgba(76, 175, 80, 0.15);
+  transform: translateY(-2px);
+}
+
+.action-card:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.action-icon {
+  font-size: 32px;
+}
+
+.action-label {
+  font-weight: 600;
+  font-size: 13px;
+  color: #333;
+}
+
+.disabled-reason {
+  position: absolute;
+  bottom: -25px;
+  font-size: 11px;
+  color: #f44336;
+  white-space: nowrap;
+}
+
+/* Compliance Info Section */
+.compliance-info-section {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 25px;
+}
+
+.compliance-info-section h3 {
+  margin: 0 0 20px 0;
+  color: #1a1a1a;
+  font-size: 18px;
+}
+
+.info-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.info-block {
+  padding: 15px;
+  background: #f9f9f9;
+  border-radius: 6px;
+  border-left: 3px solid #4CAF50;
+}
+
+.info-block h4 {
+  margin: 0 0 10px 0;
+  color: #1a1a1a;
+  font-size: 15px;
+}
+
+.info-block p {
+  margin: 0 0 10px 0;
+  color: #666;
+  font-size: 13px;
+}
+
+.info-block ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.info-block li {
+  padding: 5px 0;
+  color: #666;
+  font-size: 13px;
+}
+
+.info-block li:before {
+  content: '✓ ';
+  margin-right: 8px;
+  color: #4CAF50;
+  font-weight: 700;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .status-content {
+    grid-template-columns: 1fr;
+  }
+
+  .credentials-info {
+    grid-template-columns: 1fr;
+  }
+
+  .facilities-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .actions-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .info-content {
+    grid-template-columns: 1fr;
+  }
+
+  .status-actions {
+    flex-direction: column;
+  }
+
+  .status-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .status-badge {
+    align-self: flex-start;
+  }
+}
+

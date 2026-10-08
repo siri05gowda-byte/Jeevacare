@@ -196,5 +196,5 @@ const encounterSchema = new mongoose.Schema(
   }
 );
 
-const Encounter = mongoose.model('Encounter', encounterSchema);
+const Encounter = mongoose.models.Encounter || mongoose.model('Encounter', encounterSchema);
 export default Encounter;
