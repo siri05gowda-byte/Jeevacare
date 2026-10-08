@@ -58,6 +58,12 @@ app.use('/api/v1/encounters', (await import('./routes/encounterRoutes.js')).defa
 app.use('/api/v1/records', (await import('./routes/clinicalRecordRoutes.js')).default);
 app.use('/api/v1/timeline', (await import('./routes/timelineRoutes.js')).default);
 
+// Phase 6 Clinical Data Expansion Routes
+app.use('/api/v1/vaccinations', (await import('./routes/vaccinationRoutes.js')).default);
+app.use('/api/v1/lab-results', (await import('./routes/laboratoryRoutes.js')).default);
+app.use('/api/v1/radiology', (await import('./routes/radiologyRoutes.js')).default);
+app.use('/api/v1/discharge-summaries', (await import('./routes/dischargeSummaryRoutes.js')).default);
+
 // 404 Not Found handler (must be after all routes)
 app.use(notFoundHandler);
 

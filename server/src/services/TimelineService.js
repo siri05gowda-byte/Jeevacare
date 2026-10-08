@@ -13,6 +13,10 @@
 import Encounter from '../models/Encounter.js';
 import Appointment from '../models/Appointment.js';
 import ClinicalRecord from '../models/ClinicalRecord.js';
+import Vaccination from '../models/Vaccination.js';
+import LaboratoryResult from '../models/LaboratoryResult.js';
+import RadiologyRecord from '../models/RadiologyRecord.js';
+import DischargeSummary from '../models/DischargeSummary.js';
 import ClinicalAuthorizationBoundary from '../utils/clinicalAuthorizationBoundary.js';
 import AuditService from './AuditService.js';
 
@@ -190,6 +194,127 @@ class TimelineService {
         }
       }
 
+      // 4. Fetch Vaccinations (Phase 6)
+      if (includeTypes.includes('record') || includeTypes.includes('vaccination')) {
+        const vaccinations = await Vaccination.find({ patientId }).lean();
+        for (const vaccination of vaccinations) {
+          const eventDate = new Date(vaccination.administrationDate);
+          if (this._isInDateRange(eventDate, startDate, endDate)) {
+            timelineEvents.push({
+              id: vaccination._id,
+              type: 'vaccination',
+              date: eventDate,
+              status: vaccination.verificationStatus,
+              title: `Vaccination: ${vaccination.vaccineName}`,
+              facilityId: vaccination.facilityId,
+              providerId: vaccination.providerId,
+              description: `${vaccination.vaccineName} (${vaccination.dose}) administered by ${vaccination.provider}. ${
+                vaccination.verificationStatus === 'provider_verified' ? '✓ Verified' : 'Pending Verification'
+              }`,
+              eventData: {
+                vaccinationId: vaccination._id,
+                vaccineName: vaccination.vaccineName,
+                dose: vaccination.dose,
+                batchNumber: vaccination.batchNumber,
+                nextScheduledDate: vaccination.nextScheduledDate,
+                verificationStatus: vaccination.verificationStatus,
+              },
+            });
+          }
+        }
+      }
+
+      // 5. Fetch Laboratory Results (Phase 6)
+      if (includeTypes.includes('record') || includeTypes.includes('laboratory')) {
+        const labResults = await LaboratoryResult.find({ patientId }).lean();
+        for (const result of labResults) {
+          const eventDate = new Date(result.resultReceivedDate);
+          if (this._isInDateRange(eventDate, startDate, endDate)) {
+            timelineEvents.push({
+              id: result._id,
+              type: 'laboratory',
+              date: eventDate,
+              status: result.verificationStatus,
+              title: `Lab Result: ${result.labTestName}`,
+              facilityId: result.facilityId,
+              providerId: result.providerId,
+              description: `${result.labTestName} result received. ${
+                result.isCritical ? '⚠️ CRITICAL' : 'Normal'
+              }. ${result.verificationStatus === 'provider_verified' ? '✓ Verified' : 'Pending Verification'}`,
+              eventData: {
+                labResultId: result._id,
+                labTestName: result.labTestName,
+                isCritical: result.isCritical,
+                resultsCount: result.results?.length || 0,
+                verificationStatus: result.verificationStatus,
+              },
+            });
+          }
+        }
+      }
+
+      // 6. Fetch Radiology Records (Phase 6)
+      if (includeTypes.includes('record') || includeTypes.includes('radiology')) {
+        const radiologyRecords = await RadiologyRecord.find({ patientId }).lean();
+        for (const record of radiologyRecords) {
+          const eventDate = new Date(record.reportDate);
+          if (this._isInDateRange(eventDate, startDate, endDate)) {
+            timelineEvents.push({
+              id: record._id,
+              type: 'radiology',
+              date: eventDate,
+              status: record.verificationStatus,
+              title: `${record.modalityType.replace('_', ' ').toUpperCase()} - ${record.bodyPart}`,
+              facilityId: record.facilityId,
+              providerId: record.providerId,
+              description: `${record.modalityType.replace('_', ' ')} imaging of ${record.bodyPart}. ${
+                record.hasCriticalFindings ? '⚠️ CRITICAL FINDINGS' : 'Normal findings'
+              }. ${record.verificationStatus === 'provider_verified' ? '✓ Verified' : 'Pending Verification'}`,
+              eventData: {
+                radiologyId: record._id,
+                modalityType: record.modalityType,
+                bodyPart: record.bodyPart,
+                hasCriticalFindings: record.hasCriticalFindings,
+                verificationStatus: record.verificationStatus,
+              },
+            });
+          }
+        }
+      }
+
+      // 7. Fetch Discharge Summaries (Phase 6)
+      if (includeTypes.includes('record') || includeTypes.includes('discharge')) {
+        const dischargeSummaries = await DischargeSummary.find({ patientId }).lean();
+        for (const summary of dischargeSummaries) {
+          const eventDate = new Date(summary.dischargeDate);
+          if (this._isInDateRange(eventDate, startDate, endDate)) {
+            const lengthOfStay = summary.lengthOfStay || Math.floor(
+              (new Date(summary.dischargeDate) - new Date(summary.admissionDate)) / (1000 * 60 * 60 * 24)
+            );
+            timelineEvents.push({
+              id: summary._id,
+              type: 'discharge',
+              date: eventDate,
+              status: summary.verificationStatus,
+              title: `Discharge: ${summary.primaryDiagnosis}`,
+              facilityId: summary.facilityId,
+              providerId: summary.providerId,
+              description: `Hospitalization for ${summary.primaryDiagnosis}. Length of stay: ${lengthOfStay} days. Disposition: ${summary.dischargeDisposition}. ${
+                summary.verificationStatus === 'provider_verified' ? '✓ Verified' : 'Pending Verification'
+              }`,
+              eventData: {
+                dischargeSummaryId: summary._id,
+                primaryDiagnosis: summary.primaryDiagnosis,
+                lengthOfStay: lengthOfStay,
+                dischargeDisposition: summary.dischargeDisposition,
+                followUpRequired: summary.followUpRequired,
+                verificationStatus: summary.verificationStatus,
+              },
+            });
+          }
+        }
+      }
+
       // Sort by date
       timelineEvents.sort((a, b) => {
         return sortOrder === 'desc'
@@ -209,6 +334,10 @@ class TimelineService {
           encounters: timelineEvents.filter(e => e.type === 'encounter').length,
           records: timelineEvents.filter(e => e.type === 'clinical_record').length,
           amendments: timelineEvents.filter(e => e.type === 'clinical_amendment').length,
+          vaccinations: timelineEvents.filter(e => e.type === 'vaccination').length,
+          laboratory: timelineEvents.filter(e => e.type === 'laboratory').length,
+          radiology: timelineEvents.filter(e => e.type === 'radiology').length,
+          discharge: timelineEvents.filter(e => e.type === 'discharge').length,
         },
       };
 
