@@ -64,6 +64,9 @@ app.use('/api/v1/lab-results', (await import('./routes/laboratoryRoutes.js')).de
 app.use('/api/v1/radiology', (await import('./routes/radiologyRoutes.js')).default);
 app.use('/api/v1/discharge-summaries', (await import('./routes/dischargeSummaryRoutes.js')).default);
 
+// Phase 7 AI + Accessibility Routes
+app.use('/api/v1/patients', (await import('./routes/aiSummaryRoutes.js')).default);
+
 // 404 Not Found handler (must be after all routes)
 app.use(notFoundHandler);
 

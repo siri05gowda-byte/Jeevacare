@@ -3,6 +3,7 @@ import { useAuthStore } from '../stores/authStore';
 import HealthOverviewCard from '../components/HealthOverviewCard';
 import LoadingState from '../components/LoadingState';
 import EmptyState from '../components/EmptyState';
+import AIHealthSummaryCard from '../components/AIHealthSummaryCard';
 
 export default function PatientDashboard() {
   const { user } = useAuthStore();
@@ -121,6 +122,9 @@ export default function PatientDashboard() {
           )}
         </div>
       </div>
+
+      {/* AI Health Summary */}
+      <AIHealthSummaryCard patientId={user?.patient?.id || user?.id} currentUser={user} />
 
       {/* Recent Items Section */}
       <div className="mb-8">

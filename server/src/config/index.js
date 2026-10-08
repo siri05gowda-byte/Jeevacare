@@ -57,6 +57,12 @@ const config = {
     apiKey: process.env.TTS_API_KEY,
   },
 
+  // Groq AI Service
+  groq: {
+    apiKey: process.env.GROQ_API_KEY,
+    model: process.env.GROQ_MODEL || 'mixtral-8x7b-32768',
+  },
+
   // DigiLocker
   digiLocker: {
     enabled: process.env.DIGILOCKER_ENABLED === 'true',

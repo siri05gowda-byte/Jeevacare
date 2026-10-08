@@ -443,7 +443,187 @@ class ClinicalAuthorizationBoundary {
       }
     };
   }
+
+  /**
+   * Check if user can access a patient's records (for AI summaries, readings, etc.)
+   * Less restrictive than creating clinical records - patient can access their own
+   * Returns: { authorized: boolean, error?: string, user: userObject }
+   */
+  static async canAccessPatientRecords(userId, patientId) {
+    try {
+      // ===== CHECK 1: USER EXISTS AND IS ACTIVE =====
+      let user;
+      try {
+        user = await User.findById(userId);
+      } catch (e) {
+        return {
+          authorized: false,
+          error: `Failed to look up user: ${e.message}`,
+          user: null,
+        };
+      }
+
+      if (!user) {
+        return {
+          authorized: false,
+          error: 'User not found',
+          user: null,
+        };
+      }
+
+      if (user.status !== 'active') {
+        return {
+          authorized: false,
+          error: `User account is ${user.status}`,
+          user: null,
+        };
+      }
+
+      // ===== CHECK 2: PATIENT EXISTS =====
+      let patient;
+      try {
+        patient = await Patient.findById(patientId);
+      } catch (e) {
+        return {
+          authorized: false,
+          error: `Failed to look up patient: ${e.message}`,
+          user,
+        };
+      }
+
+      if (!patient) {
+        return {
+          authorized: false,
+          error: 'Patient not found',
+          user,
+        };
+      }
+
+      if (patient.status === 'restricted' || patient.status === 'deleted') {
+        return {
+          authorized: false,
+          error: `Patient record is ${patient.status}`,
+          user,
+        };
+      }
+
+      // ===== CHECK 3: ACCESS CONTROL =====
+      // Case 1: Patient accessing their own records
+      if (user._id.toString() === patient.userId?.toString()) {
+        return {
+          authorized: true,
+          error: null,
+          user,
+          accessType: 'own_records',
+        };
+      }
+
+      // Case 2: Guardian accessing dependent's records
+      const GuardianRelationship = (await import('../models/GuardianRelationship.js')).default;
+      const guardianRel = await GuardianRelationship.findOne({
+        guardianId: userId,
+        dependentPatientId: patientId,
+        status: 'verified',
+        $or: [
+          { endDate: { $exists: false } },
+          { endDate: { $gte: new Date() } },
+        ],
+      });
+
+      if (guardianRel) {
+        return {
+          authorized: true,
+          error: null,
+          user,
+          accessType: 'guardian_records',
+        };
+      }
+
+      // Case 3: Healthcare professional at patient's facility
+      try {
+        const professional = await HealthcareProfessional.findOne({
+          userId: userId,
+          verificationStatus: 'verified',
+          accountStatus: 'active',
+        });
+
+        if (!professional) {
+          return {
+            authorized: false,
+            error: 'User is not a verified healthcare professional',
+            user,
+          };
+        }
+
+        // Check if professional has active credential
+        const validCredential = await ProfessionalCredential.findOne({
+          professionalId: professional._id,
+          status: 'verified',
+          $or: [
+            { expiryDate: { $exists: false } },
+            { expiryDate: { $gt: new Date() } },
+          ],
+        });
+
+        if (!validCredential) {
+          return {
+            authorized: false,
+            error: 'Professional does not have valid credentials',
+            user,
+          };
+        }
+
+        // Check if patient is registered at a facility where professional is active
+        if (patient.facilities && Array.isArray(patient.facilities)) {
+          let sharedFacility = false;
+          
+          for (const pf of patient.facilities) {
+            const staffRecord = await HospitalStaff.findOne({
+              userId: userId,
+              hospitalId: pf.facilityId,
+              associationStatus: 'active',
+              $or: [
+                { endDate: { $exists: false } },
+                { endDate: { $gte: new Date() } },
+              ],
+            });
+
+            if (staffRecord) {
+              sharedFacility = true;
+              break;
+            }
+          }
+
+          if (sharedFacility) {
+            return {
+              authorized: true,
+              error: null,
+              user,
+              accessType: 'professional_facility_records',
+            };
+          }
+        }
+
+        return {
+          authorized: false,
+          error: 'Professional and patient do not share a facility',
+          user,
+        };
+      } catch (e) {
+        return {
+          authorized: false,
+          error: `Failed to verify professional status: ${e.message}`,
+          user,
+        };
+      }
+    } catch (error) {
+      return {
+        authorized: false,
+        error: `Authorization check failed: ${error.message}`,
+        user: null,
+      };
+    }
+  }
 }
 
 export default ClinicalAuthorizationBoundary;
-
