@@ -122,32 +122,158 @@ class AuditService {
   }
 
   /**
-   * Log emergency access
+   * Log OCR processing event
    */
-  static async logEmergencyAccess({
+  static async logOCRProcessing({
     actor,
+    document,
     patient,
-    hospital,
-    emergencyAccessReason,
-    status,
-    ipAddress,
-    userAgent,
+    status = 'success',
+    ocrProvider,
+    confidence,
+    textLength,
+    processingDuration,
+    languages,
+    errorMessage = null,
   }) {
     return this.logEvent({
       actor,
-      actorRole: 'EMERGENCY',
-      action: 'emergency_access_granted',
-      resource: patient._id.toString(),
-      resourceType: 'patient',
+      action: 'ocr_processing',
+      resource: document._id.toString(),
+      resourceType: 'document',
       patient,
-      hospital,
       status,
-      ipAddress,
-      userAgent,
-      sensitivityLevel: 'high',
+      statusMessage: errorMessage,
       details: {
-        emergencyAccessReason,
+        ocrProvider,
+        confidence,
+        textLength,
+        processingDuration,
+        languages,
+        // CRITICAL: Mark that OCR output is unverified
+        ocrOutputUnverified: true,
+        clinicalUsageNote: 'OCR output must be manually verified before clinical use',
       },
+      sensitivityLevel: 'medium',
+    });
+  }
+
+  /**
+   * Log document quality assessment
+   */
+  static async logQualityAssessment({
+    actor,
+    document,
+    patient,
+    qualityScore,
+    qualityStatus,
+    issues = [],
+    processingDuration,
+  }) {
+    return this.logEvent({
+      actor,
+      action: 'quality_assessment',
+      resource: document._id.toString(),
+      resourceType: 'document',
+      patient,
+      status: 'success',
+      details: {
+        qualityScore,
+        qualityStatus,
+        issues,
+        processingDuration,
+        assessmentMethod: 'real_pixel_analysis',
+      },
+      sensitivityLevel: 'medium',
+    });
+  }
+
+  /**
+   * Log document correction
+   */
+  static async logDocumentCorrection({
+    actor,
+    document,
+    patient,
+    correctionType,
+    field,
+    previousValue,
+    newValue,
+    reason,
+  }) {
+    const auditEvent = await this.logEvent({
+      actor,
+      action: 'document_correction',
+      resource: document._id.toString(),
+      resourceType: 'document',
+      patient,
+      status: 'success',
+      details: {
+        correctionType,
+        field,
+        previousValue,
+        newValue,
+        reason,
+        timestamp: new Date(),
+      },
+      sensitivityLevel: 'high',
+    });
+
+    // Return auditEvent._id so it can be linked in correctionHistory
+    return auditEvent;
+  }
+
+  /**
+   * Log prevention of OCR output auto-promotion to clinical record
+   */
+  static async logOCRProtection({
+    actor,
+    document,
+    patient,
+    reason = 'OCR output marked as unverified to prevent automatic clinical record promotion',
+  }) {
+    return this.logEvent({
+      actor,
+      action: 'ocr_protection_enforcement',
+      resource: document._id.toString(),
+      resourceType: 'document',
+      patient,
+      status: 'success',
+      details: {
+        protection: 'OCR output unverified flag set',
+        reason,
+        preventionType: 'auto_promotion_prevention',
+      },
+      sensitivityLevel: 'medium',
+    });
+  }
+
+  /**
+   * Log duplicate document detection
+   */
+  static async logDuplicateDetection({
+    actor,
+    originalDocument,
+    duplicateDocument,
+    patient,
+    contentHashMatch = false,
+  }) {
+    return this.logEvent({
+      actor,
+      action: 'duplicate_document_detected',
+      resource: duplicateDocument._id.toString(),
+      resourceType: 'document',
+      patient,
+      status: 'success',
+      details: {
+        originalDocumentId: originalDocument._id.toString(),
+        duplicateDocumentId: duplicateDocument._id.toString(),
+        contentHashMatch,
+        deduplicationNote: contentHashMatch
+          ? 'Identical file content detected'
+          : 'Similar document detected',
+      },
+      sensitivityLevel: 'low',
     });
   }
 
