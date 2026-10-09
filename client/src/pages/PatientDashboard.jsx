@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useAuthStore } from '../stores/authStore';
+import { usePatientStore } from '../stores/patientStore';
 import HealthOverviewCard from '../components/HealthOverviewCard';
 import LoadingState from '../components/LoadingState';
 import EmptyState from '../components/EmptyState';
@@ -7,63 +8,96 @@ import AIHealthSummaryCard from '../components/AIHealthSummaryCard';
 
 export default function PatientDashboard() {
   const { user } = useAuthStore();
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    vaccinations: 0,
-    labResults: 0,
-    radiology: 0,
-    dischargeSummaries: 0,
-    criticalItems: 0,
-    documents: 0,
-  });
-  const [recentItems, setRecentItems] = useState([]);
-  const [criticalAlerts, setCriticalAlerts] = useState([]);
+  const {
+    patient,
+    stats,
+    timeline,
+    criticalInfo,
+    loading,
+    error,
+    loadAllPatientData,
+  } = usePatientStore();
+
+  // Get patient ID from user context (could be user.id if user is patient, or user.patient.id if user is guardian)
+  const patientId = user?.patient?.id || user?.id;
 
   useEffect(() => {
-    loadDashboardData();
-  }, [user?.id]);
-
-  const loadDashboardData = async () => {
-    try {
-      setLoading(true);
-      
-      // In a real implementation, this would call your API endpoints
-      // For now, we'll initialize with empty state
-      setStats({
-        vaccinations: 0,
-        labResults: 0,
-        radiology: 0,
-        dischargeSummaries: 0,
-        criticalItems: 0,
-        documents: 0,
+    if (patientId) {
+      loadAllPatientData(patientId).catch((err) => {
+        console.error('Failed to load dashboard data:', err);
       });
-      setRecentItems([]);
-      setCriticalAlerts([]);
-    } catch (error) {
-      console.error('Failed to load dashboard data:', error);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [patientId, loadAllPatientData]);
 
   if (loading) {
     return <LoadingState message="Loading your health dashboard..." />;
   }
 
-  return (
-    <div className="p-8">
+  if (error) {
+    return (
+      <div className="p-8">
+        <div className="p-6 bg-red-50 border border-red-200 rounded-lg">
+          <h2 className="text-lg font-semibold text-red-900">Failed to Load Dashboard</h2>
+          <p className="text-red-800 mt-2">{error}</p>
+          <button
+            onClick={() => patientId && loadAllPatientData(patientId)}
+            className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Extract stats from patient data
+  const displayStats = {
+    vaccinations: stats?.vaccinations || 0,
+    labResults: stats?.labResults || 0,
+    radiology: stats?.radiology || 0,
+    dischargeSummaries: stats?.dischargeSummaries || 0,
+    criticalItems: Object.values(criticalInfo || {}).filter(v => v).length,
+    documents: stats?.documents || 0,
+  };
+
+  // Get recent timeline items (last 5)
+  const recentItems = timeline && timeline.length > 0 ? timeline.slice(0, 5) : [];
+
+  // Extract critical alerts from critical info
+  const criticalAlerts = [];
+  if (criticalInfo?.allergies && criticalInfo.allergies.length > 0) {
+    criticalAlerts.push({
+      title: '⚠️ Known Allergies',
+      description: criticalInfo.allergies.join(', '),
+    });
+  }
+  if (criticalInfo?.conditions && criticalInfo.conditions.length > 0) {
+    criticalAlerts.push({
+      title: '🏥 Known Conditions',
+      description: criticalInfo.conditions.join(', '),
+    });
+  }
+  if (criticalInfo?.medications && criticalInfo.medications.length > 0) {
+    criticalAlerts.push({
+      title: '💊 Current Medications',
+      description: criticalInfo.medications.length + ' medications',
+    });
+  }
+
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">
-          Health Dashboard
+          Health Dashboard - {patient?.personalIdentity?.firstName || 'Patient'}
         </h1>
-        <p className="text-gray-600 mt-2">Your complete health overview in one place</p>
+        <p className="text-gray-600 mt-2">
+          JeevaCare ID: {patient?.jeevaId || 'Loading...'} | Your complete health overview in one place
+        </p>
       </div>
 
       {/* Critical Alerts Section */}
       {criticalAlerts.length > 0 && (
         <div className="mb-8 p-6 bg-red-50 border border-red-200 rounded-lg">
-          <h2 className="text-lg font-semibold text-red-900 mb-4">⚠️ Critical Alerts</h2>
+          <h2 className="text-lg font-semibold text-red-900 mb-4">⚠️ Critical Information</h2>
           <div className="space-y-3">
             {criticalAlerts.map((alert, idx) => (
               <div key={idx} className="flex items-start gap-3 p-3 bg-red-100 rounded">
@@ -84,38 +118,38 @@ export default function PatientDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <HealthOverviewCard
             title="Vaccinations"
-            count={stats.vaccinations}
+            count={displayStats.vaccinations}
             icon="💉"
             color="blue"
           />
           <HealthOverviewCard
             title="Lab Results"
-            count={stats.labResults}
+            count={displayStats.labResults}
             icon="🧪"
             color="green"
           />
           <HealthOverviewCard
             title="Radiology"
-            count={stats.radiology}
+            count={displayStats.radiology}
             icon="🩻"
             color="purple"
           />
           <HealthOverviewCard
             title="Discharge Summaries"
-            count={stats.dischargeSummaries}
+            count={displayStats.dischargeSummaries}
             icon="📋"
             color="amber"
           />
           <HealthOverviewCard
             title="Documents"
-            count={stats.documents}
+            count={displayStats.documents}
             icon="📄"
             color="blue"
           />
-          {stats.criticalItems > 0 && (
+          {displayStats.criticalItems > 0 && (
             <HealthOverviewCard
               title="⚠️ Critical Items"
-              count={stats.criticalItems}
+              count={displayStats.criticalItems}
               icon="🚨"
               color="red"
             />
@@ -124,21 +158,36 @@ export default function PatientDashboard() {
       </div>
 
       {/* AI Health Summary */}
-      <AIHealthSummaryCard patientId={user?.patient?.id || user?.id} currentUser={user} />
+      <AIHealthSummaryCard patientId={patientId} currentUser={user} />
 
       {/* Recent Items Section */}
       <div className="mb-8">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Items</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Timeline Events</h2>
         {recentItems.length > 0 ? (
           <div className="space-y-4">
             {recentItems.map((item) => (
-              <div key={item.id} className="card p-4">
+              <div key={item._id || item.id} className="card p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium text-gray-900">{item.title}</p>
-                    <p className="text-sm text-gray-600 mt-1">{item.date}</p>
+                    <p className="font-medium text-gray-900">
+                      {item.type || item.eventType || 'Event'}
+                    </p>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {item.date ? new Date(item.date).toLocaleDateString() : ''}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {item.facility || item.provider || 'JeevaCare'}
+                    </p>
                   </div>
-                  <span className="text-2xl">{item.icon}</span>
+                  <div className="text-right">
+                    <span className="inline-block px-3 py-1 rounded-full text-xs font-medium"
+                      style={{
+                        backgroundColor: item.verificationStatus === 'provider_verified' ? '#dcfce7' : '#fef3c7',
+                        color: item.verificationStatus === 'provider_verified' ? '#166534' : '#92400e',
+                      }}>
+                      {item.verificationStatus || 'pending'}
+                    </span>
+                  </div>
                 </div>
               </div>
             ))}
@@ -157,22 +206,22 @@ export default function PatientDashboard() {
         <div className="card p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Manage Records</h3>
           <div className="space-y-3">
-            <button className="w-full text-left p-3 rounded border border-gray-200 hover:bg-blue-50 transition">
+            <a href="/vaccinations" className="w-full text-left p-3 rounded border border-gray-200 hover:bg-blue-50 transition block">
               <span className="text-lg mr-2">💉</span>
-              <span className="font-medium">View Vaccinations</span>
-            </button>
-            <button className="w-full text-left p-3 rounded border border-gray-200 hover:bg-blue-50 transition">
+              <span className="font-medium">View Vaccinations ({displayStats.vaccinations})</span>
+            </a>
+            <a href="/lab-results" className="w-full text-left p-3 rounded border border-gray-200 hover:bg-blue-50 transition block">
               <span className="text-lg mr-2">🧪</span>
-              <span className="font-medium">View Lab Results</span>
-            </button>
-            <button className="w-full text-left p-3 rounded border border-gray-200 hover:bg-blue-50 transition">
+              <span className="font-medium">View Lab Results ({displayStats.labResults})</span>
+            </a>
+            <a href="/radiology" className="w-full text-left p-3 rounded border border-gray-200 hover:bg-blue-50 transition block">
               <span className="text-lg mr-2">🩻</span>
-              <span className="font-medium">View Radiology</span>
-            </button>
-            <button className="w-full text-left p-3 rounded border border-gray-200 hover:bg-blue-50 transition">
+              <span className="font-medium">View Radiology ({displayStats.radiology})</span>
+            </a>
+            <a href="/discharge-summaries" className="w-full text-left p-3 rounded border border-gray-200 hover:bg-blue-50 transition block">
               <span className="text-lg mr-2">📋</span>
-              <span className="font-medium">View Discharge Summaries</span>
-            </button>
+              <span className="font-medium">View Discharge Summaries ({displayStats.dischargeSummaries})</span>
+            </a>
           </div>
         </div>
 
@@ -181,15 +230,23 @@ export default function PatientDashboard() {
           <div className="space-y-3 text-sm">
             <div className="p-3 bg-blue-50 rounded">
               <p className="font-medium text-gray-900">Blood Group</p>
-              <p className="text-gray-600 mt-1">Not set</p>
+              <p className="text-gray-600 mt-1">{criticalInfo?.bloodGroup || 'Not set'}</p>
             </div>
             <div className="p-3 bg-blue-50 rounded">
               <p className="font-medium text-gray-900">Known Allergies</p>
-              <p className="text-gray-600 mt-1">No allergies recorded</p>
+              <p className="text-gray-600 mt-1">
+                {criticalInfo?.allergies && criticalInfo.allergies.length > 0
+                  ? criticalInfo.allergies.join(', ')
+                  : 'No allergies recorded'}
+              </p>
             </div>
             <div className="p-3 bg-blue-50 rounded">
               <p className="font-medium text-gray-900">Current Medications</p>
-              <p className="text-gray-600 mt-1">None recorded</p>
+              <p className="text-gray-600 mt-1">
+                {criticalInfo?.medications && criticalInfo.medications.length > 0
+                  ? `${criticalInfo.medications.length} medications`
+                  : 'None recorded'}
+              </p>
             </div>
           </div>
         </div>
