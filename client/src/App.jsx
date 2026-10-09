@@ -5,6 +5,7 @@ import MainLayout from './layouts/MainLayout';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
+import IntegratedDashboardPage from './pages/IntegratedDashboardPage';
 
 // Protected route component
 function ProtectedRoute({ children }) {
@@ -52,6 +53,7 @@ function App() {
         >
           <Route path="" element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="integrated-dashboard" element={<IntegratedDashboardPage />} />
         </Route>
 
         {/* Catch-all */}
