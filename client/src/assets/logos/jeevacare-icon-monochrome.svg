@@ -1,0 +1,26 @@
+<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <!-- Monochrome variant (single color, all navy) -->
+  
+  <!-- Earpieces -->
+  <g id="earpieces">
+    <path d="M 16 10 Q 16 20 24 24" stroke="#0f172a" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M 48 10 Q 48 20 40 24" stroke="#0f172a" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="24" y1="24" x2="40" y2="24" stroke="#0f172a" stroke-width="2" stroke-linecap="round"/>
+  </g>
+  
+  <!-- Main tube -->
+  <g id="main-tube">
+    <path d="M 24 24 Q 24 35 24 48" stroke="#0f172a" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M 24 48 Q 24 56 32 58" stroke="#0f172a" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  
+  <!-- Secondary tube -->
+  <g id="secondary-tube">
+    <path d="M 40 24 Q 40 35 40 48" stroke="#0f172a" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  
+  <!-- Diaphragm -->
+  <g id="diaphragm">
+    <circle cx="32" cy="58" r="3.5" fill="#0f172a" stroke="#0f172a" stroke-width="0.5"/>
+  </g>
+</svg>

@@ -2,13 +2,41 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="JeevaCare - One Life. One Health Journey." />
-    <title>JeevaCare - Lifelong Health Journey</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#1e3a8a" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="description" content="JeevaCare - One Life. One Health Journey. Comprehensive lifelong health management platform." />
+    <meta name="keywords" content="healthcare, patient portal, health records, medical, diagnosis" />
+    <meta name="author" content="JeevaCare" />
+    
+    <!-- Open Graph / Social Media -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="JeevaCare - Lifelong Health Journey" />
+    <meta property="og:description" content="Comprehensive lifelong health management platform. Manage your records, appointments, and health journey." />
+    <meta property="og:image" content="/assets/logos/jeevacare-icon.svg" />
+    
+    <!-- Preconnect to external resources (if any) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    
+    <!-- Favicon variants -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" media="(prefers-color-scheme: light)" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+    
+    <!-- Manifest for PWA (optional) -->
+    <!-- <link rel="manifest" href="/manifest.json" /> -->
+    
+    <title>JeevaCare - Lifelong Health Journey</title>
   </head>
   <body>
+    <!-- Skip to main content link for accessibility -->
+    <a href="#main-content" class="skip-to-main">Skip to main content</a>
+    
+    <!-- Main app root -->
     <div id="root"></div>
+    
+    <!-- Entry point script -->
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
