@@ -6,53 +6,41 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { useEmergencyStore } from '../stores/emergencyStore';
 import '../styles/EmergencyDashboard.css';
 
 const EmergencyDashboardPage = () => {
   const { patientId, accessId } = useParams();
   const navigate = useNavigate();
 
-  const [summary, setSummary] = useState(null);
-  const [access, setAccess] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const {
+    emergencySummary: summary,
+    currentAccess: access,
+    loading,
+    error,
+    loadEmergencySummary,
+    loadAccessDetails,
+  } = useEmergencyStore();
+
   const [expandedSection, setExpandedSection] = useState('critical');
   const [accessTimeRemaining, setAccessTimeRemaining] = useState(null);
 
   useEffect(() => {
     const fetchEmergencyData = async () => {
       try {
-        setLoading(true);
-        const token = localStorage.getItem('authToken');
-
-        // Fetch emergency summary
-        const summaryRes = await axios.get(
-          `/api/v1/emergency/access/${accessId}/patient/${patientId}/summary`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-
-        // Fetch access details
-        const accessRes = await axios.get(`/api/v1/emergency/access/${accessId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        setSummary(summaryRes.data.data);
-        setAccess(accessRes.data.data);
+        if (patientId && accessId) {
+          await Promise.all([
+            loadEmergencySummary(accessId, patientId),
+            loadAccessDetails(accessId),
+          ]);
+        }
       } catch (err) {
         console.error('Failed to fetch emergency data:', err);
-        setError(err.response?.data?.message || 'Failed to load emergency information');
-      } finally {
-        setLoading(false);
       }
     };
 
-    if (patientId && accessId) {
-      fetchEmergencyData();
-    }
-  }, [patientId, accessId]);
+    fetchEmergencyData();
+  }, [patientId, accessId, loadEmergencySummary, loadAccessDetails]);
 
   // Update countdown timer
   useEffect(() => {
