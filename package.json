@@ -11,7 +11,11 @@
   "scripts": {
     "dev": "npm run dev --workspace=client & npm run dev --workspace=server",
     "build": "npm run build --workspace=client && npm run build --workspace=server",
-    "test": "npm run test --workspaces",
+    "test": "npm run test:all",
+    "test:backend": "cd server && vitest run",
+    "test:frontend": "cd client && vitest run",
+    "test:all": "npm run test:backend && npm run test:frontend",
+    "test:quick": "cd server && vitest run src/utils/*.test.js",
     "lint": "npm run lint --workspaces",
     "start:server": "npm run dev --workspace=server",
     "start:client": "npm run dev --workspace=client"

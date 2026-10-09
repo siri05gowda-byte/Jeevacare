@@ -14,7 +14,6 @@ export default defineConfig({
     hookTimeout: 60000,
     include: ['src/**/*.test.js'],
     exclude: ['node_modules/**'],
-    threads: false,
-    singleThread: true,
+    setupFiles: ['./src/config/vitestSetup.js'],
   },
 });
