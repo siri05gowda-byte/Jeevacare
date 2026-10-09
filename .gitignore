@@ -41,11 +41,17 @@ coverage/
 Thumbs.db
 .DS_Store
 
-# Logs
+# Logs and Test Output (NEVER COMMIT - may contain resolved secrets)
 logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
+test-results.txt
+test-*.txt
+test-output.log
+server/test-results.txt
+**/test-output/**
+**/test-artifacts/**
 
 # MongoDB
 .mongo_history
