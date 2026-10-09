@@ -36,7 +36,9 @@ const verifyDatabase = async () => {
 
     // 1. Connect to MongoDB
     logger.info('1️⃣ Connecting to MongoDB...');
-    logger.info(`   URI: ${config.database.uri}`);
+    // Never log full URI - redact credentials
+    const uriDisplay = config.database.uri.replace(/mongodb\+srv:\/\/[^:]+:[^@]+@/, 'mongodb+srv://***:***@');
+    logger.info(`   URI: ${uriDisplay}`);
     
     await mongoose.connect(config.database.uri, {
       useNewUrlParser: true,
@@ -131,7 +133,9 @@ const verifyDatabase = async () => {
     // 7. Summary
     logger.info('✅ Database verification complete!');
     logger.info('\nSummary:');
-    logger.info(`  - MongoDB URI: ${config.database.uri}`);
+    // Redact credentials in summary
+    const uriSummary = config.database.uri.replace(/mongodb\+srv:\/\/[^:]+:[^@]+@/, 'mongodb+srv://***:***@');
+    logger.info(`  - MongoDB URI: ${uriSummary}`);
     logger.info(`  - Database: ${dbConnection.name}`);
     logger.info(`  - Models Loaded: ${Object.keys(models).length}`);
     logger.info(`  - All systems operational ✅`);
