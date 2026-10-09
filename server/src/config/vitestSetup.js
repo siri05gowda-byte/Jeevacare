@@ -1,28 +1,25 @@
 /**
  * Vitest Global Setup
- * Configured to run before all tests
+ * Utility functions for test cleanup and Mongoose model cache management
+ * NOTE: Hooks (afterEach, afterAll) must be used in individual test files, not here
  */
 
-import { beforeAll, afterAll, afterEach } from 'vitest';
 import mongoose from 'mongoose';
 
 /**
  * Clear Mongoose model cache
  * Prevents "Cannot overwrite" errors when same models are imported in multiple test files
  */
-const clearModelCache = () => {
+export const clearModelCache = () => {
   Object.keys(mongoose.models).forEach(key => {
     delete mongoose.models[key];
   });
 };
 
-// Clear cache after each test
-afterEach(() => {
-  clearModelCache();
-});
-
-// Ensure cleanup on test completion
-afterAll(async () => {
+/**
+ * Cleanup function for test completion
+ */
+export const testCleanup = async () => {
   try {
     clearModelCache();
     if (mongoose.connection.readyState !== 0) {
@@ -31,4 +28,9 @@ afterAll(async () => {
   } catch (error) {
     console.warn('Cleanup failed:', error.message);
   }
-});
+};
+
+export default {
+  clearModelCache,
+  testCleanup,
+};

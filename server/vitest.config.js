@@ -14,6 +14,6 @@ export default defineConfig({
     hookTimeout: 60000,
     include: ['src/**/*.test.js'],
     exclude: ['node_modules/**'],
-    setupFiles: ['./src/config/vitestSetup.js'],
+    // Note: setupFiles removed - hooks must be in individual test files
   },
 });
