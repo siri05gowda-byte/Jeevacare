@@ -12,12 +12,13 @@ export default function Sidebar({ isOpen = true, onClose }) {
   const menuItems = {
     PATIENT: [
       { name: 'Dashboard', path: '/dashboard', icon: Home },
-      { name: 'My Records', path: '/records', icon: FileText },
+      { name: 'My Health', path: '/patient', icon: FileText },
+      { name: 'Documents', path: '/documents', icon: FileText },
       { name: 'Appointments', path: '/appointments', icon: Calendar },
       { name: 'Emergency Info', path: '/emergency', icon: AlertCircle },
     ],
     DOCTOR: [
-      { name: 'Dashboard', path: '/hospital/dashboard', icon: Home },
+      { name: 'Dashboard', path: '/provider', icon: Home },
       { name: 'Patients', path: '/hospital/patients', icon: Users },
       { name: 'Appointments', path: '/hospital/appointments', icon: Calendar },
       { name: 'My Schedule', path: '/hospital/schedule', icon: Stethoscope },
@@ -29,7 +30,7 @@ export default function Sidebar({ isOpen = true, onClose }) {
       { name: 'Facilities', path: '/hospital/facilities', icon: FileText },
     ],
     EMERGENCY: [
-      { name: 'Patient Access', path: '/emergency/access', icon: AlertCircle },
+      { name: 'Emergency Access', path: '/emergency', icon: AlertCircle },
       { name: 'Incidents', path: '/emergency/incidents', icon: FileText },
       { name: 'Responders', path: '/emergency/responders', icon: Users },
     ],
