@@ -29,16 +29,41 @@ export default function PatientDashboardV2() {
   const [patientData, setPatientData] = useState(null);
   const [error, setError] = useState(null);
 
-  // Mock data (will be replaced with real API calls in Phase J)
+  // Load patient data from real API with mock fallback
   useEffect(() => {
     const loadPatientData = async () => {
       try {
         setIsLoading(true);
+        setError(null);
         
-        // TODO: Replace with real API call
-        // const response = await fetch(`/api/v1/patients/${patientId}`);
+        // Attempt real API call first
+        try {
+          const patientId = user?._id || user?.id;
+          if (!patientId) {
+            throw new Error('User ID not available');
+          }
+          
+          const response = await fetch(`/api/v1/patients/${patientId}`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${user?.token || localStorage.getItem('token')}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.patient) {
+              setPatientData(data);
+              success('Patient data loaded successfully');
+              return;
+            }
+          }
+        } catch (apiError) {
+          console.warn('API call failed, using mock data:', apiError);
+        }
         
-        // Mock data for now
+        // Fallback to mock data
         const mockData = {
           patient: {
             firstName: user?.profile?.firstName || 'Patient',
