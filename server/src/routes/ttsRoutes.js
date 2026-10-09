@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { body, param, query, validationResult } from 'express-validator';
 import TextToSpeechService from '../services/TextToSpeechService.js';
-import AuthMiddleware from '../middleware/authMiddleware.js';
+import { authMiddleware } from '../middleware/authentication.js';
 import fs from 'fs';
 import path from 'path';
 import logger from '../utils/logger.js';
@@ -19,7 +19,7 @@ const router = Router();
  */
 router.post(
   '/generate',
-  AuthMiddleware.verifyToken,
+  authMiddleware,
   [
     body('explanationText')
       .trim()
@@ -88,7 +88,7 @@ router.post(
  */
 router.get(
   '/stream/:filename',
-  AuthMiddleware.verifyToken,
+  authMiddleware,
   [param('filename').matches(/^[\w\-_.]+\.(wav|mp3)$/).withMessage('Invalid filename')],
   async (req, res) => {
     try {
@@ -142,7 +142,7 @@ router.get(
  */
 router.get(
   '/languages',
-  AuthMiddleware.verifyToken,
+  authMiddleware,
   async (req, res) => {
     try {
       const languages = TextToSpeechService.getSupportedLanguages();
@@ -170,7 +170,7 @@ router.get(
  */
 router.get(
   '/voices/:language',
-  AuthMiddleware.verifyToken,
+  authMiddleware,
   [param('language').isIn(['en', 'hi', 'kn', 'te', 'ta', 'ml']).withMessage('Invalid language code')],
   async (req, res) => {
     try {
@@ -200,7 +200,7 @@ router.get(
  */
 router.get(
   '/status',
-  AuthMiddleware.verifyToken,
+  authMiddleware,
   async (req, res) => {
     try {
       const status = TextToSpeechService.getStatus();

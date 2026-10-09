@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { param, body, query, validationResult } from 'express-validator';
 import multer from 'multer';
 import DocumentService from '../services/DocumentService.js';
-import AuthMiddleware from '../middleware/authMiddleware.js';
+import { authMiddleware } from '../middleware/authentication.js';
 import logger from '../utils/logger.js';
 
 const router = Router();
@@ -46,7 +46,7 @@ const upload = multer({
  */
 router.post(
   '/upload',
-  AuthMiddleware.verifyToken,
+  authMiddleware,
   upload.single('file'),
   [
     body('patientId')
@@ -152,7 +152,7 @@ router.post(
  */
 router.get(
   '/:documentId',
-  AuthMiddleware.verifyToken,
+  authMiddleware,
   [param('documentId').isMongoId().withMessage('Invalid document ID')],
   async (req, res) => {
     try {
@@ -195,7 +195,7 @@ router.get(
  */
 router.get(
   '/patient/:patientId',
-  AuthMiddleware.verifyToken,
+  authMiddleware,
   [
     param('patientId').isMongoId().withMessage('Invalid patient ID'),
     query('type')
@@ -265,7 +265,7 @@ router.get(
  */
 router.delete(
   '/:documentId',
-  AuthMiddleware.verifyToken,
+  authMiddleware,
   [param('documentId').isMongoId().withMessage('Invalid document ID')],
   async (req, res) => {
     try {
@@ -310,7 +310,7 @@ router.delete(
  */
 router.post(
   '/:documentId/verify',
-  AuthMiddleware.verifyToken,
+  authMiddleware,
   [
     param('documentId').isMongoId().withMessage('Invalid document ID'),
     body('verificationStatus')

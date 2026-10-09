@@ -3,7 +3,7 @@ import AIHistorySummaryService from '../services/AIHistorySummaryService.js';
 import ExplainSimplyService from '../services/ExplainSimplyService.js';
 import TranslationService from '../services/TranslationService.js';
 import TextToSpeechService from '../services/TextToSpeechService.js';
-import authenticateUser from '../middleware/authMiddleware.js';
+import { authMiddleware as authenticateUser } from '../middleware/authentication.js';
 import logger from '../utils/logger.js';
 
 const router = express.Router();
