@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Header from '../components/Header';
 import Sidebar from '../components/Sidebar';
+import Breadcrumbs from '../components/Navigation/Breadcrumbs';
 
 export default function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -22,6 +23,9 @@ export default function MainLayout() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} />
+
+        {/* Breadcrumbs Navigation */}
+        <Breadcrumbs />
 
         {/* Page Content */}
         <main

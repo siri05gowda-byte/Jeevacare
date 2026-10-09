@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { aiService } from '../services/aiService';
+import aiService from '../services/aiService';
 
 export const useAiStore = create((set, get) => ({
   // AI data
