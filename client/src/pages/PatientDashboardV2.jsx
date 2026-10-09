@@ -9,6 +9,8 @@ import HealthTimeline from '../components/Timeline/HealthTimeline';
 import RecordsBrowser from '../components/Records/RecordsBrowser';
 import HealthExplainer from '../components/AI/HealthExplainer';
 import { useToast, ToastContainer } from '../components/State/Toast';
+import aiService from '../services/aiService';
+import ttsService from '../services/ttsService';
 
 /**
  * PatientDashboard (V2)
@@ -28,6 +30,9 @@ export default function PatientDashboardV2() {
   const [isLoading, setIsLoading] = useState(true);
   const [patientData, setPatientData] = useState(null);
   const [error, setError] = useState(null);
+  const [aiExplanationData, setAiExplanationData] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState('English');
 
   // Load patient data from real API with mock fallback
   useEffect(() => {
@@ -212,6 +217,45 @@ export default function PatientDashboardV2() {
     loadPatientData();
   }, [user, showError]);
 
+  // Load AI explanation when patient data is ready
+  useEffect(() => {
+    const loadAiExplanation = async () => {
+      if (!patientData?.records?.lab_results?.[0]) {
+        return;
+      }
+
+      setAiLoading(true);
+      try {
+        const firstLabResult = patientData.records.lab_results[0];
+        const explanation = await aiService.getHealthExplanation(
+          firstLabResult.id,
+          'lab_result',
+          {
+            title: firstLabResult.title,
+            date: firstLabResult.date,
+            detail: firstLabResult.detail,
+          },
+          selectedLanguage.toLowerCase()
+        );
+
+        setAiExplanationData({
+          title: `Understanding: ${firstLabResult.title}`,
+          text: explanation,
+          isLoading: false,
+        });
+      } catch (error) {
+        console.error('Failed to load AI explanation:', error);
+        // Still show explanation from mock data if available
+      } finally {
+        setAiLoading(false);
+      }
+    };
+
+    if (patientData) {
+      loadAiExplanation();
+    }
+  }, [patientData, selectedLanguage]);
+
   if (isLoading) {
     return (
       <PageContainer>
@@ -338,14 +382,43 @@ export default function PatientDashboardV2() {
       )}
 
       {/* AI Health Explanation */}
-      {aiExplanation && (
+      {(aiExplanationData || patientData?.aiExplanation) && (
         <div className="mb-8">
+          <div className="mb-4 flex gap-2 items-center">
+            <label className="text-sm font-medium text-gray-700">Language:</label>
+            <select
+              value={selectedLanguage}
+              onChange={(e) => setSelectedLanguage(e.target.value)}
+              className="text-sm border border-gray-300 rounded px-2 py-1"
+            >
+              <option>English</option>
+              <option>Hindi</option>
+              <option>Kannada</option>
+              <option>Telugu</option>
+              <option>Tamil</option>
+              <option>Malayalam</option>
+            </select>
+          </div>
           <HealthExplainer
-            title={aiExplanation.title}
-            explanation={aiExplanation.text}
-            isLoading={aiExplanation.isLoading}
-            availableLanguages={['English', 'Hindi', 'Spanish']}
-            currentLanguage="English"
+            title={aiExplanationData?.title || patientData?.aiExplanation?.title}
+            explanation={aiExplanationData?.text || patientData?.aiExplanation?.text}
+            isLoading={aiLoading || aiExplanationData?.isLoading}
+            availableLanguages={['English', 'Hindi', 'Kannada', 'Telugu', 'Tamil', 'Malayalam']}
+            currentLanguage={selectedLanguage}
+            onLanguageChange={setSelectedLanguage}
+            onPlayAudio={async (config) => {
+              try {
+                const audioBlob = await ttsService.synthesize(
+                  config.text,
+                  ttsService.getLanguageCode(config.language),
+                  { rate: 1.0 }
+                );
+                await ttsService.play(audioBlob, ttsService.getLanguageCode(config.language));
+              } catch (error) {
+                console.error('TTS error:', error);
+                showError('Unable to play audio');
+              }
+            }}
           />
         </div>
       )}
