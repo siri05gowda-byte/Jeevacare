@@ -53,8 +53,25 @@ const config = {
   // TTS Service
   ttsService: {
     enabled: process.env.TTS_SERVICE_ENABLED === 'true',
-    provider: process.env.TTS_SERVICE_PROVIDER || 'google',
+    provider: process.env.TTS_SERVICE_PROVIDER || 'piper',
     apiKey: process.env.TTS_API_KEY,
+  },
+
+  // Piper TTS (Local, Self-Hosted)
+  piperTTS: {
+    enabled: process.env.PIPER_TTS_ENABLED === 'true',
+    binaryPath: process.env.PIPER_BINARY_PATH || '/usr/bin/piper',
+    modelsPath: process.env.PIPER_MODELS_PATH || '/usr/share/piper-tts/models',
+    defaultVoice: process.env.PIPER_DEFAULT_VOICE || 'en',
+    supportedLanguages: ['en', 'hi', 'kn', 'te', 'ta', 'ml'],
+    voiceModels: {
+      en: { model: 'en_US-amy-medium.onnx', speaker: 0 },
+      hi: { model: 'hi_IN-male-medium.onnx', speaker: 0 },
+      kn: { model: 'kn_IN-male-medium.onnx', speaker: 0 },
+      te: { model: 'te_IN-male-medium.onnx', speaker: 0 },
+      ta: { model: 'ta_IN-male-medium.onnx', speaker: 0 },
+      ml: { model: 'ml_IN-male-medium.onnx', speaker: 0 },
+    },
   },
 
   // Groq AI Service

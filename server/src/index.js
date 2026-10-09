@@ -67,6 +67,10 @@ app.use('/api/v1/discharge-summaries', (await import('./routes/dischargeSummaryR
 // Phase 7 AI + Accessibility Routes
 app.use('/api/v1/patients', (await import('./routes/aiSummaryRoutes.js')).default);
 
+// TTS + Document Routes
+app.use('/api/v1/tts', (await import('./routes/ttsRoutes.js')).default);
+app.use('/api/v1/documents', (await import('./routes/documentRoutes.js')).default);
+
 // 404 Not Found handler (must be after all routes)
 app.use(notFoundHandler);
 

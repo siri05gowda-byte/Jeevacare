@@ -37,10 +37,11 @@ export const aiService = {
   /**
    * Get text-to-speech audio
    */
-  getTextToSpeech: async (text, language = 'en') => {
+  getTextToSpeech: async (text, language = 'en', patientId = null) => {
     const response = await api.post('/tts/generate', {
-      text,
+      explanationText: text,
       language,
+      patientId,
     });
     return response;
   },
@@ -79,6 +80,30 @@ export const aiService = {
     const response = await api.post('/document-quality/analyze', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
+    return response;
+  },
+
+  /**
+   * Get TTS service status
+   */
+  getTTSStatus: async () => {
+    const response = await api.get('/tts/status');
+    return response;
+  },
+
+  /**
+   * Get available voices for a language
+   */
+  getTTSVoices: async (language = 'en') => {
+    const response = await api.get(`/tts/voices/${language}`);
+    return response;
+  },
+
+  /**
+   * Get all supported TTS languages
+   */
+  getTTSLanguages: async () => {
+    const response = await api.get('/tts/languages');
     return response;
   },
 };
