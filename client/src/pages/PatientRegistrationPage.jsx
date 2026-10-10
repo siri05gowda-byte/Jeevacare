@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AlertCircle, Info } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import api from '../services/api';
 import '../styles/PatientRegistration.css';
@@ -171,7 +172,7 @@ export default function PatientRegistrationPage() {
         {/* Error Message */}
         {error && (
           <div className="alert alert-error">
-            <span className="alert-icon">⚠️</span>
+            <span className="alert-icon"><AlertCircle size={18} className="inline" /></span>
             <span>{error}</span>
           </div>
         )}
@@ -396,7 +397,7 @@ export default function PatientRegistrationPage() {
 
               <div className="info-box">
                 <p>
-                  <strong>ℹ️ Important:</strong> Once registered, the patient will receive a unique JeevaCare ID that will be their lifelong healthcare identifier.
+                  <strong><Info size={16} className="inline mr-2" /> Important:</strong> Once registered, the patient will receive a unique JeevaCare ID that will be their lifelong healthcare identifier.
                 </p>
               </div>
             </div>

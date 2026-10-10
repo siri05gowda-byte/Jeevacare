@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AlertCircle, FileText, Check } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import api from '../services/api';
 import '../styles/AdminVerification.css';
@@ -147,7 +148,7 @@ export default function ProfessionalVerificationPage() {
 
       {error && (
         <div className="error-alert">
-          <span className="error-icon">⚠️</span>
+          <span className="error-icon"><AlertCircle size={20} className="inline" /></span>
           <span>{error}</span>
           <button className="close-btn" onClick={() => setError(null)}>×</button>
         </div>
@@ -202,13 +203,13 @@ export default function ProfessionalVerificationPage() {
                   className="btn btn-info"
                   onClick={() => handleViewDetailsClick(professional)}
                 >
-                  📋 View Details
+                  <FileText size={16} className="inline mr-2" /> View Details
                 </button>
                 <button
                   className="btn btn-success"
                   onClick={() => handleVerifyClick(professional)}
                 >
-                  ✓ Verify
+                  <Check size={16} className="inline mr-2" /> Verify
                 </button>
               </div>
             </div>
@@ -343,7 +344,7 @@ export default function ProfessionalVerificationPage() {
                   setActionSuccess(null);
                 }}
               >
-                ✓ Proceed to Verify
+                <Check size={16} className="inline mr-2" /> Proceed to Verify
               </button>
             </div>
           </div>
@@ -368,14 +369,14 @@ export default function ProfessionalVerificationPage() {
 
               {actionSuccess && (
                 <div className="success-alert">
-                  <span className="success-icon">✓</span>
+                  <span className="success-icon"><Check size={20} className="inline" /></span>
                   <span>{actionSuccess}</span>
                 </div>
               )}
 
               {actionError && (
                 <div className="error-alert">
-                  <span className="error-icon">⚠️</span>
+                  <span className="error-icon"><AlertCircle size={20} className="inline" /></span>
                   <span>{actionError}</span>
                 </div>
               )}

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { AlertCircle } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import DocumentCard from '../components/DocumentCard';
 import LoadingState from '../components/LoadingState';
@@ -59,8 +60,9 @@ export default function RadiologyPage() {
       {/* Critical Findings Alert */}
       {criticalRecords.length > 0 && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded">
-          <p className="font-semibold text-red-900">
-            ⚠️ {criticalRecords.length} imaging study{criticalRecords.length !== 1 ? 'ies' : ''} with critical findings
+          <p className="font-semibold text-red-900 flex items-center gap-2">
+            <AlertCircle size={20} className="text-red-600" />
+            <span>{criticalRecords.length} imaging study{criticalRecords.length !== 1 ? 'ies' : ''} with critical findings</span>
           </p>
         </div>
       )}
@@ -98,7 +100,7 @@ export default function RadiologyPage() {
             ? "No radiology studies with critical findings at this time" 
             : "Your radiology reports and imaging studies will appear here."
           }
-          icon="🩻"
+          icon={<Stethoscope size={48} className="text-blue-600" />}
           action={{
             label: 'Contact Healthcare Provider',
             onClick: () => console.log('Contact provider')
@@ -108,7 +110,7 @@ export default function RadiologyPage() {
 
       {/* Information Banner */}
       <div className="mt-8 p-6 bg-blue-50 border border-blue-200 rounded-lg">
-        <h3 className="font-semibold text-blue-900 mb-2">🩻 About Your Radiology Records</h3>
+        <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2"><Stethoscope size={20} className="text-blue-600" /> About Your Radiology Records</h3>
         <p className="text-sm text-blue-800">
           Access all your medical imaging reports, including X-rays, CT scans, MRI, ultrasounds and other 
           diagnostic imaging. Critical findings are highlighted for immediate attention. Share these reports 

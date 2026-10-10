@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { X, AlertCircle, FileText, Info } from 'lucide-react';
 import api from '../services/api.js';
 import '../styles/AIHealthSummaryCard.css';
 
@@ -137,22 +138,27 @@ export default function AIHealthSummaryCard({ patientId, currentUser }) {
   return (
     <div className="ai-health-summary-card">
       <div className="card-header">
-        <h2>🤖 AI Health Summary</h2>
+        <h2 className="flex items-center gap-2">
+          <span>🤖 AI Health Summary</span>
+        </h2>
         {isStale && <span className="stale-badge">Stale</span>}
       </div>
 
       {/* Disclaimer */}
       <div className="disclaimer">
-        <p>
-          ⓘ This AI-generated summary is based on your documented JeevaCare records. It is for
-          information and understanding only and does not replace professional medical advice.
+        <p className="flex items-center gap-2">
+          <Info size={16} />
+          <span>This AI-generated summary is based on your documented JeevaCare records. It is for information and understanding only and does not replace professional medical advice.</span>
         </p>
       </div>
 
       {/* Error State */}
       {error && (
         <div className="error-state">
-          <p>❌ {error}</p>
+          <p className="flex items-center gap-2">
+            <X size={16} className="text-red-600" />
+            <span>{error}</span>
+          </p>
         </div>
       )}
 
@@ -201,7 +207,10 @@ export default function AIHealthSummaryCard({ patientId, currentUser }) {
 
             {summary.summaryContent.allergies?.documented?.length > 0 && (
               <section className="summary-section">
-                <h3>⚠️ Allergies</h3>
+                <h3 className="flex items-center gap-2">
+                  <AlertCircle size={18} className="text-red-600" />
+                  <span>Allergies</span>
+                </h3>
                 <ul>
                   {summary.summaryContent.allergies.documented.map((allergy, i) => (
                     <li key={i}>{allergy}</li>
@@ -225,7 +234,10 @@ export default function AIHealthSummaryCard({ patientId, currentUser }) {
 
             {summary.summaryContent.conditions?.active?.length > 0 && (
               <section className="summary-section">
-                <h3>📋 Known Conditions</h3>
+                <h3 className="flex items-center gap-2">
+                  <FileText size={18} />
+                  <span>Known Conditions</span>
+                </h3>
                 <ul>
                   {summary.summaryContent.conditions.active.map((condition, i) => (
                     <li key={i}>{condition}</li>
@@ -243,7 +255,10 @@ export default function AIHealthSummaryCard({ patientId, currentUser }) {
 
             {summary.summaryContent.missingInformation?.length > 0 && (
               <section className="summary-section missing">
-                <h3>ℹ️ Missing Information</h3>
+                <h3 className="flex items-center gap-2">
+                  <Info size={18} />
+                  <span>Missing Information</span>
+                </h3>
                 <ul>
                   {summary.summaryContent.missingInformation.map((item, i) => (
                     <li key={i}>{item}</li>

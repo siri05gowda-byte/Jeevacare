@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { FileText, Check, Lock, Edit, BarChart3 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import api from '../services/api';
 import '../styles/PatientProfile.css';
@@ -159,7 +160,7 @@ export default function PatientProfilePage() {
                   onClick={() => navigator.clipboard.writeText(patient.jeevaId)}
                   title="Copy JeevaId"
                 >
-                  📋
+                  <FileText size={16} className="inline" />
                 </button>
               </div>
               <p className="help-text">Your unique lifelong healthcare identifier</p>
@@ -186,8 +187,8 @@ export default function PatientProfilePage() {
             <div className="identity-item">
               <label>Sex</label>
               <p className="value">
-                {patient.personalIdentity.sex === 'M' && '👨 Male'}
-                {patient.personalIdentity.sex === 'F' && '👩 Female'}
+                {patient.personalIdentity.sex === 'M' && <span><span className="text-xl mr-2">👨</span> Male</span>}
+                {patient.personalIdentity.sex === 'F' && <span><span className="text-xl mr-2">👩</span> Female</span>}
                 {patient.personalIdentity.sex === 'O' && 'Other'}
                 {patient.personalIdentity.sex === 'Prefer not to say' && 'Prefer not to say'}
               </p>
@@ -314,10 +315,10 @@ export default function PatientProfilePage() {
                       <div className="permissions-list">
                         <strong>Permissions:</strong>
                         <ul>
-                          {guardian.permissions.viewMedicalRecords && <li>✓ View Medical Records</li>}
-                          {guardian.permissions.manageMedicalRecords && <li>✓ Manage Medical Records</li>}
-                          {guardian.permissions.manageAppointments && <li>✓ Manage Appointments</li>}
-                          {guardian.permissions.manageEmergencyProfile && <li>✓ Manage Emergency Profile</li>}
+                          {guardian.permissions.viewMedicalRecords && <li><Check size={16} className="inline mr-1" /> View Medical Records</li>}
+                          {guardian.permissions.manageMedicalRecords && <li><Check size={16} className="inline mr-1" /> Manage Medical Records</li>}
+                          {guardian.permissions.manageAppointments && <li><Check size={16} className="inline mr-1" /> Manage Appointments</li>}
+                          {guardian.permissions.manageEmergencyProfile && <li><Check size={16} className="inline mr-1" /> Manage Emergency Profile</li>}
                         </ul>
                       </div>
                     )}
@@ -391,7 +392,7 @@ export default function PatientProfilePage() {
           className="btn btn-primary"
           onClick={() => navigate(`/patient/${patient._id}/edit`)}
         >
-          Edit Profile
+          <Edit size={16} className="inline mr-2" /> Edit Profile
         </button>
       </div>
     </div>

@@ -1,8 +1,10 @@
+![JeevaCare Logo](client/src/assets/logos/jeevacare-logo.svg)
+
 # JeevaCare — One Life. One Health Journey.
 
 A secure, verified, lifelong healthcare platform that maintains a chronological patient health journey across providers with emergency access, AI-assisted medical intelligence, and multilingual accessibility.
 
-## 🏥 The Problem
+## The Problem
 
 Patients' medical records are fragmented across hospitals, cities, and physical documents. During health crises—especially emergencies—critical information is unavailable, identity is unclear, and care is delayed.
 
@@ -14,7 +16,7 @@ Patients' medical records are fragmented across hospitals, cities, and physical 
 - Unclear verification status and record provenance
 - Language and accessibility barriers
 
-## ✨ The Solution
+## The Solution
 
 JeevaCare creates a **single, verified, auditable health record** that follows the patient throughout their lifetime:
 
@@ -27,9 +29,9 @@ JeevaCare creates a **single, verified, auditable health record** that follows t
 7. **Complete Audit Trail** - All access logged for security and compliance
 8. **Patient Control** - View and manage records without altering provider facts
 
-## 🎯 Implemented Features
+## Implemented Features
 
-### Patient Portal ✅
+### Patient Portal
 - **Health Timeline** - Chronological view of all medical events
 - **Medical Records** - Secure viewing of clinical information
 - **Appointments** - Book and manage doctor appointments
@@ -39,20 +41,23 @@ JeevaCare creates a **single, verified, auditable health record** that follows t
 - **Multilingual Interface** - 6 languages: English, Hindi, Kannada, Telugu, Tamil, Malayalam
 - **Audio Explanations** - Text-to-speech for medical explanations (demo/mock mode)
 
-### Clinical Workspace ✅
+### Clinical Workspace
+
 - **Patient Search** - Safe patient matching to prevent wrong-patient errors
 - **Clinical Records** - Create encounters, diagnoses, medications, procedures
 - **Appointment Management** - View schedule and manage bookings
 - **Document Verification** - Review and verify patient-uploaded documents
 - **Record Amendment** - Traceable corrections with full history
 
-### Emergency Access ✅
+### Emergency Access
+
 - **Rapid Patient Identification** - Access patient after identity verification
 - **Critical Summary** - Allergies, blood group, medications shown first
 - **Full History** - Complete timeline available when needed
 - **Access Logging** - All emergency access audited
 
-### Authorization & Security ✅
+### Authorization & Security
+
 - **Role-Based Access** - Patient, Guardian, Doctor, Hospital Admin, Emergency, System Admin
 - **Patient Isolation** - Patients cannot access other patients' records
 - **Facility Isolation** - Staff limited to their facility
@@ -60,7 +65,8 @@ JeevaCare creates a **single, verified, auditable health record** that follows t
 - **9-Point Clinical Authorization** - User, Professional, Facility, Staff, Role, Permissions, Credentials, Patient Access, Patient Verification
 - **Complete Audit Trail** - All sensitive operations logged
 
-### Verified Records ✅
+### Verified Records
+
 - **Provider-Verified** - Official clinical data from authenticated providers
 - **Patient-Uploaded** - Personal documents (initially unverified)
 - **Verification Workflow** - Providers can review and verify uploads
@@ -68,7 +74,7 @@ JeevaCare creates a **single, verified, auditable health record** that follows t
 - **Correction Requests** - Patient-initiated corrections reviewed by provider
 - **Immutability** - Patient cannot directly modify provider-created records
 
-## 🏗️ Architecture
+## Architecture
 
 ### Technology Stack
 
@@ -137,7 +143,7 @@ JeevaCare/
 └── README.md                        # This file
 ```
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -195,7 +201,7 @@ Doctor:   doctor@demo.com   / DemoPassword123
 Admin:    admin@demo.com    / DemoPassword123
 ```
 
-## ⚙️ Environment Variables
+## Environment Variables
 
 ### Backend Configuration (server/.env)
 
@@ -230,7 +236,7 @@ CLOUDINARY_API_SECRET=
 LOG_LEVEL=info
 ```
 
-## 🧪 Testing
+## Testing
 
 ### Run All Tests
 ```bash
@@ -243,7 +249,7 @@ npm run test --workspace=server
 ```
 
 **Test Results (Verified October 10, 2026):**
-- ✅ **Piper TTS Tests: 17/17 PASS** (46.28s, exit code 0)
+- PASS: **Piper TTS Tests: 17/17** (46.28s, exit code 0)
   - English synthesis: 185,900 bytes valid WAV (18.8s)
   - Hindi synthesis: 165,932 bytes valid WAV (14.6s)
   - Malayalam synthesis: 178,220 bytes valid WAV (10.0s)
@@ -251,7 +257,7 @@ npm run test --workspace=server
   - Cleanup: temporary file cleanup verified
   - Concurrent limits: enforced (max 3)
   - Voice listing: accurate per language
-- ⚠️ Full Integration Tests: BLOCKED (requires valid TEST_MONGODB_URI in server/.env)
+- PASS: Full Integration Tests: BLOCKED (requires valid TEST_MONGODB_URI in server/.env)
 
 ### Piper TTS Direct Test
 ```bash
@@ -275,7 +281,7 @@ echo "Hello, welcome to JeevaCare" | piper \
 npm run test --workspace=client
 ```
 
-## 📡 API Endpoints
+## API Endpoints
 
 ### Health Check
 - `GET /health` - API health status
@@ -302,13 +308,13 @@ npm run test --workspace=client
 - `POST /api/v1/patients/:id/ai-summary` - Generate medical summary (returns mock data if Groq unconfigured)
 - `GET /api/v1/health/services` - Check service status
 
-## 🔐 Security
+## Security
 
 ### Authentication & Authorization
 
 **JWT Security Validation:**
 - Development/Test: Allow development defaults
-- Staging/Production: **Fail-safe enforcement** ✅
+- Staging/Production: **Fail-safe enforcement**
   - JWT_SECRET must be 32+ characters
   - JWT_SECRET cannot contain `dev-` or `development`
   - Separate REFRESH_TOKEN_SECRET required
@@ -343,7 +349,7 @@ All sensitive operations logged:
 - Document upload/verification
 - Permission changes
 
-## 🤖 AI & Accessibility
+## AI & Accessibility
 
 ### Medical Intelligence Features
 
@@ -374,43 +380,43 @@ All sensitive operations logged:
 5. Tamil (ta)
 6. Malayalam (ml)
 
-### AI Safety Guardrails ✅
+### AI Safety Guardrails
 
-- ✅ **No autonomous diagnosis** - AI never independently diagnoses
-- ✅ **No fabrication** - AI never invents medical facts
-- ✅ **Clear labeling** - All AI output marked "AI-generated"
-- ✅ **Source-tracked** - Linked to original records
-- ✅ **Not clinical fact** - AI output cannot become official record
-- ✅ **Clinician review** - Professional judgment required
+- PASS: **No autonomous diagnosis** - AI never independently diagnoses
+- PASS: **No fabrication** - AI never invents medical facts
+- PASS: **Clear labeling** - All AI output marked "AI-generated"
+- PASS: **Source-tracked** - Linked to original records
+- PASS: **Not clinical fact** - AI output cannot become official record
+- PASS: **Clinician review** - Professional judgment required
 
-## 🌍 Multilingual Support
+## Multilingual Support
 
 **Real Piper TTS support verified for 3 languages (October 2026).** Four additional languages have UI support but no official Piper models available.
 
 | Language | Code | Status | TTS | Model Status | Notes |
 |---|---|---|---|---|---|
-| English | en | ✅ Implemented | ✅ **REAL** | en_US-amy-medium | Verified: 185KB+ WAV, exit code 0 |
-| हिन्दी (Hindi) | hi | ✅ Implemented | ✅ **REAL** | hi_IN-pratham-medium | Verified: 165KB+ WAV, exit code 0 |
-| മലയാളം (Malayalam) | ml | ✅ Implemented | ✅ **REAL** | ml_IN-meera-medium | Verified: 178KB+ WAV, exit code 0 |
-| ಕನ್ನಡ (Kannada) | kn | ✅ UI Ready | ❌ Not Available | None | No official Piper model |
-| తెలుగు (Telugu) | te | ✅ UI Ready | ❌ Not Available | None | No official Piper model |
-| தமிழ் (Tamil) | ta | ✅ UI Ready | ❌ Not Available | None | No official Piper model |
+| English | en | IMPLEMENTED | REAL | en_US-amy-medium | Verified: 185KB+ WAV, exit code 0 |
+| हिन्दी (Hindi) | hi | IMPLEMENTED | REAL | hi_IN-pratham-medium | Verified: 165KB+ WAV, exit code 0 |
+| മലയാളം (Malayalam) | ml | IMPLEMENTED | REAL | ml_IN-meera-medium | Verified: 178KB+ WAV, exit code 0 |
+| ಕನ್ನಡ (Kannada) | kn | UI Ready | Not Available | None | No official Piper model |
+| తెలుగు (Telugu) | te | UI Ready | Not Available | None | No official Piper model |
+| தமிழ் (Tamil) | ta | UI Ready | Not Available | None | No official Piper model |
 
 **Status (Verified October 10, 2026):**
-- ✅ **English, Hindi, Malayalam:** Real synthesis working, model files present, tests passing
-- ❌ **Kannada, Tamil, Telugu:** No official Piper models available; UI supports these languages for future expansion
+- PASS: **English, Hindi, Malayalam:** Real synthesis working, model files present, tests passing
+- BLOCKED: **Kannada, Tamil, Telugu:** No official Piper models available; UI supports these languages for future expansion
 
 **Important:** Text-to-speech is limited to 3 languages with official Piper models. See [PIPER_TTS_SETUP.md](PIPER_TTS_SETUP.md) for installation and [PIPER_TTS_LANGUAGE_SUPPORT_REPORT.md](docs/PIPER_TTS_LANGUAGE_SUPPORT_REPORT.md) for language details and unsupported status.
 
-## 📝 Deployment
+## Deployment
 
 ### Optional: Real Piper TTS for English, Hindi, Malayalam
 
 JeevaCare includes **verified, tested Piper TTS** for real audio generation. **Important:** Only 3 of 6 languages have official Piper models.
 
 **Status Summary:**
-- ✅ **English, Hindi, Malayalam:** Real synthesis verified (Oct 2026)
-- ❌ **Kannada, Tamil, Telugu:** No official Piper models exist (as of Oct 2026)
+- PASS: **English, Hindi, Malayalam:** Real synthesis verified (Oct 2026)
+- BLOCKED: **Kannada, Tamil, Telugu:** No official Piper models exist (as of Oct 2026)
 
 For production audio generation (instead of demo/mock mode):
 
@@ -487,22 +493,22 @@ Run the 15-point smoke test checklist in `docs/STAGING_SMOKE_TESTS.md`:
 - Rate limiting active
 - CORS headers present
 
-## ⚠️ Important Disclaimers
+## Important Disclaimers
 
-### Medical Disclaimer ⚠️
+### Medical Disclaimer
 
 JeevaCare is a healthcare **information platform**, NOT a diagnostic tool:
 
-- ❌ Does NOT diagnose diseases
-- ❌ Does NOT replace doctors
-- ❌ Does NOT provide medical advice
-- ✅ Organizes and presents medical information
-- ✅ Assists in data access and explanation
-- ✅ Requires clinician review and approval
+- BLOCKED: Does NOT diagnose diseases
+- BLOCKED: Does NOT replace doctors
+- BLOCKED: Does NOT provide medical advice
+- PASS: Organizes and presents medical information
+- PASS: Assists in data access and explanation
+- PASS: Requires clinician review and approval
 
 **All clinical decisions must be made by qualified healthcare professionals.**
 
-### AI Disclaimer ⚠️
+### AI Disclaimer
 
 All AI features (summaries, explanations, accessibility) are:
 
@@ -512,7 +518,7 @@ All AI features (summaries, explanations, accessibility) are:
 - **Demo/Mock** - Returns placeholder data if service unconfigured
 - **Not autonomous** - Requires human review
 
-### External Integrations ⚠️
+### External Integrations
 
 - **DigiLocker**: Optional government document integration (demo mode by default)
 - **Groq AI**: Optional AI provider (demo/mock mode if unconfigured)
@@ -521,7 +527,7 @@ All AI features (summaries, explanations, accessibility) are:
 
 All external services have demo/fallback modes to prevent production failures.
 
-## 📖 Documentation
+## Documentation
 
 - **[Build_spec.md](Build_spec.md)** - Complete technical specification
 - **[objective.md](objective.md)** - Feature verification checklist
@@ -530,35 +536,35 @@ All external services have demo/fallback modes to prevent production failures.
 - **[docs/STAGING_FRONTEND_CONFIG.md](docs/STAGING_FRONTEND_CONFIG.md)** - Frontend staging setup
 - **[docs/STAGING_SMOKE_TESTS.md](docs/STAGING_SMOKE_TESTS.md)** - Post-deployment test checklist
 
-## 🔄 Development Status
+## Development Status
 
-### Phase 1 ✅ COMPLETE
+### Phase 1
 
-- ✅ Monorepo structure (client, server, shared)
-- ✅ Backend foundation (Express, MongoDB, authentication)
-- ✅ Frontend foundation (React, Tailwind, auth store)
-- ✅ Role-based access control (RBAC)
-- ✅ Patient identity and lifelong timeline
-- ✅ Verified clinical records
-- ✅ Emergency access with logging
-- ✅ Appointment booking and management
-- ✅ AI medical summaries (demo/mock mode)
-- ✅ Multilingual support (6 languages)
-- ✅ Text-to-speech accessibility (demo/mock mode)
-- ✅ Complete audit trail
-- ✅ Testing infrastructure (12 unit + 60 frontend tests passing)
-- ✅ Security validation (JWT, CORS, rate limiting)
-- ✅ Deployment configurations (Render + Vercel)
+- PASS: Monorepo structure (client, server, shared)
+- PASS: Backend foundation (Express, MongoDB, authentication)
+- PASS: Frontend foundation (React, Tailwind, auth store)
+- PASS: Role-based access control (RBAC)
+- PASS: Patient identity and lifelong timeline
+- PASS: Verified clinical records
+- PASS: Emergency access with logging
+- PASS: Appointment booking and management
+- PASS: AI medical summaries (demo/mock mode)
+- PASS: Multilingual support (6 languages)
+- PASS: Text-to-speech accessibility (demo/mock mode)
+- PASS: Complete audit trail
+- PASS: Testing infrastructure (12 unit + 60 frontend tests passing)
+- PASS: Security validation (JWT, CORS, rate limiting)
+- PASS: Deployment configurations (Render + Vercel)
 
 ### Known Limitations
 
 | Feature | Status | Notes |
 |---|---|---|
-| Full Integration Tests | ⚠️ BLOCKED | Requires valid TEST_MONGODB_URI (user responsibility) |
-| Groq AI (Production) | ⚠️ Demo Mode | Demo/mock mode if GROQ_API_KEY unconfigured |
-| Piper TTS (Production) | ✅ Ready (3 langs) | Real Piper synthesis for English, Hindi, Malayalam; Kannada, Tamil, Telugu unsupported |
-| DigiLocker | ⚠️ Optional | Demo mode by default, optional integration |
-| Cloudinary Upload | ⚠️ Optional | Not required for core functionality |
+| Full Integration Tests | BLOCKED | Requires valid TEST_MONGODB_URI (user responsibility) |
+| Groq AI (Production) | DEMO MODE | Demo/mock mode if GROQ_API_KEY unconfigured |
+| Piper TTS (Production) | PASS (3 langs) | Real Piper synthesis for English, Hindi, Malayalam; Kannada, Tamil, Telugu unsupported |
+| DigiLocker | OPTIONAL | Demo mode by default, optional integration |
+| Cloudinary Upload | OPTIONAL | Not required for core functionality |
 
 ### Upcoming Phases
 
@@ -567,7 +573,7 @@ All external services have demo/fallback modes to prevent production failures.
 - Phase 8-13: Advanced Dashboards & Reporting
 - Phase 14-19: Production Hardening, Monitoring, Advanced AI
 
-## 🤝 Contributing
+## Contributing
 
 Contributions follow the Build_spec.md and objective.md. Process:
 
@@ -579,11 +585,11 @@ Contributions follow the Build_spec.md and objective.md. Process:
 6. Update README with changes
 7. Submit pull request
 
-## 📄 License
+## License
 
 Apache License 2.0
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - Built as an academic prototype for lifelong healthcare continuity
 - Designed to address fragmented medical records across providers
@@ -594,7 +600,7 @@ Apache License 2.0
 
 **Current Status**: Phase 1 Foundation Complete — Production-Ready Backend & Frontend
 
-**Test Results**: ✅ 12 unit tests, ✅ 60 frontend tests, ✅ 10 AI tests, ⚠️ Integration tests blocked (external dependency)
+**Test Results**: 12 unit tests PASS, 60 frontend tests PASS, 10 AI tests PASS, Integration tests BLOCKED (external dependency)
 
 **Ready for Staging**: Yes — Use `render.yaml` and `vercel.json` with environment configuration from `docs/`
 

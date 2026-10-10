@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Users, Calendar, Clock, CheckCircle } from 'lucide-react';
+import { Users, Calendar, Clock, CheckCircle, Check, ArrowRight } from 'lucide-react';
 import PageContainer from '../components/Layout/PageContainer';
 import SectionTitle from '../components/Layout/SectionTitle';
 import PatientSearch from '../components/Search/PatientSearch';
@@ -69,13 +69,13 @@ export default function ProviderDashboardV2() {
   const getStatusIcon = (status) => {
     switch (status) {
       case 'completed':
-        return '✓';
+        return <Check size={14} />;
       case 'in-progress':
-        return '→';
+        return <ArrowRight size={14} />;
       case 'scheduled':
-        return '⏱';
+        return <Clock size={14} />;
       default:
-        return '•';
+        return <span>•</span>;
     }
   };
 
@@ -229,7 +229,7 @@ export default function ProviderDashboardV2() {
                     </div>
                     <div className="flex-shrink-0 text-right">
                       <span className={`badge badge-sm ${getStatusColor(apt.status)}`}>
-                        {getStatusIcon(apt.status)} {apt.status}
+                        {getStatusIcon(apt.status)} <span>{apt.status}</span>
                       </span>
                     </div>
                   </div>

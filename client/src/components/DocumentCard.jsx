@@ -1,4 +1,5 @@
 import React from 'react';
+import { Beaker, Stethoscope, FileText, File, Paperclip, AlertCircle, Lock } from 'lucide-react';
 import VerificationBadge from './VerificationBadge';
 
 export default function DocumentCard({ 
@@ -9,12 +10,12 @@ export default function DocumentCard({
 }) {
   const getTypeIcon = (type) => {
     switch(type) {
-      case 'vaccination': return '💉';
-      case 'laboratory': return '🧪';
-      case 'radiology': return '🩻';
-      case 'discharge': return '📋';
-      case 'document': return '📄';
-      default: return '📎';
+      case 'vaccination': return <span>💉</span>;
+      case 'laboratory': return <Beaker size={32} className="text-purple-600" />;
+      case 'radiology': return <Stethoscope size={32} className="text-blue-600" />;
+      case 'discharge': return <FileText size={32} className="text-amber-600" />;
+      case 'document': return <File size={32} className="text-gray-600" />;
+      default: return <Paperclip size={32} className="text-gray-600" />;
     }
   };
 
@@ -61,9 +62,9 @@ export default function DocumentCard({
       case 'vaccination':
         return `By ${data.provider} • Batch: ${data.batchNumber || 'N/A'}`;
       case 'laboratory':
-        return data.isCritical ? '⚠️ Critical Results' : `${data.results?.length || 0} tests`;
+        return data.isCritical ? <span className="flex items-center gap-1"><AlertCircle size={14} className="text-red-600" /> Critical Results</span> : `${data.results?.length || 0} tests`;
       case 'radiology':
-        return data.hasCriticalFindings ? '⚠️ Critical Findings' : 'Normal findings';
+        return data.hasCriticalFindings ? <span className="flex items-center gap-1"><AlertCircle size={14} className="text-red-600" /> Critical Findings</span> : 'Normal findings';
       case 'discharge':
         return `${data.lengthOfStay || 0} days • Disposition: ${data.dischargeDisposition}`;
       default:
@@ -87,10 +88,10 @@ export default function DocumentCard({
 
       {(data.flaggedAsSensitive || data.isCritical || data.hasCriticalFindings) && (
         <div className="mb-4 p-2 bg-red-50 border border-red-200 rounded">
-          <p className="text-xs text-red-800 font-medium">
-            {data.flaggedAsSensitive && '🔒 Sensitive Information'}
-            {data.isCritical && '⚠️ Critical Result'}
-            {data.hasCriticalFindings && '⚠️ Critical Findings'}
+          <p className="text-xs text-red-800 font-medium flex items-center gap-1">
+            {data.flaggedAsSensitive && <><Lock size={14} /> Sensitive Information</>}
+            {data.isCritical && <><AlertCircle size={14} /> Critical Result</>}
+            {data.hasCriticalFindings && <><AlertCircle size={14} /> Critical Findings</>}
           </p>
         </div>
       )}

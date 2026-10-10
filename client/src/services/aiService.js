@@ -1,12 +1,16 @@
 import axios from 'axios';
+import { isDemoModeEnabled, getDemoBadgeLabel } from '../utils/demoMode';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
 
 /**
  * AI Service
  * 
  * Handles AI-powered health explanations, summaries, and medical information processing.
- * Integrates with backend Groq API adapter with demo fallback.
+ * Integrates with backend Groq API adapter.
+ * 
+ * Demo explanations are ONLY returned if demo mode is explicitly enabled.
+ * In production, failed API calls do not return demo explanations.
  */
 const aiService = {
   /**
@@ -15,7 +19,7 @@ const aiService = {
    * @param {string} recordType - Type of record (lab_result, radiology, etc.)
    * @param {Object} recordData - Record data to explain
    * @param {string} language - Target language (default: English)
-   * @returns {Promise<string>} AI-generated explanation
+   * @returns {Promise<string>} AI-generated explanation or null if unavailable
    */
   async getHealthExplanation(recordId, recordType, recordData, language = 'English') {
     try {
@@ -34,8 +38,15 @@ const aiService = {
       }
     } catch (error) {
       console.error('AI explanation error:', error);
-      // Return demo explanation if API fails
-      return this.getDemoExplanation(recordType, language);
+      
+      // Only return demo explanation if demo mode is explicitly enabled
+      if (isDemoModeEnabled()) {
+        console.warn('Returning demo explanation (demo mode enabled)');
+        return this.getDemoExplanation(recordType, language, true);
+      }
+      
+      // In normal operation, throw error instead of returning demo data
+      throw error;
     }
   },
 
@@ -61,21 +72,31 @@ const aiService = {
       }
     } catch (error) {
       console.error('AI summary error:', error);
-      return {
-        title: 'Health Summary',
-        keyPoints: [
-          'Unable to generate AI summary at this time.',
-          'Please try again later or contact support.',
-        ],
-      };
+      
+      // Only return demo summary if demo mode is explicitly enabled
+      if (isDemoModeEnabled()) {
+        return {
+          title: 'Health Summary (Demo)',
+          keyPoints: [
+            'This is a demo summary.',
+            'Unable to generate real AI summary at this time.',
+            'Please try again or contact support.',
+          ],
+          isDemoData: true,
+        };
+      }
+      
+      // In normal operation, throw error
+      throw error;
     }
   },
 
   /**
-   * Get demo/fallback explanation (when API unavailable)
+   * Get demo/fallback explanation (only if demo mode explicitly enabled)
    * @private
+   * @param {boolean} addDemoLabel - If true, prepend demo badge to explanation
    */
-  getDemoExplanation(recordType, language = 'English') {
+  getDemoExplanation(recordType, language = 'English', addDemoLabel = false) {
     const explanations = {
       lab_result: {
         English:
@@ -111,11 +132,17 @@ const aiService = {
       },
     };
 
-    return (
+    let explanation =
       explanations[recordType]?.[language] ||
       explanations[recordType]?.['English'] ||
-      'No explanation available for this record type.'
-    );
+      'No explanation available for this record type.';
+
+    // If explicitly requested, prepend demo label
+    if (addDemoLabel) {
+      explanation = `[${getDemoBadgeLabel()}]\n\n${explanation}`;
+    }
+
+    return explanation;
   },
 
   /**

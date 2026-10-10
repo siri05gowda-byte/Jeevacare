@@ -12,6 +12,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AlertCircle, User, Settings, Building2, X, Check } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import api from '../services/api';
 import '../styles/ProfessionalDashboard.css';
@@ -95,7 +96,7 @@ export default function ProfessionalDashboardPage() {
       {/* Error Alert */}
       {error && (
         <div className="error-alert">
-          <span className="error-icon">⚠️</span>
+          <span className="error-icon"><AlertCircle size={20} className="inline" /></span>
           <span>{error}</span>
           <button className="close-btn" onClick={() => setError(null)}>×</button>
         </div>
@@ -109,7 +110,7 @@ export default function ProfessionalDashboardPage() {
         </div>
       ) : !professionalStatus?.hasProfessionalProfile ? (
         <div className="empty-state">
-          <div className="empty-icon">👨‍⚕️</div>
+          <div className="empty-icon"><User size={64} className="text-gray-400" /></div>
           <h2>Create Professional Profile</h2>
           <p>You haven't created a professional profile yet.</p>
           <p>Professional profiles are required to create clinical records.</p>
@@ -163,7 +164,7 @@ export default function ProfessionalDashboardPage() {
 
               {professionalStatus.verificationExpired && (
                 <div className="warning-box">
-                  <span className="warning-icon">⚠️</span>
+                  <span className="warning-icon"><AlertCircle size={16} className="inline mr-2" /></span>
                   <span>
                     Your professional verification has expired. Please contact
                     an administrator to renew.
@@ -173,7 +174,7 @@ export default function ProfessionalDashboardPage() {
 
               {!professionalStatus.canPerformClinicalOperations && (
                 <div className="info-box">
-                  <span className="info-icon">ℹ️</span>
+                  <span className="info-icon"><Info size={16} className="inline mr-2" /></span>
                   <span>
                     You need verification and valid credentials to perform
                     clinical operations. Contact your facility administrator.
@@ -187,13 +188,13 @@ export default function ProfessionalDashboardPage() {
                 className="btn btn-secondary"
                 onClick={() => navigate('/professional/credentials')}
               >
-                📚 Manage Credentials
+                <BarChart3 size={16} className="inline mr-2" /> Manage Credentials
               </button>
               <button
                 className="btn btn-secondary"
                 onClick={() => navigate('/professional/profile')}
               >
-                ⚙️ Edit Profile
+                <Settings size={16} className="inline mr-2" /> Edit Profile
               </button>
             </div>
           </div>
@@ -218,8 +219,8 @@ export default function ProfessionalDashboardPage() {
                   }`}
                 >
                   {professionalStatus.canPerformClinicalOperations
-                    ? '✓ Eligible'
-                    : '✗ Ineligible'}
+                    ? <><Check size={16} className="inline mr-1" /> Eligible</>
+                    : <><X size={16} className="inline mr-1" /> Ineligible</>}
                 </span>
               </div>
             </div>
@@ -272,7 +273,7 @@ export default function ProfessionalDashboardPage() {
 
                       {facility.facilityStatus !== 'active' && (
                         <div className="warning-box">
-                          <span className="warning-icon">⚠️</span>
+                          <span className="warning-icon"><AlertCircle size={16} className="inline mr-2" /></span>
                           <span>Facility is {facility.facilityStatus}</span>
                         </div>
                       )}
@@ -301,7 +302,7 @@ export default function ProfessionalDashboardPage() {
                 disabled={!professionalStatus.canPerformClinicalOperations}
                 onClick={() => navigate('/clinical-record/new')}
               >
-                <div className="action-icon">📝</div>
+                <div className="action-icon"><Edit size={32} className="text-blue-600 mx-auto" /></div>
                 <div className="action-label">Create Clinical Record</div>
                 {!professionalStatus.canPerformClinicalOperations && (
                   <div className="disabled-reason">
@@ -328,7 +329,7 @@ export default function ProfessionalDashboardPage() {
                 className="action-card"
                 onClick={() => navigate('/professional/facilities')}
               >
-                <div className="action-icon">🏥</div>
+                <div className="action-icon"><Building2 size={32} className="text-blue-600 mx-auto" /></div>
                 <div className="action-label">Manage Facilities</div>
               </button>
 
@@ -354,20 +355,25 @@ export default function ProfessionalDashboardPage() {
                 </p>
                 <ul>
                   <li>
-                    ✓ Your professional profile is{' '}
-                    <strong>verified by JeevaCare</strong>
+                    <Check size={16} className="inline mr-2" />
+                    Your professional profile is
+                    <strong> verified by JeevaCare</strong>
                   </li>
                   <li>
-                    ✓ You have <strong>valid, verified credentials</strong>
+                    <Check size={16} className="inline mr-2" />
+                    You have <strong>valid, verified credentials</strong>
                   </li>
                   <li>
-                    ✓ You are <strong>actively associated</strong> with the facility
+                    <Check size={16} className="inline mr-2" />
+                    You are <strong>actively associated</strong> with the facility
                   </li>
                   <li>
-                    ✓ The facility is <strong>verified and active</strong>
+                    <Check size={16} className="inline mr-2" />
+                    The facility is <strong>verified and active</strong>
                   </li>
                   <li>
-                    ✓ The patient is <strong>accessible</strong> to your facility
+                    <Check size={16} className="inline mr-2" />
+                    The patient is <strong>accessible</strong> to your facility
                   </li>
                 </ul>
               </div>
@@ -378,11 +384,14 @@ export default function ProfessionalDashboardPage() {
                   All official clinical records created by you are:
                 </p>
                 <ul>
-                  <li>🔒 Cryptographically attributed to your professional ID</li>
-                  <li>📝 Permanently linked to your facility association</li>
-                  <li>📋 Marked as provider-verified in patient history</li>
-                  <li>📊 Auditable via access logs</li>
-                  <li>✏️ Amendable only through traced amendments</li>
+                  <li>
+                    <Check size={16} className="inline mr-2" />
+                    Cryptographically attributed to your professional ID
+                  </li>
+                  <li><FileText size={16} className="inline mr-2" /> Permanently linked to your facility association</li>
+                  <li><FileText size={16} className="inline mr-2" /> Marked as provider-verified in patient history</li>
+                  <li><BarChart3 size={16} className="inline mr-2" /> Auditable via access logs</li>
+                  <li><Edit size={16} className="inline mr-2" /> Amendable only through traced amendments</li>
                 </ul>
               </div>
             </div>
