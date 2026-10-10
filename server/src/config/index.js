@@ -1,6 +1,37 @@
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Explicitly load from server/.env relative to server/src/config directory
+dotenv.config({ path: path.join(__dirname, '..', '..', '.env') });
+
+/**
+ * Validate JWT secret for non-development environments
+ * Fail-safe: Strong, unique secrets required for staging/production
+ */
+const validateJWTSecret = (secret, secretName, environment) => {
+  // Allow dev defaults in development and test environments
+  if (environment === 'development' || environment === 'test') {
+    return;
+  }
+
+  // For staging/production: enforce strong secrets
+  if (!secret || secret.includes('dev-') || secret.includes('development') || secret.length < 32) {
+    throw new Error(
+      `[SECURITY FAIL-SAFE] ${secretName} is not secure for ${environment} environment.\n` +
+      `Requirement: ${secretName} must be:\n` +
+      `  • At least 32 characters long (preferably 64+)\n` +
+      `  • Cryptographically random\n` +
+      `  • NOT contain 'dev-' or 'development' keywords\n` +
+      `Current value contains insecure pattern or is too short.\n` +
+      `Generate with: openssl rand -base64 48\n` +
+      `Then add to environment variables (never commit to git).`
+    );
+  }
+};
 
 const config = {
   environment: process.env.NODE_ENV || 'development',
@@ -58,19 +89,30 @@ const config = {
   },
 
   // Piper TTS (Local, Self-Hosted)
+  // Language support verification (October 2026):
+  // ✓ English (en): en_US-amy-medium.onnx - Available, tested
+  // ✓ Hindi (hi): hi_IN-pratham-medium.onnx - Available, tested
+  // ✓ Malayalam (ml): ml_IN-meera-medium.onnx - Available, tested
+  // ✗ Kannada (kn): NO official model in Piper catalogue
+  // ✗ Tamil (ta): NO official model in Piper catalogue
+  // ✗ Telugu (te): NO official model in Piper catalogue
   piperTTS: {
     enabled: process.env.PIPER_TTS_ENABLED === 'true',
-    binaryPath: process.env.PIPER_BINARY_PATH || '/usr/bin/piper',
-    modelsPath: process.env.PIPER_MODELS_PATH || '/usr/share/piper-tts/models',
+    // Note: On Windows with Python, piper is accessible via 'python -m piper' or direct command
+    // On Linux/Docker with pip install piper-tts, use 'piper' directly
+    binaryPath: process.env.PIPER_BINARY_PATH || 'piper',
+    modelsPath: process.env.PIPER_MODELS_PATH || (process.platform === 'win32' 
+      ? 'C:\\Users\\user\\piper-models'
+      : '/usr/share/piper-tts/models'),
     defaultVoice: process.env.PIPER_DEFAULT_VOICE || 'en',
-    supportedLanguages: ['en', 'hi', 'kn', 'te', 'ta', 'ml'],
+    // Supported languages with verified Piper models
+    supportedLanguages: ['en', 'hi', 'ml'],
+    // Voice model configuration - ONLY includes languages with available models
     voiceModels: {
-      en: { model: 'en_US-amy-medium.onnx', speaker: 0 },
-      hi: { model: 'hi_IN-male-medium.onnx', speaker: 0 },
-      kn: { model: 'kn_IN-male-medium.onnx', speaker: 0 },
-      te: { model: 'te_IN-male-medium.onnx', speaker: 0 },
-      ta: { model: 'ta_IN-male-medium.onnx', speaker: 0 },
-      ml: { model: 'ml_IN-male-medium.onnx', speaker: 0 },
+      en: { model: 'en_US-amy-medium.onnx', speaker: 0, status: 'READY' },
+      hi: { model: 'hi_IN-pratham-medium.onnx', speaker: 0, status: 'READY' },
+      ml: { model: 'ml_IN-meera-medium.onnx', speaker: 0, status: 'READY' },
+      // Note: kn, ta, te removed - no official Piper models available as of Oct 2026
     },
   },
 
@@ -116,5 +158,19 @@ const config = {
     ml: 'മലയാളം',
   },
 };
+
+// Validate JWT secrets for non-development/test environments
+if (config.environment !== 'development' && config.environment !== 'test') {
+  validateJWTSecret(config.jwt.secret, 'JWT_SECRET', config.environment);
+  validateJWTSecret(config.jwt.refreshSecret, 'REFRESH_TOKEN_SECRET', config.environment);
+  
+  // Verify secrets are different
+  if (config.jwt.secret === config.jwt.refreshSecret) {
+    throw new Error(
+      '[SECURITY] JWT_SECRET and REFRESH_TOKEN_SECRET must be different. ' +
+      'Generate separate random secrets using: openssl rand -base64 48'
+    );
+  }
+}
 
 export default config;

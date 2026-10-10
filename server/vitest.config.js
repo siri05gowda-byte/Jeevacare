@@ -10,8 +10,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    testTimeout: 60000,
-    hookTimeout: 60000,
+    testTimeout: 120000,  // Increased for TTS synthesis (30s per test + overhead)
+    hookTimeout: 30000,
     include: ['src/**/*.test.js'],
     exclude: ['node_modules/**'],
     // Note: setupFiles removed - hooks must be in individual test files

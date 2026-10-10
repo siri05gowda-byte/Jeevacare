@@ -1,0 +1,70 @@
+services:
+  - type: web
+    name: jeevacare-backend
+    runtime: node
+    region: oregon
+    plan: standard
+    
+    # Build configuration
+    # NOTE: For Piper TTS on Render, see docs/PIPER_TTS_DEPLOYMENT_ANALYSIS.md
+    # Requires: pip install piper-tts + model download or persistent disk with models
+    buildCommand: npm install
+    startCommand: cd server && npm start
+    
+    # Environment variables (add these in Render dashboard, not here)
+    # See docs/STAGING_BACKEND_CONFIG.md for complete reference
+    envVars:
+      - key: NODE_ENV
+        scope: build_and_runtime
+        value: staging
+      - key: PORT
+        scope: runtime
+        value: 5000
+      # For Piper TTS on Render (Linux), set in dashboard:
+      # PIPER_TTS_ENABLED=true
+      # PIPER_BINARY_PATH=piper
+      # PIPER_MODELS_PATH=/data/piper-models (if using persistent disk)
+      # Add JWT_SECRET, MONGODB_URI, GROQ_API_KEY, etc. in Render dashboard
+    
+    # Health check
+    healthCheckPath: /health
+    healthCheckInterval: 30
+    healthCheckTimeout: 5
+    
+    # Scaling
+    numInstances: 1
+    maxInstances: 3
+    
+    # Autoscale configuration (optional)
+    autoscaling:
+      enabled: false
+      # Uncomment for production autoscaling:
+      # minInstances: 1
+      # maxInstances: 5
+      # targetCPUUtilization: 70
+    
+    # Disk size for uploads (if needed)
+    disk:
+      name: jeevacare-storage
+      mountPath: /data
+      sizeGB: 1
+    
+    # Redirect HTTP to HTTPS
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=31536000; includeSubDomains
+
+  # Optional: Cron job to clear old audit logs (example)
+  - type: cron
+    name: jeevacare-audit-cleanup
+    runtime: node
+    schedule: "0 2 * * *"  # Daily at 2 AM
+    command: cd server && node src/scripts/cleanupAuditLogs.js
+    buildCommand: npm install
