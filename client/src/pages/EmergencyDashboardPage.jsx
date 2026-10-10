@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { AlertTriangle, AlertCircle, Droplet } from 'lucide-react';
 import { useEmergencyStore } from '../stores/emergencyStore';
 import '../styles/EmergencyDashboard.css';
 
@@ -77,7 +78,7 @@ const EmergencyDashboardPage = () => {
     return (
       <div className="emergency-dashboard-container error">
         <div className="error-alert">
-          <div className="error-icon">⚠️</div>
+          <div className="error-icon"><AlertTriangle size={32} className="text-red-600" /></div>
           <div className="error-message">{error}</div>
           <button onClick={() => navigate(-1)} className="btn-secondary">
             Go Back
@@ -148,8 +149,8 @@ const EmergencyDashboardPage = () => {
             setExpandedSection(expandedSection === 'critical' ? null : 'critical')
           }
         >
-          <div className="section-title">
-            <span className="alert-icon">🚨</span>
+          <div className="section-title flex items-center gap-2">
+            <AlertTriangle size={20} />
             CRITICAL ALERTS
           </div>
           <span className="expand-icon">{expandedSection === 'critical' ? '▼' : '▶'}</span>
@@ -160,7 +161,10 @@ const EmergencyDashboardPage = () => {
             {/* Life-threatening Allergies */}
             {summary.criticalAlerts.allergies.length > 0 && (
               <div className="alert-block allergies-block">
-                <h3 className="block-title">⚠️ ALLERGIES</h3>
+                <h3 className="block-title flex items-center gap-2">
+                  <AlertTriangle size={18} />
+                  ALLERGIES
+                </h3>
                 <div className="alert-items">
                   {summary.criticalAlerts.allergies.map((allergy, idx) => (
                     <div key={idx} className={`alert-item severity-${allergy.severity}`}>
@@ -181,7 +185,10 @@ const EmergencyDashboardPage = () => {
             {/* Critical Conditions */}
             {summary.criticalAlerts.conditions.length > 0 && (
               <div className="alert-block conditions-block">
-                <h3 className="block-title">🏥 CRITICAL CONDITIONS</h3>
+                <h3 className="block-title flex items-center gap-2">
+                  <AlertCircle size={18} />
+                  CRITICAL CONDITIONS
+                </h3>
                 <div className="alert-items">
                   {summary.criticalAlerts.conditions.map((condition, idx) => (
                     <div key={idx} className={`alert-item severity-${condition.severity}`}>
@@ -201,7 +208,10 @@ const EmergencyDashboardPage = () => {
             {/* Current Medications */}
             {summary.criticalAlerts.medications.length > 0 && (
               <div className="alert-block medications-block">
-                <h3 className="block-title">💊 CURRENT MEDICATIONS</h3>
+                <h3 className="block-title flex items-center gap-2">
+                  <AlertCircle size={18} />
+                  CURRENT MEDICATIONS
+                </h3>
                 <div className="alert-items">
                   {summary.criticalAlerts.medications.map((med, idx) => (
                     <div key={idx} className="alert-item">
@@ -222,7 +232,10 @@ const EmergencyDashboardPage = () => {
             {/* Important Warnings */}
             {summary.criticalAlerts.warnings?.length > 0 && (
               <div className="alert-block warnings-block">
-                <h3 className="block-title">⚡ IMPORTANT WARNINGS</h3>
+                <h3 className="block-title flex items-center gap-2">
+                  <AlertTriangle size={18} />
+                  IMPORTANT WARNINGS
+                </h3>
                 <div className="alert-items">
                   {summary.criticalAlerts.warnings.map((warning, idx) => (
                     <div key={idx} className={`alert-item severity-${warning.severity}`}>
@@ -239,7 +252,10 @@ const EmergencyDashboardPage = () => {
             {/* Blood Group */}
             {summary.criticalAlerts.bloodGroup && (
               <div className="alert-block blood-group-block">
-                <h3 className="block-title">🩸 BLOOD GROUP</h3>
+                <h3 className="block-title flex items-center gap-2">
+                  <Droplet size={18} />
+                  BLOOD GROUP
+                </h3>
                 <div className="blood-group-display">
                   <div className="blood-type">{summary.criticalAlerts.bloodGroup.group}</div>
                   <div className={`source-badge ${summary.criticalAlerts.bloodGroup.verificationStatus}`}>
@@ -264,8 +280,8 @@ const EmergencyDashboardPage = () => {
             setExpandedSection(expandedSection === 'history' ? null : 'history')
           }
         >
-          <div className="section-title">
-            <span className="history-icon">📋</span>
+          <div className="section-title flex items-center gap-2">
+            <AlertCircle size={20} />
             IMPORTANT HISTORY
           </div>
           <span className="expand-icon">{expandedSection === 'history' ? '▼' : '▶'}</span>
@@ -316,8 +332,9 @@ const EmergencyDashboardPage = () => {
 
       {/* ACCESS INFORMATION - FOOTER */}
       <div className="section access-info-section">
-        <div className="section-header">
-          <span>🔐 Access Information</span>
+        <div className="section-header flex items-center gap-2">
+          <AlertCircle size={20} />
+          <span>Access Information</span>
         </div>
         <div className="access-metadata">
           <div className="metadata-item">

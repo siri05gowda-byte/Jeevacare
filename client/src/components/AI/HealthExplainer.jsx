@@ -24,6 +24,8 @@ export default function HealthExplainer({
   explanation = '',
   recordType = 'health_record',
   isLoading = false,
+  error = null,
+  isDemoData = false,
   onPlayAudio = null,
   availableLanguages = ['English'],
   currentLanguage = 'English',
@@ -58,6 +60,16 @@ export default function HealthExplainer({
     );
   }
 
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+        <Brain size={20} className="mx-auto mb-2 text-red-600" />
+        <p className="text-sm font-medium text-red-800 mb-1">Explanation unavailable</p>
+        <p className="text-xs text-red-700">{error}</p>
+      </div>
+    );
+  }
+
   if (!explanation) {
     return (
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center text-gray-600 text-sm">
@@ -77,9 +89,12 @@ export default function HealthExplainer({
             <div className="min-w-0">
               <h3 className="font-semibold text-gray-900">
                 Health Explanation
+                {isDemoData && <span className="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded font-normal">DEMO</span>}
               </h3>
               <p className="text-xs text-gray-600 mt-0.5">
-                AI-generated explanation to help you understand
+                {isDemoData 
+                  ? 'Demo explanation for testing purposes'
+                  : 'AI-generated explanation to help you understand'}
               </p>
             </div>
           </div>

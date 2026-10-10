@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { Check } from 'lucide-react';
 import '../styles/EmergencyProfile.css';
 
 const EmergencyProfilePage = () => {

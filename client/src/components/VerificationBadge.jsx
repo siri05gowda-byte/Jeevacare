@@ -1,4 +1,5 @@
 import React from 'react';
+import { CheckCircle2, Upload, Clock, Edit2, Lock, HelpCircle } from 'lucide-react';
 
 export default function VerificationBadge({ status = 'pending_review' }) {
   const getBadgeConfig = (status) => {
@@ -7,52 +8,53 @@ export default function VerificationBadge({ status = 'pending_review' }) {
         return {
           bg: 'bg-green-100',
           text: 'text-green-800',
-          label: '✓ Verified',
-          icon: '✓'
+          label: 'Verified',
+          Icon: CheckCircle2
         };
       case 'patient_uploaded':
         return {
           bg: 'bg-blue-100',
           text: 'text-blue-800',
           label: 'Patient Upload',
-          icon: '📤'
+          Icon: Upload
         };
       case 'pending_review':
         return {
           bg: 'bg-yellow-100',
           text: 'text-yellow-800',
           label: 'Pending Review',
-          icon: '⏳'
+          Icon: Clock
         };
       case 'amended':
         return {
           bg: 'bg-purple-100',
           text: 'text-purple-800',
           label: 'Amended',
-          icon: '✎'
+          Icon: Edit2
         };
       case 'restricted':
         return {
           bg: 'bg-red-100',
           text: 'text-red-800',
           label: 'Restricted',
-          icon: '🔒'
+          Icon: Lock
         };
       default:
         return {
           bg: 'bg-gray-100',
           text: 'text-gray-800',
           label: 'Unknown',
-          icon: '?'
+          Icon: HelpCircle
         };
     }
   };
 
   const config = getBadgeConfig(status);
+  const Icon = config.Icon;
 
   return (
     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${config.bg} ${config.text}`}>
-      <span className="mr-1">{config.icon}</span>
+      <Icon size={14} className="mr-1" />
       {config.label}
     </span>
   );

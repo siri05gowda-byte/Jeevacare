@@ -8,8 +8,14 @@
 import mongoose from 'mongoose';
 import logger from '../utils/logger.js';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Explicitly load from server/.env relative to server/src directory
+dotenv.config({ path: path.join(__dirname, '..', '..', '.env') });
 
 /**
  * Connect to test database (MongoDB Atlas - jeevacare-test)

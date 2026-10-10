@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { AlertCircle, Mic, Play, Pause, Square, Volume2 } from 'lucide-react';
 import { aiService } from '../services/aiService';
 import '../styles/TTSAudioPlayer.css';
 
@@ -206,7 +207,7 @@ const TTSAudioPlayer = ({
       {/* Error State */}
       {error && (
         <div className="tts-error">
-          <span className="tts-error-icon">⚠️</span>
+          <AlertCircle size={18} className="tts-error-icon" />
           <span className="tts-error-text">{error}</span>
           <button onClick={() => setError(null)} className="tts-error-close">
             ×
@@ -217,7 +218,7 @@ const TTSAudioPlayer = ({
       {/* Demo Warning */}
       {isDemo && audioUrl && (
         <div className="tts-demo-warning">
-          <span className="demo-icon">📢</span>
+          <Mic size={18} className="demo-icon" />
           <span>DEMO MODE: Piper TTS not configured. This is mock audio.</span>
         </div>
       )}
@@ -233,7 +234,7 @@ const TTSAudioPlayer = ({
               className={`tts-btn tts-play-btn ${playing ? 'playing' : ''}`}
               title={playing ? 'Pause' : 'Play'}
             >
-              {playing ? '⏸' : '▶'}
+              {playing ? <Pause size={20} /> : <Play size={20} />}
             </button>
 
             <button
@@ -242,7 +243,7 @@ const TTSAudioPlayer = ({
               className="tts-btn tts-stop-btn"
               title="Stop"
             >
-              ⏹
+              <Square size={20} />
             </button>
 
             {/* Progress Bar */}
@@ -284,7 +285,7 @@ const TTSAudioPlayer = ({
       {/* No Audio State */}
       {!audioUrl && !loading && !error && (
         <div className="tts-empty-state">
-          <span className="tts-empty-icon">🔊</span>
+          <Volume2 size={24} className="tts-empty-icon" />
           <span>No audio generated. Click Generate to create audio.</span>
         </div>
       )}

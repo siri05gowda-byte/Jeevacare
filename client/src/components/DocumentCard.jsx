@@ -1,5 +1,5 @@
 import React from 'react';
-import { Beaker, Stethoscope, FileText, File, Paperclip, AlertCircle, Lock } from 'lucide-react';
+import { Beaker, Stethoscope, FileText, File, Paperclip, AlertCircle, Lock, Syringe } from 'lucide-react';
 import VerificationBadge from './VerificationBadge';
 
 export default function DocumentCard({ 
@@ -10,7 +10,7 @@ export default function DocumentCard({
 }) {
   const getTypeIcon = (type) => {
     switch(type) {
-      case 'vaccination': return <span>💉</span>;
+      case 'vaccination': return <Syringe size={32} className="text-blue-600" />;
       case 'laboratory': return <Beaker size={32} className="text-purple-600" />;
       case 'radiology': return <Stethoscope size={32} className="text-blue-600" />;
       case 'discharge': return <FileText size={32} className="text-amber-600" />;

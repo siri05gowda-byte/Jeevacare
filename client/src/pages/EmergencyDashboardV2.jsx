@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertCircle, Navigation, Heart, Phone, MapPin, Clock } from 'lucide-react';
+import { AlertCircle, Navigation, Heart, Phone, MapPin, Clock, AlertTriangle, MapPinIcon } from 'lucide-react';
 import PageContainer from '../components/Layout/PageContainer';
 import SectionTitle from '../components/Layout/SectionTitle';
 import { useToast, ToastContainer } from '../components/State/Toast';
@@ -105,20 +105,20 @@ export default function EmergencyDashboardV2() {
 
   const getSeverityLabel = (severity) => {
     const labels = {
-      critical: '🚨 CRITICAL',
-      high: '⚠️ HIGH',
-      medium: '⚡ MEDIUM',
-      low: 'ℹ️ LOW',
+      critical: 'CRITICAL',
+      high: 'HIGH',
+      medium: 'MEDIUM',
+      low: 'LOW',
     };
     return labels[severity] || severity;
   };
 
   const getStatusIcon = (status) => {
     const icons = {
-      new: '📍',
-      responded: '✓',
-      'en-route': '🚑',
-      arrived: '📌',
+      new: <MapPin size={20} />,
+      responded: <AlertCircle size={20} />,
+      'en-route': <AlertTriangle size={20} />,
+      arrived: <MapPin size={20} />,
     };
     return icons[status] || '•';
   };
@@ -182,7 +182,7 @@ export default function EmergencyDashboardV2() {
 
               <div className="grid grid-cols-2 gap-2 text-xs text-gray-700">
                 <div className="flex items-center gap-1">
-                  <span className="text-gray-400">📍</span>
+                  <MapPin size={14} className="text-gray-400" />
                   {caseData.age} years old
                 </div>
                 <div className="flex items-center gap-1">
@@ -190,19 +190,20 @@ export default function EmergencyDashboardV2() {
                   {Math.round((Date.now() - caseData.incidentTime) / 60000)} min ago
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className="text-gray-400">📍</span>
+                  <Heart size={14} className="text-gray-400" />
                   Blood: {caseData.bloodType}
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className="text-gray-400">👥</span>
+                  <AlertCircle size={14} className="text-gray-400" />
                   {caseData.responders} responder{caseData.responders !== 1 ? 's' : ''}
                 </div>
               </div>
 
               {caseData.allergies.length > 0 && (
                 <div className="mt-3 pt-3 border-t border-current border-opacity-20">
-                  <p className="text-xs font-semibold text-red-700 mb-1">
-                    ⚠️ ALLERGIES: {caseData.allergies.join(', ')}
+                  <p className="text-xs font-semibold text-red-700 mb-1 flex items-center gap-1">
+                    <AlertTriangle size={14} />
+                    ALLERGIES: {caseData.allergies.join(', ')}
                   </p>
                 </div>
               )}
@@ -241,8 +242,9 @@ export default function EmergencyDashboardV2() {
               {/* Allergies */}
               {selectedCase.allergies.length > 0 && (
                 <div className="mb-4 pb-4 border-b border-gray-200">
-                  <p className="text-xs font-semibold text-red-700 mb-2">
-                    ⚠️ ALLERGIES
+                  <p className="text-xs font-semibold text-red-700 mb-2 flex items-center gap-1">
+                    <AlertTriangle size={14} />
+                    ALLERGIES
                   </p>
                   <p className="text-sm text-gray-800">
                     {selectedCase.allergies.join(', ')}
@@ -253,8 +255,9 @@ export default function EmergencyDashboardV2() {
               {/* Medications */}
               {selectedCase.medications.length > 0 && (
                 <div className="mb-4 pb-4 border-b border-gray-200">
-                  <p className="text-xs font-semibold text-gray-900 mb-2">
-                    💊 CURRENT MEDICATIONS
+                  <p className="text-xs font-semibold text-gray-900 mb-2 flex items-center gap-1">
+                    <Heart size={14} />
+                    CURRENT MEDICATIONS
                   </p>
                   <p className="text-sm text-gray-800">
                     {selectedCase.medications.join(', ')}
@@ -264,8 +267,9 @@ export default function EmergencyDashboardV2() {
 
               {/* Emergency Contacts */}
               <div>
-                <p className="text-xs font-semibold text-gray-900 mb-2">
-                  ☎️ EMERGENCY CONTACTS
+                <p className="text-xs font-semibold text-gray-900 mb-2 flex items-center gap-1">
+                  <Phone size={14} />
+                  EMERGENCY CONTACTS
                 </p>
                 <div className="space-y-2">
                   {selectedCase.emergencyContacts.map((contact, idx) => (

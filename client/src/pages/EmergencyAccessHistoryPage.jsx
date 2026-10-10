@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { AlertCircle, Check, Clock, X as XIcon } from 'lucide-react';
 import '../styles/EmergencyAccessHistory.css';
 
 const EmergencyAccessHistoryPage = () => {
@@ -113,7 +114,7 @@ const EmergencyAccessHistoryPage = () => {
 
       {error && (
         <div className="error-banner">
-          <div className="error-icon">⚠️</div>
+          <div className="error-icon"><AlertCircle size={24} className="text-red-600" /></div>
           <div className="error-text">{error}</div>
         </div>
       )}
@@ -165,10 +166,10 @@ const EmergencyAccessHistoryPage = () => {
               >
                 <div className="header-left">
                   <div className="access-icon">
-                    {access.authorizationStatus === 'authorized' && '✓'}
-                    {access.authorizationStatus === 'requested' && '⏳'}
-                    {access.authorizationStatus === 'expired' && '⏱️'}
-                    {access.authorizationStatus === 'revoked' && '✕'}
+                    {access.authorizationStatus === 'authorized' && <Check size={24} className="text-green-600" />}
+                    {access.authorizationStatus === 'requested' && <Clock size={24} className="text-yellow-600" />}
+                    {access.authorizationStatus === 'expired' && <Clock size={24} className="text-gray-400" />}
+                    {access.authorizationStatus === 'revoked' && <XIcon size={24} className="text-red-600" />}
                   </div>
 
                   <div className="header-info">
@@ -270,7 +271,7 @@ const EmergencyAccessHistoryPage = () => {
           ))
         ) : (
           <div className="no-history">
-            <div className="no-history-icon">📋</div>
+            <div className="no-history-icon"><AlertCircle size={48} className="text-gray-300" /></div>
             <div className="no-history-text">
               {filter === 'all'
                 ? 'No emergency access history yet.'
@@ -290,7 +291,7 @@ const EmergencyAccessHistoryPage = () => {
 
         <div className="info-grid">
           <div className="info-card">
-            <div className="info-icon">✓</div>
+            <div className="info-icon"><Check size={32} className="text-green-600" /></div>
             <div className="info-content">
               <h3>Authorized Access</h3>
               <p>
@@ -301,7 +302,7 @@ const EmergencyAccessHistoryPage = () => {
           </div>
 
           <div className="info-card">
-            <div className="info-icon">⏳</div>
+            <div className="info-icon"><Clock size={32} className="text-yellow-600" /></div>
             <div className="info-content">
               <h3>Pending Request</h3>
               <p>
@@ -312,7 +313,7 @@ const EmergencyAccessHistoryPage = () => {
           </div>
 
           <div className="info-card">
-            <div className="info-icon">⏱️</div>
+            <div className="info-icon"><Clock size={32} className="text-gray-400" /></div>
             <div className="info-content">
               <h3>Expired Access</h3>
               <p>
@@ -323,7 +324,7 @@ const EmergencyAccessHistoryPage = () => {
           </div>
 
           <div className="info-card">
-            <div className="info-icon">✕</div>
+            <div className="info-icon"><XIcon size={32} className="text-red-600" /></div>
             <div className="info-content">
               <h3>Revoked Access</h3>
               <p>

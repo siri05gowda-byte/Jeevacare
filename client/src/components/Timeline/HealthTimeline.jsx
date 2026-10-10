@@ -7,6 +7,7 @@ import {
   Activity,
   AlertCircle,
   Filter,
+  Search,
   ChevronDown,
 } from 'lucide-react';
 import LoadingSkeleton from '../State/LoadingSkeleton';
@@ -124,9 +125,7 @@ export default function HealthTimeline({ events = [], isLoading = false, error =
             className="form-input pl-10"
             aria-label="Search health timeline"
           />
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-            🔍
-          </span>
+          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
         </div>
 
         {/* Type Filter */}

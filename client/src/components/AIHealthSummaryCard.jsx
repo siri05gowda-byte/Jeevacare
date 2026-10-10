@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { X, AlertCircle, FileText, Info } from 'lucide-react';
+import { X, AlertCircle, FileText, Info, AlertTriangle, Syringe, Pill, BookOpen, RotateCcw, Volume2 } from 'lucide-react';
 import api from '../services/api.js';
 import '../styles/AIHealthSummaryCard.css';
 
@@ -139,7 +139,8 @@ export default function AIHealthSummaryCard({ patientId, currentUser }) {
     <div className="ai-health-summary-card">
       <div className="card-header">
         <h2 className="flex items-center gap-2">
-          <span>🤖 AI Health Summary</span>
+          <AlertCircle size={20} />
+          <span>AI Health Summary</span>
         </h2>
         {isStale && <span className="stale-badge">Stale</span>}
       </div>
@@ -221,7 +222,10 @@ export default function AIHealthSummaryCard({ patientId, currentUser }) {
 
             {summary.summaryContent.currentMedications?.medications?.length > 0 && (
               <section className="summary-section">
-                <h3>💊 Current Medications</h3>
+                <h3 className="flex items-center gap-2">
+                  <Pill size={18} />
+                  <span>Current Medications</span>
+                </h3>
                 <ul>
                   {summary.summaryContent.currentMedications.medications.map((med, i) => (
                     <li key={i}>
@@ -248,7 +252,10 @@ export default function AIHealthSummaryCard({ patientId, currentUser }) {
 
             {summary.summaryContent.vaccinations?.completed?.length > 0 && (
               <section className="summary-section">
-                <h3>💉 Vaccinations</h3>
+                <h3 className="flex items-center gap-2">
+                  <Syringe size={18} />
+                  <span>Vaccinations</span>
+                </h3>
                 <p>{summary.summaryContent.vaccinations.completed.length} recorded</p>
               </section>
             )}
@@ -275,14 +282,16 @@ export default function AIHealthSummaryCard({ patientId, currentUser }) {
               onClick={() => generateExplanation()}
               disabled={loading}
             >
-              📖 Explain Simply
+              <BookOpen size={16} className="inline mr-2" />
+              Explain Simply
             </button>
             <button
               className="btn btn-secondary"
               onClick={() => generateSummary(true)}
               disabled={loading}
             >
-              🔄 Regenerate
+              <RotateCcw size={16} className="inline mr-2" />
+              Regenerate
             </button>
           </div>
         </div>
@@ -291,7 +300,10 @@ export default function AIHealthSummaryCard({ patientId, currentUser }) {
       {/* Explanation Display */}
       {explanationVisible && explanation && (
         <div className="explanation-content">
-          <h3>📖 Simple Explanation</h3>
+          <h3 className="flex items-center gap-2">
+            <BookOpen size={18} />
+            <span>Simple Explanation</span>
+          </h3>
           <div className="explanation-text">{explanation.explanation}</div>
 
           {explanation.keyPoints?.length > 0 && (
@@ -321,7 +333,8 @@ export default function AIHealthSummaryCard({ patientId, currentUser }) {
               onClick={() => generateAudio()}
               disabled={audioLoading}
             >
-              🔊 Listen
+              <Volume2 size={16} className="inline mr-2" />
+              Listen
             </button>
           </div>
         </div>

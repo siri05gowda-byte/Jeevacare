@@ -11,6 +11,10 @@ import PatientDashboardV2 from './pages/PatientDashboardV2';
 import ProviderDashboardV2 from './pages/ProviderDashboardV2';
 import EmergencyDashboardV2 from './pages/EmergencyDashboardV2';
 import DocumentsPage from './pages/DocumentsPage';
+import AppointmentBookingPage from './pages/AppointmentBookingPage';
+import ProviderEncounterPage from './pages/ProviderEncounterPage';
+import EmergencyAccessPage from './pages/EmergencyAccessPage';
+import DocumentUploadPage from './pages/DocumentUploadPage';
 
 // Protected route component
 function ProtectedRoute({ children }) {
@@ -63,6 +67,10 @@ function App() {
             <Route path="provider" element={<ProviderDashboardV2 />} />
             <Route path="emergency" element={<EmergencyDashboardV2 />} />
             <Route path="documents" element={<DocumentsPage />} />
+            <Route path="appointments" element={<AppointmentBookingPage />} />
+            <Route path="encounter" element={<ProviderEncounterPage />} />
+            <Route path="emergency-access" element={<EmergencyAccessPage />} />
+            <Route path="upload-documents" element={<DocumentUploadPage />} />
             <Route path="integrated-dashboard" element={<IntegratedDashboardPage />} />
           </Route>
 

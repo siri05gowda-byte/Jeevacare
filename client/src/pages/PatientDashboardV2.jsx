@@ -11,6 +11,7 @@ import HealthExplainer from '../components/AI/HealthExplainer';
 import { useToast, ToastContainer } from '../components/State/Toast';
 import aiService from '../services/aiService';
 import ttsService from '../services/ttsService';
+import { isDemoModeEnabled, getDemoBadgeLabel, getDemoDemoDataDisclaimer } from '../utils/demoMode';
 
 /**
  * PatientDashboard (V2)
@@ -33,194 +34,108 @@ export default function PatientDashboardV2() {
   const [aiExplanationData, setAiExplanationData] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('English');
+  const [demoMode, setDemoMode] = useState(isDemoModeEnabled());
 
-  // Load patient data from real API with mock fallback
+  // Load patient data from real API only (no automatic demo fallback)
   useEffect(() => {
     const loadPatientData = async () => {
       try {
         setIsLoading(true);
         setError(null);
+        setPatientData(null);
         
-        // Attempt real API call first
-        try {
-          const patientId = user?._id || user?.id;
-          if (!patientId) {
-            throw new Error('User ID not available');
-          }
-          
-          const response = await fetch(`/api/v1/patients/${patientId}`, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${user?.token || localStorage.getItem('token')}`,
-              'Content-Type': 'application/json',
-            },
-          });
-          
-          if (response.ok) {
-            const data = await response.json();
-            if (data.success && data.patient) {
-              setPatientData(data);
-              success('Patient data loaded successfully');
-              return;
-            }
-          }
-        } catch (apiError) {
-          console.warn('API call failed, using mock data:', apiError);
+        const patientId = user?._id || user?.id;
+        if (!patientId) {
+          setError('User ID not available. Please log in again.');
+          showError('Authentication error');
+          return;
         }
         
-        // Fallback to mock data
-        const mockData = {
-          patient: {
-            firstName: user?.profile?.firstName || 'Patient',
-            lastName: user?.profile?.lastName || '',
-            jeevaId: 'JC-' + Math.random().toString(36).substr(2, 9).toUpperCase(),
-            dateOfBirth: '1990-01-15',
-            phone: '+1 (555) 123-4567',
-            email: user?.email,
+        const token = user?.token || localStorage.getItem('token');
+        if (!token) {
+          setError('Authentication token not found. Please log in again.');
+          showError('Authentication required');
+          return;
+        }
+        
+        const response = await fetch(`/api/v1/patients/${patientId}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
           },
-          stats: {
-            appointments: 3,
-            labResults: 12,
-            radiology: 2,
-            dischargeSummaries: 1,
-            vaccinations: 8,
-            documents: 25,
-          },
-          criticalInfo: {
-            allergies: ['Penicillin', 'Shellfish'],
-            conditions: ['Type 2 Diabetes', 'Hypertension'],
-            medications: ['Metformin', 'Lisinopril'],
-            emergencyContacts: 1,
-          },
-          recentAppointments: [
-            {
-              id: 1,
-              title: 'Routine Check-up',
-              provider: 'Dr. Sarah Johnson',
-              date: new Date(Date.now() + 86400000 * 3),
-              status: 'scheduled',
-            },
-            {
-              id: 2,
-              title: 'Follow-up Consultation',
-              provider: 'Dr. Raj Kumar',
-              date: new Date(Date.now() + 86400000 * 10),
-              status: 'scheduled',
-            },
-          ],
-          timeline: [
-            {
-              id: 'evt-1',
-              type: 'appointment',
-              title: 'Dermatology Appointment',
-              description: 'Skin check-up with Dr. Emily Chen',
-              detail: 'Routine skin examination',
-              date: new Date(Date.now() - 86400000 * 7),
-            },
-            {
-              id: 'evt-2',
-              type: 'lab_result',
-              title: 'Blood Test Results',
-              description: 'Complete Blood Count (CBC)',
-              detail: 'All values within normal range',
-              date: new Date(Date.now() - 86400000 * 14),
-            },
-            {
-              id: 'evt-3',
-              type: 'medication',
-              title: 'Prescription Refilled',
-              description: 'Metformin 500mg - 30 tablets',
-              detail: 'Refill requested and approved',
-              date: new Date(Date.now() - 86400000 * 30),
-            },
-            {
-              id: 'evt-4',
-              type: 'vaccination',
-              title: 'Flu Shot',
-              description: 'Annual influenza vaccination',
-              detail: 'Vaccine: Fluzone Quadrivalent',
-              date: new Date(Date.now() - 86400000 * 60),
-            },
-          ],
+        });
+        
+        if (response.status === 401 || response.status === 403) {
+          setError('You do not have permission to view this patient data. Please contact your healthcare provider.');
+          showError('Access denied');
+          return;
+        }
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          setError(
+            errorData.message || 
+            'Unable to load your health dashboard. The server is not responding. Please try again in a few moments.'
+          );
+          showError('Failed to load dashboard');
+          return;
+        }
+        
+        const data = await response.json();
+        
+        if (!data.success || !data.patient) {
+          setError('Your health records could not be retrieved. Please try again.');
+          showError('Failed to retrieve records');
+          return;
+        }
+        
+        // Normalize empty record collections
+        const normalizedData = {
+          ...data,
+          patient: data.patient || {},
+          stats: data.stats || {},
+          criticalInfo: data.criticalInfo || { allergies: [], conditions: [], medications: [] },
+          recentAppointments: data.recentAppointments || [],
+          timeline: data.timeline || [],
           records: {
-            lab_results: [
-              {
-                id: 'lab-1',
-                title: 'Complete Blood Count',
-                provider: 'City Medical Lab',
-                date: new Date(Date.now() - 86400000 * 14),
-                status: 'verified',
-                detail: 'All values within normal range',
-                fileUrl: null,
-              },
-              {
-                id: 'lab-2',
-                title: 'Lipid Panel',
-                provider: 'City Medical Lab',
-                date: new Date(Date.now() - 86400000 * 30),
-                status: 'verified',
-                detail: 'Total cholesterol: 195 mg/dL',
-                fileUrl: null,
-              },
-            ],
-            radiology: [
-              {
-                id: 'rad-1',
-                title: 'Chest X-Ray',
-                provider: 'Imaging Center',
-                date: new Date(Date.now() - 86400000 * 60),
-                status: 'verified',
-                detail: 'No acute findings',
-                fileUrl: null,
-              },
-            ],
-            discharge_summaries: [
-              {
-                id: 'dis-1',
-                title: 'Hospital Discharge',
-                provider: 'General Hospital',
-                date: new Date(Date.now() - 86400000 * 90),
-                status: 'verified',
-                detail: 'Discharged in stable condition',
-                fileUrl: null,
-              },
-            ],
-            vaccinations: [
-              {
-                id: 'vac-1',
-                title: 'COVID-19 Vaccine (Booster)',
-                provider: 'Wellness Clinic',
-                date: new Date(Date.now() - 86400000 * 180),
-                status: 'verified',
-                detail: 'Pfizer-BioNTech Booster',
-              },
-            ],
-          },
-          aiExplanation: {
-            title: 'Your Recent Lab Results',
-            text: 'Your recent blood test shows that all values are within the normal range, which indicates good overall health. Your complete blood count shows appropriate levels of red blood cells, white blood cells, and platelets. Your lipid panel indicates healthy cholesterol levels. Continue with your current medications and lifestyle. If you have any concerns, please consult with your healthcare provider.',
-            isLoading: false,
+            lab_results: data.records?.lab_results || [],
+            radiology: data.records?.radiology || [],
+            discharge_summaries: data.records?.discharge_summaries || [],
+            vaccinations: data.records?.vaccinations || [],
+            documents: data.records?.documents || [],
           },
         };
-
-        setPatientData(mockData);
-        setError(null);
+        
+        setPatientData(normalizedData);
+        success('Patient data loaded successfully');
       } catch (err) {
         console.error('Failed to load dashboard data:', err);
-        setError('Failed to load your health dashboard. Please try again.');
+        
+        if (err.message.includes('network') || err.message.includes('fetch')) {
+          setError('Network error: Unable to reach the server. Please check your connection and try again.');
+        } else {
+          setError('An unexpected error occurred while loading your health dashboard. Please try again.');
+        }
+        
         showError('Failed to load dashboard');
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadPatientData();
+    if (user) {
+      loadPatientData();
+    }
   }, [user, showError]);
 
   // Load AI explanation when patient data is ready
+  // Only load if real data was retrieved; do not generate for missing/empty records
   useEffect(() => {
     const loadAiExplanation = async () => {
+      // Only attempt AI explanation if we have real data and at least one record
       if (!patientData?.records?.lab_results?.[0]) {
+        setAiExplanationData(null);
         return;
       }
 
@@ -245,16 +160,17 @@ export default function PatientDashboardV2() {
         });
       } catch (error) {
         console.error('Failed to load AI explanation:', error);
-        // Still show explanation from mock data if available
+        // Clear AI explanation on error; do not show fallback explanations
+        setAiExplanationData(null);
       } finally {
         setAiLoading(false);
       }
     };
 
-    if (patientData) {
+    if (patientData && !error) {
       loadAiExplanation();
     }
-  }, [patientData, selectedLanguage]);
+  }, [patientData, selectedLanguage, error]);
 
   if (isLoading) {
     return (
@@ -295,6 +211,22 @@ export default function PatientDashboardV2() {
 
   return (
     <PageContainer>
+      {/* Demo Mode Indicator - Only visible if demo mode explicitly enabled */}
+      {demoMode && (
+        <div className="mb-6 p-4 bg-yellow-50 border-2 border-yellow-400 rounded-lg">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl">🔬</span>
+            <div className="flex-1">
+              <h3 className="font-bold text-yellow-900 text-lg">{getDemoBadgeLabel()}</h3>
+              <p className="text-sm text-yellow-800 mt-1">{getDemoDemoDataDisclaimer()}</p>
+              <p className="text-xs text-yellow-700 mt-2">
+                Demo mode is enabled. All data displayed is for testing and demonstration purposes only.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Page Header */}
       <SectionTitle
         title={`Welcome, ${patient?.firstName}`}
@@ -381,8 +313,8 @@ export default function PatientDashboardV2() {
         </div>
       )}
 
-      {/* AI Health Explanation */}
-      {(aiExplanationData || patientData?.aiExplanation) && (
+      {/* AI Health Explanation - Only show if real data available */}
+      {aiExplanationData && !error && (
         <div className="mb-8">
           <div className="mb-4 flex gap-2 items-center">
             <label className="text-sm font-medium text-gray-700">Language:</label>
@@ -400,9 +332,9 @@ export default function PatientDashboardV2() {
             </select>
           </div>
           <HealthExplainer
-            title={aiExplanationData?.title || patientData?.aiExplanation?.title}
-            explanation={aiExplanationData?.text || patientData?.aiExplanation?.text}
-            isLoading={aiLoading || aiExplanationData?.isLoading}
+            title={aiExplanationData?.title}
+            explanation={aiExplanationData?.text}
+            isLoading={aiLoading}
             availableLanguages={['English', 'Hindi', 'Kannada', 'Telugu', 'Tamil', 'Malayalam']}
             currentLanguage={selectedLanguage}
             onLanguageChange={setSelectedLanguage}

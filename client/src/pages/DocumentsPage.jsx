@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileText, Download, Trash2, Upload } from 'lucide-react';
+import { FileText, Download, Trash2, Upload, AlertCircle } from 'lucide-react';
 import PageContainer from '../components/Layout/PageContainer';
 import SectionTitle from '../components/Layout/SectionTitle';
 import DocumentUpload from '../components/Documents/DocumentUpload';
@@ -253,6 +253,7 @@ export default function DocumentsPage() {
           type="no-records"
           title="No documents yet"
           description="Start by uploading your health documents, test results, or medical records."
+          icon={<AlertCircle size={48} className="text-gray-300" />}
           action={{
             label: 'Upload First Document',
             onClick: () => setShowUploadForm(true),

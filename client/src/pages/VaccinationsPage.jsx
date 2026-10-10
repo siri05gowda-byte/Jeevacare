@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Syringe } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import DocumentCard from '../components/DocumentCard';
 import LoadingState from '../components/LoadingState';
@@ -67,7 +68,7 @@ export default function VaccinationsPage() {
         <EmptyState
           title="No vaccinations recorded"
           description="Your vaccination history will appear here. Work with your healthcare provider to maintain your vaccination records."
-          icon="💉"
+          IconComponent={Syringe}
           action={{
             label: 'Contact Healthcare Provider',
             onClick: () => console.log('Contact provider')
@@ -77,7 +78,10 @@ export default function VaccinationsPage() {
 
       {/* Information Banner */}
       <div className="mt-8 p-6 bg-blue-50 border border-blue-200 rounded-lg">
-        <h3 className="font-semibold text-blue-900 mb-2">💉 About Your Vaccinations</h3>
+        <div className="flex items-center gap-2 mb-2">
+          <Syringe size={20} className="text-blue-900" />
+          <h3 className="font-semibold text-blue-900">About Your Vaccinations</h3>
+        </div>
         <p className="text-sm text-blue-800">
           Keep your vaccination records updated and easily accessible. Share your vaccination history 
           with healthcare providers during consultations. All vaccinations are verified and timestamped 

@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FileText, Check, Lock, Edit, BarChart3 } from 'lucide-react';
+import { FileText, Check, Lock, Edit, BarChart3, User } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import api from '../services/api';
 import '../styles/PatientProfile.css';
@@ -186,9 +186,13 @@ export default function PatientProfilePage() {
             {/* Sex */}
             <div className="identity-item">
               <label>Sex</label>
-              <p className="value">
-                {patient.personalIdentity.sex === 'M' && <span><span className="text-xl mr-2">👨</span> Male</span>}
-                {patient.personalIdentity.sex === 'F' && <span><span className="text-xl mr-2">👩</span> Female</span>}
+              <p className="value flex items-center gap-2">
+                {patient.personalIdentity.sex === 'M' && (
+                  <><User size={20} className="text-blue-600" /> Male</>
+                )}
+                {patient.personalIdentity.sex === 'F' && (
+                  <><User size={20} className="text-pink-600" /> Female</>
+                )}
                 {patient.personalIdentity.sex === 'O' && 'Other'}
                 {patient.personalIdentity.sex === 'Prefer not to say' && 'Prefer not to say'}
               </p>

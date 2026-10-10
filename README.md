@@ -1,6 +1,8 @@
-![JeevaCare Logo](client/src/assets/logos/jeevacare-logo.svg)
+<div align="center">
 
-# JeevaCare — One Life. One Health Journey.
+![JeevaCare — Healthier Lives, Together](client/src/assets/logos/jeevacare-logo-wordmark.png)
+
+</div>
 
 A secure, verified, lifelong healthcare platform that maintains a chronological patient health journey across providers with emergency access, AI-assisted medical intelligence, and multilingual accessibility.
 

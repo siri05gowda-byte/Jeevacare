@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, Info } from 'lucide-react';
+import { AlertCircle, Info, User, Users, Baby } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import api from '../services/api';
 import '../styles/PatientRegistration.css';
@@ -186,7 +186,7 @@ export default function PatientRegistrationPage() {
                 className="type-option"
                 onClick={() => handlePatientTypeSelect('adult')}
               >
-                <div className="type-icon">👨</div>
+                <div className="type-icon"><User size={48} className="text-blue-600" /></div>
                 <div className="type-title">Adult Patient</div>
                 <div className="type-description">18 years or older, independent access</div>
               </button>
@@ -195,7 +195,7 @@ export default function PatientRegistrationPage() {
                 className="type-option"
                 onClick={() => handlePatientTypeSelect('minor')}
               >
-                <div className="type-icon">👦</div>
+                <div className="type-icon"><User size={48} className="text-green-600" /></div>
                 <div className="type-title">Minor Patient</div>
                 <div className="type-description">Under 18, requires guardian</div>
               </button>
@@ -204,7 +204,7 @@ export default function PatientRegistrationPage() {
                 className="type-option"
                 onClick={() => handlePatientTypeSelect('newborn')}
               >
-                <div className="type-icon">👶</div>
+                <div className="type-icon"><Baby size={48} className="text-pink-600" /></div>
                 <div className="type-title">Newborn</div>
                 <div className="type-description">Birth registration with parent linking</div>
               </button>

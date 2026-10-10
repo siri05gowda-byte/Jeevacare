@@ -1,0 +1,118 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  
+  "buildCommand": "npm run build --workspace=client",
+  "outputDirectory": "client/dist",
+  "installCommand": "npm install",
+  
+  "framework": "vite",
+  "nodeVersion": "18.x",
+  
+  "regions": ["iad1"],
+  "env": {
+    "VITE_API_BASE_URL": {
+      "default": "http://localhost:5000",
+      "preview": "https://jeevacare-staging-api.onrender.com",
+      "production": "https://jeevacare-api.onrender.com"
+    },
+    "VITE_DEMO_MODE": {
+      "default": "false",
+      "preview": "false",
+      "production": "false"
+    },
+    "VITE_DEMO_MODE_UNLOCK_KEY": {
+      "default": "",
+      "preview": "",
+      "production": ""
+    },
+    "VITE_ENABLE_DEBUG_LOGS": {
+      "default": "false",
+      "preview": "false",
+      "production": "false"
+    },
+    "VITE_ENABLE_PERFORMANCE_MONITORING": {
+      "default": "false",
+      "preview": "true",
+      "production": "true"
+    }
+  },
+  
+  "buildCache": {
+    "nodeModulesPattern": "**/node_modules/**",
+    "npm": true
+  },
+  
+  "rewrites": [
+    {
+      "source": "/:path*",
+      "destination": "/index.html"
+    }
+  ],
+  
+  "redirects": [
+    {
+      "source": "/docs",
+      "destination": "https://github.com/jeevacare/jeevacare/wiki",
+      "permanent": false
+    }
+  ],
+  
+  "headers": [
+    {
+      "source": "/index.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        }
+      ]
+    },
+    {
+      "source": "/assets/:path*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/:path*",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        }
+      ]
+    }
+  ],
+  
+  "functions": {
+    "api/**/*.js": {
+      "runtime": "nodejs18.x"
+    }
+  },
+  
+  "cleanUrls": true,
+  "trailingSlash": false,
+  
+  "public": true,
+  "comments": true
+}

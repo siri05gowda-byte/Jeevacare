@@ -34,9 +34,12 @@ describe('Phase 7 Independent Verification Suite', () => {
       }
     });
 
-    it('should support all 6 languages in TTS (demo or production)', () => {
+    it('should support all supported languages in TTS (real + demo)', () => {
       const languages = TextToSpeechService.getSupportedLanguages();
-      expect(languages).toEqual(['en', 'hi', 'kn', 'te', 'ta', 'ml']);
+      // Only 3 languages have official Piper models: en, hi, ml
+      // Kannada, Tamil, Telugu have no official Piper support as of October 2026
+      expect(languages).toEqual(['en', 'hi', 'ml']);
+      expect(languages.length).toBe(3);
     });
 
     it('should generate audio with demo mode when not configured', async () => {

@@ -43,9 +43,11 @@ describe('Phase 7: AI Medical Summary + Multilingual + TTS Integration Tests', (
 
   // ===== TEXT-TO-SPEECH TESTS =====
   describe('Text-to-Speech Service', () => {
-    it('should support all six languages for TTS', () => {
+    it('should support all supported languages for TTS (real Piper models only)', () => {
       const supported = TextToSpeechService.getSupportedLanguages();
-      expect(supported).toEqual(['en', 'hi', 'kn', 'te', 'ta', 'ml']);
+      // Verified available models: English, Hindi, Malayalam
+      // Kannada, Tamil, Telugu: No official Piper models (verified Oct 2026)
+      expect(supported).toEqual(['en', 'hi', 'ml']);
     });
 
     it('should validate language for TTS', () => {

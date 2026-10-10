@@ -3,6 +3,7 @@ import { useAuthStore } from '../stores/authStore';
 import DocumentCard from '../components/DocumentCard';
 import LoadingState from '../components/LoadingState';
 import EmptyState from '../components/EmptyState';
+import { AlertCircle, Clock, Pill } from 'lucide-react';
 
 export default function DischargeSummariesPage() {
   const { user } = useAuthStore();
@@ -59,8 +60,9 @@ export default function DischargeSummariesPage() {
       {/* Follow-up Alert */}
       {followUpRequired.length > 0 && (
         <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded">
-          <p className="font-semibold text-amber-900">
-            ⏰ {followUpRequired.length} discharge{followUpRequired.length !== 1 ? 's' : ''} requiring follow-up
+          <p className="font-semibold text-amber-900 flex items-center gap-2">
+            <Clock size={20} />
+            {followUpRequired.length} discharge{followUpRequired.length !== 1 ? 's' : ''} requiring follow-up
           </p>
         </div>
       )}
@@ -93,7 +95,10 @@ export default function DischargeSummariesPage() {
               {/* Follow-up Instructions */}
               {summary.followUpRequired && (
                 <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded">
-                  <p className="font-semibold text-blue-900 mb-2">📋 Follow-up Instructions</p>
+                  <p className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                    <AlertCircle size={18} />
+                    Follow-up Instructions
+                  </p>
                   <div className="space-y-2 text-sm text-blue-800">
                     {summary.followUpSpecialty && (
                       <p>• Specialty: <span className="font-medium">{summary.followUpSpecialty}</span></p>
@@ -111,7 +116,10 @@ export default function DischargeSummariesPage() {
               {/* Discharge Medications */}
               {summary.medications && summary.medications.length > 0 && (
                 <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded">
-                  <p className="font-semibold text-green-900 mb-2">💊 Discharge Medications</p>
+                  <p className="font-semibold text-green-900 mb-2 flex items-center gap-2">
+                    <Pill size={18} />
+                    Discharge Medications
+                  </p>
                   <ul className="space-y-2 text-sm text-green-800">
                     {summary.medications.map((med, idx) => (
                       <li key={idx}>
@@ -133,7 +141,7 @@ export default function DischargeSummariesPage() {
             ? "All your discharges are complete" 
             : "Your hospitalization discharge summaries will appear here."
           }
-          icon="📋"
+          icon={<AlertCircle size={48} className="text-gray-300" />}
           action={{
             label: 'Contact Healthcare Provider',
             onClick: () => console.log('Contact provider')
@@ -143,7 +151,10 @@ export default function DischargeSummariesPage() {
 
       {/* Information Banner */}
       <div className="mt-8 p-6 bg-blue-50 border border-blue-200 rounded-lg">
-        <h3 className="font-semibold text-blue-900 mb-2">📋 About Discharge Summaries</h3>
+        <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+          <AlertCircle size={20} />
+          About Discharge Summaries
+        </h3>
         <p className="text-sm text-blue-800">
           Discharge summaries provide important information about your hospitalization, including diagnosis, 
           treatments, medications, and follow-up instructions. Follow your discharge instructions carefully 

@@ -6,6 +6,7 @@ import config from './config/index.js';
 import { connectDatabase } from './config/database.js';
 import logger from './utils/logger.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+import TTSAdapter from './adapters/TTSAdapter.js';
 
 // Initialize Express app
 const app = express();
@@ -86,11 +87,22 @@ const startServer = async () => {
     }
 
     // Start server
-    app.listen(config.port, () => {
+    const server = app.listen(config.port, () => {
       logger.info(`🚀 JeevaCare API Server running on port ${config.port}`);
       logger.info(`📚 Environment: ${config.environment}`);
       logger.info(`🗄️  Database: ${config.database.uri}`);
     });
+
+    // Schedule periodic TTS cleanup (every hour)
+    if (config.piperTTS.enabled) {
+      setInterval(() => {
+        logger.debug('Running periodic TTS cleanup...');
+        TTSAdapter.adapter?.cleanupOldAudioFiles?.();
+      }, 60 * 60 * 1000); // Every hour
+      logger.info('✓ TTS cleanup scheduled (every 1 hour)');
+    }
+
+    return server;
   } catch (error) {
     logger.error(`Failed to start server: ${error.message}`);
     // Only exit if not in test environment

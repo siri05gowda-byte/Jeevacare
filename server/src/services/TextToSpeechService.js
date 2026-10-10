@@ -10,7 +10,7 @@ import { ExternalServiceError } from '../utils/errors.js';
  * Never exposes provider credentials to frontend
  */
 class TextToSpeechService {
-  static SUPPORTED_LANGUAGES = ['en', 'hi', 'kn', 'te', 'ta', 'ml'];
+  static SUPPORTED_LANGUAGES = ['en', 'hi', 'ml'];
 
   /**
    * Generate audio for explanation
@@ -183,20 +183,10 @@ class TextToSpeechService {
         { id: 'en-US-2', name: 'Brian', gender: 'male', language: 'en' },
       ],
       hi: [
-        { id: 'hi-IN-1', name: 'Kavya', gender: 'female', language: 'hi' },
-        { id: 'hi-IN-2', name: 'Arjun', gender: 'male', language: 'hi' },
-      ],
-      kn: [
-        { id: 'kn-IN-1', name: 'Priya', gender: 'female', language: 'kn' },
-      ],
-      te: [
-        { id: 'te-IN-1', name: 'Lakshmi', gender: 'female', language: 'te' },
-      ],
-      ta: [
-        { id: 'ta-IN-1', name: 'Meera', gender: 'female', language: 'ta' },
+        { id: 'hi-IN-1', name: 'Pratham', gender: 'male', language: 'hi' },
       ],
       ml: [
-        { id: 'ml-IN-1', name: 'Nandini', gender: 'female', language: 'ml' },
+        { id: 'ml-IN-1', name: 'Meera', gender: 'female', language: 'ml' },
       ],
     };
 

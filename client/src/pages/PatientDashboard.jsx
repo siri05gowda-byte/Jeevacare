@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { Syringe, Beaker, Activity, Clipboard, FileText, AlertTriangle, AlertCircle } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { usePatientStore } from '../stores/patientStore';
 import HealthOverviewCard from '../components/HealthOverviewCard';
@@ -67,23 +68,28 @@ export default function PatientDashboard() {
   const criticalAlerts = [];
   if (criticalInfo?.allergies && criticalInfo.allergies.length > 0) {
     criticalAlerts.push({
-      title: '⚠️ Known Allergies',
+      title: 'Known Allergies',
       description: criticalInfo.allergies.join(', '),
+      icon: AlertTriangle,
     });
   }
   if (criticalInfo?.conditions && criticalInfo.conditions.length > 0) {
     criticalAlerts.push({
-      title: '🏥 Known Conditions',
+      title: 'Known Conditions',
       description: criticalInfo.conditions.join(', '),
+      icon: Activity,
     });
   }
   if (criticalInfo?.medications && criticalInfo.medications.length > 0) {
     criticalAlerts.push({
-      title: '💊 Current Medications',
+      title: 'Current Medications',
       description: criticalInfo.medications.length + ' medications',
+      icon: AlertCircle,
     });
   }
 
+  return (
+    <div className="container mx-auto px-4 py-8">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">
@@ -97,17 +103,23 @@ export default function PatientDashboard() {
       {/* Critical Alerts Section */}
       {criticalAlerts.length > 0 && (
         <div className="mb-8 p-6 bg-red-50 border border-red-200 rounded-lg">
-          <h2 className="text-lg font-semibold text-red-900 mb-4">⚠️ Critical Information</h2>
+          <h2 className="text-lg font-semibold text-red-900 mb-4 flex items-center gap-2">
+            <AlertTriangle size={20} />
+            Critical Information
+          </h2>
           <div className="space-y-3">
-            {criticalAlerts.map((alert, idx) => (
-              <div key={idx} className="flex items-start gap-3 p-3 bg-red-100 rounded">
-                <span className="text-xl">🚨</span>
-                <div>
-                  <p className="font-medium text-red-900">{alert.title}</p>
-                  <p className="text-sm text-red-800 mt-1">{alert.description}</p>
+            {criticalAlerts.map((alert, idx) => {
+              const IconComponent = alert.icon;
+              return (
+                <div key={idx} className="flex items-start gap-3 p-3 bg-red-100 rounded">
+                  <IconComponent size={24} className="text-red-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-red-900">{alert.title}</p>
+                    <p className="text-sm text-red-800 mt-1">{alert.description}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -119,38 +131,38 @@ export default function PatientDashboard() {
           <HealthOverviewCard
             title="Vaccinations"
             count={displayStats.vaccinations}
-            icon="💉"
+            icon={<Syringe size={40} className="text-gray-400" />}
             color="blue"
           />
           <HealthOverviewCard
             title="Lab Results"
             count={displayStats.labResults}
-            icon="🧪"
+            icon={<Beaker size={40} className="text-gray-400" />}
             color="green"
           />
           <HealthOverviewCard
             title="Radiology"
             count={displayStats.radiology}
-            icon="🩻"
+            icon={<Activity size={40} className="text-gray-400" />}
             color="purple"
           />
           <HealthOverviewCard
             title="Discharge Summaries"
             count={displayStats.dischargeSummaries}
-            icon="📋"
+            icon={<Clipboard size={40} className="text-gray-400" />}
             color="amber"
           />
           <HealthOverviewCard
             title="Documents"
             count={displayStats.documents}
-            icon="📄"
+            icon={<FileText size={40} className="text-gray-400" />}
             color="blue"
           />
           {displayStats.criticalItems > 0 && (
             <HealthOverviewCard
-              title="⚠️ Critical Items"
+              title="Critical Items"
               count={displayStats.criticalItems}
-              icon="🚨"
+              icon={<AlertTriangle size={40} className="text-gray-400" />}
               color="red"
             />
           )}
@@ -196,7 +208,7 @@ export default function PatientDashboard() {
           <EmptyState
             title="No recent items"
             description="Your recent health records will appear here"
-            icon="📋"
+            icon={<Clipboard size={48} className="text-gray-300" />}
           />
         )}
       </div>
@@ -207,19 +219,19 @@ export default function PatientDashboard() {
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Manage Records</h3>
           <div className="space-y-3">
             <a href="/vaccinations" className="w-full text-left p-3 rounded border border-gray-200 hover:bg-blue-50 transition block">
-              <span className="text-lg mr-2">💉</span>
+              <span className="inline-flex mr-2"><Syringe size={20} className="text-blue-600" /></span>
               <span className="font-medium">View Vaccinations ({displayStats.vaccinations})</span>
             </a>
             <a href="/lab-results" className="w-full text-left p-3 rounded border border-gray-200 hover:bg-blue-50 transition block">
-              <span className="text-lg mr-2">🧪</span>
+              <span className="inline-flex mr-2"><Beaker size={20} className="text-green-600" /></span>
               <span className="font-medium">View Lab Results ({displayStats.labResults})</span>
             </a>
             <a href="/radiology" className="w-full text-left p-3 rounded border border-gray-200 hover:bg-blue-50 transition block">
-              <span className="text-lg mr-2">🩻</span>
+              <span className="inline-flex mr-2"><Activity size={20} className="text-purple-600" /></span>
               <span className="font-medium">View Radiology ({displayStats.radiology})</span>
             </a>
             <a href="/discharge-summaries" className="w-full text-left p-3 rounded border border-gray-200 hover:bg-blue-50 transition block">
-              <span className="text-lg mr-2">📋</span>
+              <span className="inline-flex mr-2"><Clipboard size={20} className="text-amber-600" /></span>
               <span className="font-medium">View Discharge Summaries ({displayStats.dischargeSummaries})</span>
             </a>
           </div>
@@ -254,7 +266,10 @@ export default function PatientDashboard() {
 
       {/* Information Banner */}
       <div className="mt-8 p-6 bg-blue-50 border border-blue-200 rounded-lg">
-        <h3 className="font-semibold text-blue-900 mb-2">ℹ️ About Your Health Dashboard</h3>
+        <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+          <AlertCircle size={20} />
+          About Your Health Dashboard
+        </h3>
         <p className="text-sm text-blue-800">
           Your health dashboard consolidates all your medical records, vaccinations, laboratory results, 
           radiology reports, and discharge summaries in one secure location. Critical information is 
