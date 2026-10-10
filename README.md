@@ -1,6 +1,6 @@
 <div align="center">
 
-![JeevaCare — Healthier Lives, Together](client/src/assets/logos/jeevacare-logo-wordmark.png)
+![JeevaCare — Healthier Lives, Together](https://raw.githubusercontent.com/siri05gowda-byte/Jeevacare/main/client/src/assets/logos/jeevacare-logo-wordmark.png)
 
 </div>
 
