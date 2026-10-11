@@ -123,7 +123,7 @@ const startServer = async () => {
     const server = app.listen(config.port, () => {
       logger.info(`🚀 JeevaCare API Server running on port ${config.port}`);
       logger.info(`📚 Environment: ${config.environment}`);
-      logger.info(`🗄️  Database: ${config.database.uri}`);
+      logger.info(`🗄️  Database: ${config.database.uri.replace(/:\/\/([^:]+):([^@]+)@/, '://***:***@')}`);
     });
 
     // Schedule periodic TTS cleanup (every hour)
