@@ -7,14 +7,13 @@
   "installCommand": "npm install",
   
   "framework": "vite",
-  "nodeVersion": "18.x",
   
   "regions": ["iad1"],
   "env": {
     "VITE_API_BASE_URL": {
       "default": "http://localhost:5000",
-      "preview": "https://jeevacare-staging-api.onrender.com",
-      "production": "https://jeevacare-api.onrender.com"
+      "preview": "https://jeevacare-th88.onrender.com",
+      "production": "https://jeevacare-th88.onrender.com"
     },
     "VITE_DEMO_MODE": {
       "default": "false",
@@ -103,12 +102,6 @@
       ]
     }
   ],
-  
-  "functions": {
-    "api/**/*.js": {
-      "runtime": "nodejs18.x"
-    }
-  },
   
   "cleanUrls": true,
   "trailingSlash": false,
