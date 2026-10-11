@@ -16,7 +16,7 @@ class TextToSpeechService {
    * Generate audio for explanation
    * Text should be patient-friendly explanation, not raw medical record
    */
-  static async generateAudio(explanationText, language, patientId, requesterId, options = {}) {
+  static async generateAudio(explanationText, language = 'en', patientId, requesterId, options = {}) {
     try {
       // Validate language support
       if (!this.SUPPORTED_LANGUAGES.includes(language)) {

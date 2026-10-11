@@ -1,7 +1,47 @@
 import AuditEvent from '../models/AuditEvent.js';
 import logger from '../utils/logger.js';
+import mongoose from 'mongoose';
 
 class AuditService {
+  /**
+   * Convert string ID to valid ObjectId, or return null if invalid
+   * Validates ObjectId format while allowing truly optional fields to be null
+   * @private
+   */
+  static _toObjectIdOrNull(value, fieldName = 'ID') {
+    // Absent value is acceptable (optional field)
+    if (value === null || value === undefined) {
+      return null;
+    }
+    
+    // Empty string treated as absent
+    if (value === '') {
+      logger.warn(`${fieldName} is empty string, treating as null`);
+      return null;
+    }
+    
+    // Valid ObjectId
+    if (mongoose.Types.ObjectId.isValid(value)) {
+      if (value instanceof mongoose.Types.ObjectId) {
+        return value;
+      }
+      try {
+        return new mongoose.Types.ObjectId(value);
+      } catch (e) {
+        // Should not happen after isValid check, but be defensive
+        logger.error(`${fieldName} failed ObjectId conversion: ${value}`);
+        throw new Error(`Invalid ${fieldName}: failed to convert to ObjectId`);
+      }
+    }
+    
+    // MALFORMED: This is a bug in the caller
+    logger.error(`Invalid ${fieldName}: "${value}" is not a valid MongoDB ObjectId`);
+    throw new Error(
+      `Invalid ${fieldName}: "${value}" is not a valid MongoDB ObjectId. ` +
+      `Expected 24-character hex string or ObjectId instance.`
+    );
+  }
+
   /**
    * Log an audit event
    */
@@ -21,14 +61,20 @@ class AuditService {
     userAgent = null,
   }) {
     try {
+      // Convert string IDs to ObjectIds or null
+      // Validates format and throws on malformed non-empty IDs
+      const validActor = this._toObjectIdOrNull(actor, 'actor');
+      const validPatient = this._toObjectIdOrNull(patient, 'patient');
+      const validHospital = this._toObjectIdOrNull(hospital, 'hospital');
+
       const auditEvent = new AuditEvent({
-        actor,
+        actor: validActor,
         actorRole,
         action,
         resource,
         resourceType,
-        patient,
-        hospital,
+        patient: validPatient,
+        hospital: validHospital,
         status,
         statusMessage,
         details,

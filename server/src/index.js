@@ -33,7 +33,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check endpoint
+// Health check endpoint (legacy)
 app.get('/health', (req, res) => {
   res.json({
     success: true,
@@ -41,6 +41,34 @@ app.get('/health', (req, res) => {
     environment: config.environment,
     timestamp: new Date(),
   });
+});
+
+// Render health check endpoint - checks MongoDB connectivity
+app.get('/healthz', async (req, res) => {
+  try {
+    // Check MongoDB connection state
+    // 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
+    const dbState = (await import('mongoose')).default.connection.readyState;
+    
+    if (dbState !== 1) {
+      logger.warn(`Health check failed: MongoDB not connected (state: ${dbState})`);
+      return res.status(503).json({
+        status: 'unhealthy',
+        database: 'disconnected',
+      });
+    }
+
+    res.status(200).json({
+      status: 'healthy',
+      database: 'connected',
+    });
+  } catch (error) {
+    logger.error(`Health check error: ${error.message}`);
+    res.status(503).json({
+      status: 'unhealthy',
+      error: 'health check failed',
+    });
+  }
 });
 
 // API Routes

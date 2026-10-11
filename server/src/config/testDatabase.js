@@ -59,13 +59,14 @@ export const connectTestDatabase = async () => {
       useNewUrlParser: true,
       useUnifiedTopology: true,
       readPreference: 'primary',  // Always read from primary during tests
-      maxPoolSize: 10,
-      minPoolSize: 2,
+      maxPoolSize: 20,  // Increased pool for parallel test execution
+      minPoolSize: 5,
       maxIdleTimeMS: 30000,
-      waitQueueTimeoutMS: 10000,
-      // Apply write concern at connection level
-      writeConcern: { w: "majority", wtimeout: 10000 },
-      readConcern: { level: "majority" }
+      waitQueueTimeoutMS: 30000,  // Increased timeout for queue waits
+      // For tests, use local write concern (faster) instead of majority
+      // Production code should maintain majority write concern
+      writeConcern: { w: 1, wtimeout: 30000 },
+      readConcern: { level: "local" }  // Local read concern for tests
     });
 
     logger.info('✓ Test database connected (MongoDB Atlas jeevacare-test)');
@@ -95,32 +96,33 @@ export const disconnectTestDatabase = async () => {
 /**
  * Clear all test data
  * Deletes all documents from all collections
- * Uses proper serialization and write concern to ensure MongoDB Atlas consistency
+ * Uses local write concern for speed in test environment
  */
 export const clearTestDatabase = async () => {
   try {
     const collections = mongoose.connection.collections;
     const collectionNames = Object.keys(collections);
     
-    // Clear collections serially with majority write concern for Atlas consistency
+    // Clear collections serially with local write concern for test speed
+    // Production code uses majority write concern via middleware
     for (const key of collectionNames) {
       const collection = collections[key];
       try {
-        // Use w: "majority" to ensure deletion is replicated across MongoDB Atlas replica set
-        // This prevents race conditions where secondary replicas retain stale data
+        // Use w: 1 (acknowledged locally only) for test speed
+        // This is safe for tests since data loss during test is acceptable
         await collection.deleteMany({}, { 
-          writeConcern: { w: "majority", wtimeout: 10000 },
-          maxTimeMS: 15000
+          writeConcern: { w: 1, wtimeout: 30000 },
+          maxTimeMS: 30000
         });
       } catch (deleteError) {
         logger.warn(`Failed to clear collection ${key}: ${deleteError.message}`);
       }
     }
     
-    // Additional confirmation wait for full propagation
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Small delay to allow local acknowledgment
+    await new Promise(resolve => setTimeout(resolve, 50));
     
-    logger.info('✓ Test database cleared (with majority write concern)');
+    logger.info('✓ Test database cleared');
   } catch (error) {
     logger.error(`Failed to clear test database: ${error.message}`);
     throw error;
@@ -140,8 +142,8 @@ export const verifyTestDatabaseEmpty = async () => {
       const count = await collection.countDocuments();
       if (count > 0) {
         logger.warn(`Collection ${key} still has ${count} documents before test started`);
-        // Force additional cleanup if needed
-        await collection.deleteMany({}, { writeConcern: { w: "majority", wtimeout: 10000 } });
+        // Force additional cleanup if needed (use local write concern for tests)
+        await collection.deleteMany({}, { writeConcern: { w: 1, wtimeout: 30000 } });
       }
     }
     

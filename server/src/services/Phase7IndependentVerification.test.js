@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import AIService from './AIService.js';
 import GroqAIAdapter from '../adapters/GroqAIAdapter.js';
 import MockAIAdapter from '../adapters/MockAIAdapter.js';
@@ -7,16 +7,24 @@ import TTSAdapter from '../adapters/TTSAdapter.js';
 import AIHistorySummaryService from './AIHistorySummaryService.js';
 import AuditService from './AuditService.js';
 import logger from '../utils/logger.js';
+import mongoose from 'mongoose';
 
 /**
  * Phase 7 Independent Verification Tests
  * 
- * These tests verify Phase 7 capabilities independently of the standard test suite
+ * Separated into:
+ * - [UNIT] tests: Mock Groq API boundary, verify logic without consuming API tokens
+ * - [LIVE-INTEGRATION] tests: Call real Groq API to verify production path
+ * 
  * Tasks #8-16: TTS status, Groq production path, Mock usage, authorization, source traceability, 
  * audit events, rate limiting, and end-to-end flow
  */
 
 describe('Phase 7 Independent Verification Suite', () => {
+  afterEach(() => {
+    // Restore all mocks after each test
+    vi.restoreAllMocks();
+  });
   // ===== TASK #8: TTS STATUS =====
   describe('Task #8: Text-to-Speech (TTS) Status and BLOCKED Determination', () => {
     it('should report TTS configuration status', () => {
@@ -79,7 +87,7 @@ describe('Phase 7 Independent Verification Suite', () => {
   });
 
   // ===== TASK #9: GROQ PRODUCTION PATH VERIFICATION =====
-  describe('Task #9: Verify Groq is genuinely called in production code path', () => {
+  describe('[UNIT] Task #9: Verify Groq adapter configuration and routing logic', () => {
     it('should confirm Groq adapter is initialized when configured', () => {
       const status = AIService.getStatus();
       expect(status).toBeDefined();
@@ -88,11 +96,30 @@ describe('Phase 7 Independent Verification Suite', () => {
       // Verify Groq is active if credentials are present
       if (process.env.GROQ_API_KEY) {
         expect(status.provider).toBe('Groq');
-        logger.info('✓ Groq adapter CONFIRMED in production path');
+        logger.info('[UNIT] ✓ Groq adapter CONFIRMED in production path');
       }
     });
 
-    it('should route medical summary generation through Groq adapter', async () => {
+    it('should have Groq API endpoint configured', () => {
+      const groqStatus = GroqAIAdapter.getStatus();
+      expect(groqStatus.provider).toBe('Groq');
+      expect(groqStatus).toHaveProperty('apiEndpoint');
+
+      logger.info(`[UNIT] ✓ Groq adapter configured: ${JSON.stringify(groqStatus)}`);
+    });
+
+    it('should route medical summary generation through Groq adapter with mocked API', async () => {
+      // Mock Groq API response - callGroqAPI returns the PARSED content
+      vi.spyOn(GroqAIAdapter, 'callGroqAPI').mockResolvedValue({
+        summary: 'Test medical summary',
+        majorConditions: ['Test Condition'],
+        currentMedications: [],
+        allergies: [],
+        keyDates: [],
+        warnings: [],
+        disclaimers: ['AI-generated summary']
+      });
+
       const testData = {
         recordCount: 1,
         vaccinations: [{ vaccineName: 'COVID-19', date: '2024-01-15' }],
@@ -107,49 +134,79 @@ describe('Phase 7 Independent Verification Suite', () => {
       expect(result).toBeDefined();
       expect(result.summary).toBeDefined();
       expect(result.disclaimers).toBeDefined();
+      expect(Array.isArray(result.majorConditions)).toBe(true);
 
-      // If Groq is configured, verify response contains expected fields
-      if (process.env.GROQ_API_KEY) {
-        expect(Array.isArray(result.majorConditions)).toBe(true);
-        logger.info('✓ Groq medical summary generation VERIFIED');
-      }
+      // Verify Groq API was called
+      expect(GroqAIAdapter.callGroqAPI).toHaveBeenCalled();
+      logger.info('[UNIT] ✓ Groq medical summary generation routing VERIFIED (mocked)');
     });
 
-    it('should call Groq API directly with structured JSON schema', async () => {
-      const groqStatus = GroqAIAdapter.getStatus();
-      expect(groqStatus.provider).toBe('Groq');
-      expect(groqStatus).toHaveProperty('apiEndpoint');
+    it('should route translations through Groq adapter with mocked API', async () => {
+      // Mock Groq translation response - callGroqAPI returns the PARSED content
+      vi.spyOn(GroqAIAdapter, 'callGroqAPI').mockResolvedValue({
+        translated: 'रोगी ने COVID-19 टीकाकरण पूरा कर लिया है',
+        targetLanguage: 'hi'
+      });
 
-      logger.info(`✓ Groq adapter configured: ${JSON.stringify(groqStatus)}`);
-    });
-
-    it('should generate translations via Groq', async () => {
       const testText = 'Patient has completed COVID-19 vaccination';
-
-      // Test English to Hindi
       const result = await AIService.translateText(testText, 'hi', 'en');
 
       expect(result).toBeDefined();
       expect(result.translated).toBeDefined();
       expect(result.targetLanguage).toBe('hi');
 
-      logger.info(`✓ Translation verified: EN→HI\n  Original: ${testText}\n  Translated: ${result.translated}`);
+      // Verify Groq API was called
+      expect(GroqAIAdapter.callGroqAPI).toHaveBeenCalled();
+      logger.info('[UNIT] ✓ Translation routing VERIFIED (mocked)');
+    });
+  });
+
+  describe('[LIVE-INTEGRATION] Task #9: Verify Groq is genuinely called in production', () => {
+    it('should generate medical summary via real Groq API', async () => {
+      const testData = {
+        recordCount: 1,
+        vaccinations: [{ vaccineName: 'COVID-19', date: '2024-01-15' }],
+        laboratoryResults: [{ testName: 'Blood glucose', value: 95 }],
+        radiologyRecords: [],
+        dischargeSummaries: [],
+        encounters: [],
+      };
+
+      const result = await AIService.generateMedicalSummary(testData, { language: 'en' });
+
+      expect(result).toBeDefined();
+      expect(result.summary).toBeDefined();
+      expect(result.disclaimers).toBeDefined();
+      expect(Array.isArray(result.majorConditions)).toBe(true);
+
+      logger.info('[LIVE-INTEGRATION] ✓ Real Groq medical summary generation VERIFIED');
+    });
+
+    it('should generate translation via real Groq API', async () => {
+      const testText = 'Patient has completed COVID-19 vaccination';
+      const result = await AIService.translateText(testText, 'hi', 'en');
+
+      expect(result).toBeDefined();
+      expect(result.translated).toBeDefined();
+      expect(result.targetLanguage).toBe('hi');
+
+      logger.info(`[LIVE-INTEGRATION] ✓ Real translation verified: EN→HI\n  Original: ${testText}\n  Translated: ${result.translated}`);
     });
   });
 
   // ===== TASK #10: MOCK ADAPTER USAGE VERIFICATION =====
-  describe('Task #10: Verify MockAIAdapter used only in tests, not production', () => {
+  describe('[UNIT] Task #10: Verify MockAIAdapter used only in tests, not production', () => {
     it('should use MockAIAdapter only when Groq is not configured', () => {
       // In production with GROQ_API_KEY set, adapter should be Groq
       if (process.env.GROQ_API_KEY) {
         const status = AIService.getStatus();
         expect(status.provider).toBe('Groq');
-        logger.info('✓ Production environment: Using Groq (not Mock)');
+        logger.info('[UNIT] ✓ Production environment: Using Groq (not Mock)');
       } else {
         // In test environment without credentials, Mock is acceptable
         const status = AIService.getStatus();
         expect(['Groq', 'Mock']).toContain(status.provider);
-        logger.warn('Test environment: Groq not configured, using Mock adapter');
+        logger.warn('[UNIT] Test environment: Groq not configured, using Mock adapter');
       }
     });
 
@@ -169,7 +226,7 @@ describe('Phase 7 Independent Verification Suite', () => {
       expect(mockResponse.warnings).toContain('This is a mock AI response for testing only');
       expect(mockResponse.disclaimers).toContain('Mock AI-generated summary for testing');
 
-      logger.info('✓ Mock adapter returns identifiable test responses');
+      logger.info('[UNIT] ✓ Mock adapter returns identifiable test responses');
     });
 
     it('should not use Mock in production paths', () => {
@@ -179,13 +236,13 @@ describe('Phase 7 Independent Verification Suite', () => {
       // If GROQ_API_KEY is set, should never be Mock
       if (process.env.GROQ_API_KEY) {
         expect(AIService.adapter).not.toBe(MockAIAdapter);
-        logger.info('✓ Production path: MockAIAdapter NOT used');
+        logger.info('[UNIT] ✓ Production path: MockAIAdapter NOT used');
       }
     });
   });
 
   // ===== TASK #11: AUTHORIZATION VERIFICATION =====
-  describe('Task #11: Test authorization - patient isolation, guardian, professional access', () => {
+  describe('[UNIT] Task #11: Test authorization - patient isolation, guardian, professional access', () => {
     it('should enforce authorization boundary before generating summary', async () => {
       // Verify that authorization service exists and is required
       // The implementation enforces authorization before generating AI summaries
@@ -193,26 +250,41 @@ describe('Phase 7 Independent Verification Suite', () => {
       // This validates the pattern: Authorization is checked first in AIHistorySummaryService
       expect(AIHistorySummaryService.generateMedicalSummary).toBeDefined();
       
-      logger.info('✓ Authorization boundary enforced before AI summary generation');
+      logger.info('[UNIT] ✓ Authorization boundary enforced before AI summary generation');
     });
 
     it('should return UNAUTHORIZED if requester lacks access', async () => {
       // When authorization fails, service should return error, not generate summary
+      // Use valid ObjectIds for the test
+      const invalidRequesterId = new mongoose.Types.ObjectId();
+      const testPatientId = new mongoose.Types.ObjectId();
+      
       const result = await AIHistorySummaryService.generateMedicalSummary(
-        'invalid-requester-id',
-        'patient-id-xyz'
+        invalidRequesterId,
+        testPatientId
       );
 
       // Either authorized or returns error with UNAUTHORIZED code
       expect(['UNAUTHORIZED', 'success']).toContain(result.code || 'success');
 
-      logger.info('✓ Authorization denial returns appropriate error response');
+      logger.info('[UNIT] ✓ Authorization denial returns appropriate error response');
     });
   });
 
   // ===== TASK #12: SOURCE TRACEABILITY =====
-  describe('Task #12: Test source traceability - sourceRecordIds populated correctly', () => {
-    it('should generate medical summary with source record traceability', async () => {
+  describe('[UNIT] Task #12: Test source traceability - sourceRecordIds populated correctly', () => {
+    it('should accept medical data with source record traceability', async () => {
+      // Mock Groq API to avoid token consumption - callGroqAPI returns PARSED content
+      vi.spyOn(GroqAIAdapter, 'callGroqAPI').mockResolvedValue({
+        summary: 'Test medical summary',
+        majorConditions: [],
+        currentMedications: [],
+        allergies: [],
+        keyDates: [],
+        warnings: [],
+        disclaimers: ['AI-generated summary']
+      });
+
       const testData = {
         recordCount: 2,
         vaccinations: [
@@ -241,8 +313,9 @@ describe('Phase 7 Independent Verification Suite', () => {
       expect(result).toBeDefined();
       expect(result.summary).toBeDefined();
 
-      // Verify source references could be tracked through normalized data
-      logger.info('✓ AI service accepts source-identified records for traceability');
+      // Verify Groq API was called with source-identified records
+      expect(GroqAIAdapter.callGroqAPI).toHaveBeenCalled();
+      logger.info('[UNIT] ✓ AI service accepts source-identified records for traceability (mocked)');
     });
 
     it('should preserve source record IDs in normalized data', () => {
@@ -266,19 +339,22 @@ describe('Phase 7 Independent Verification Suite', () => {
       );
 
       expect(normalized).toBeDefined();
-      logger.info('✓ Source record IDs can be traced through normalization process');
+      logger.info('[UNIT] ✓ Source record IDs can be traced through normalization process');
     });
   });
 
   // ===== TASK #14: AUDIT EVENTS =====
-  describe('Task #14: Verify audit events for all AI operations', () => {
+  describe('[UNIT] Task #14: Verify audit events for all AI operations', () => {
     it('should log AI operation audit events', async () => {
-      // Create test audit entry
+      // Create test audit entry with valid ObjectId
+      const testActorId = new mongoose.Types.ObjectId();
+      const testPatientId = new mongoose.Types.ObjectId();
+      
       const auditEvent = await AuditService.logEvent({
-        actor: 'test-user',
+        actor: testActorId,
         actorRole: 'PATIENT',
         action: 'ai_summary_generated',
-        patient: 'test-patient',
+        patient: testPatientId,
         status: 'success',
         details: {
           language: 'en',
@@ -288,28 +364,47 @@ describe('Phase 7 Independent Verification Suite', () => {
       });
 
       expect(auditEvent).toBeDefined();
-      logger.info('✓ AI operation audit event created successfully');
+      logger.info('[UNIT] ✓ AI operation audit event created successfully');
     });
 
     it('should record authorization failures in audit trail', async () => {
+      // Create test audit entry with valid ObjectId
+      const testActorId = new mongoose.Types.ObjectId();
+      const testPatientId = new mongoose.Types.ObjectId();
+      
       const auditEvent = await AuditService.logEvent({
-        actor: 'unauthorized-user',
+        actor: testActorId,
         actorRole: 'SYSTEM',
         action: 'ai_summary_generated',
-        patient: 'test-patient',
+        patient: testPatientId,
         status: 'denied',
         statusMessage: 'User not authorized to access patient records',
         sensitivityLevel: 'high',
       });
 
       expect(auditEvent).toBeDefined();
-      logger.info('✓ Authorization denial recorded in audit trail');
+      logger.info('[UNIT] ✓ Authorization denial recorded in audit trail');
     });
   });
 
   // ===== TASK #16: END-TO-END FLOW =====
-  describe('Task #16: End-to-end test - frontend → backend → Groq → response', () => {
-    it('should complete full flow: input → normalization → Groq → response', async () => {
+  describe('[UNIT] Task #16: End-to-end flow with mocked Groq API', () => {
+    it('should complete full flow: input → normalization → Groq routing → response (mocked)', async () => {
+      // Mock Groq API response - callGroqAPI returns PARSED content
+      vi.spyOn(GroqAIAdapter, 'callGroqAPI').mockResolvedValue({
+        summary: 'Patient has received vaccinations and completed laboratory tests.',
+        majorConditions: ['Well-controlled health'],
+        currentMedications: [],
+        allergies: [],
+        keyDates: [
+          { date: '2024-01-15', event: 'COVID-19 vaccination' },
+          { date: '2024-02-20', event: 'Polio vaccination' },
+          { date: '2024-01-20', event: 'Blood glucose test' }
+        ],
+        warnings: [],
+        disclaimers: ['This is an AI-generated summary', 'Consult healthcare professional']
+      });
+
       const clinicalData = {
         recordCount: 3,
         vaccinations: [
@@ -345,7 +440,70 @@ describe('Phase 7 Independent Verification Suite', () => {
       );
       expect(hasAIDisclaimer).toBe(true);
 
-      logger.info('✓ End-to-end flow verified: data → Groq → structured response');
+      // Verify Groq API was called
+      expect(GroqAIAdapter.callGroqAPI).toHaveBeenCalled();
+      logger.info('[UNIT] ✓ End-to-end flow verified: data → Groq routing → structured response (mocked)');
+    });
+
+    it('should route translation and explanation through Groq (mocked)', async () => {
+      // Mock translation and explanation responses - callGroqAPI returns PARSED content
+      const mockSpy = vi.spyOn(GroqAIAdapter, 'callGroqAPI')
+        .mockResolvedValueOnce({
+          translated: 'रोगी को उच्च रक्तचाप है और दवा ले रहा है',
+          targetLanguage: 'hi'
+        })
+        .mockResolvedValueOnce({
+          explanation: 'High blood pressure means the force of blood against artery walls is too high',
+          keyPoints: ['Monitor blood pressure regularly', 'Take medication as prescribed'],
+          simplifiedTerms: [{ term: 'hypertension', definition: 'high blood pressure' }],
+          disclaimers: ['Consult your doctor']
+        });
+
+      const text = 'Patient has hypertension and is on medication';
+
+      // Translation test
+      const translation = await AIService.translateText(text, 'hi', 'en');
+      expect(translation.translated).toBeDefined();
+      expect(translation.targetLanguage).toBe('hi');
+
+      // Explanation test
+      const explanation = await AIService.generateSimpleExplanation(text, { language: 'en' });
+      expect(explanation.explanation).toBeDefined();
+      expect(Array.isArray(explanation.keyPoints)).toBe(true);
+
+      // Verify both API calls were made
+      expect(mockSpy).toHaveBeenCalledTimes(2);
+      logger.info('[UNIT] ✓ End-to-end flow: translation and explanation routing verified (mocked)');
+    });
+  });
+
+  describe('[LIVE-INTEGRATION] Task #16: End-to-end flow with real Groq API', () => {
+    it('should complete full flow: input → normalization → real Groq → response', async () => {
+      const clinicalData = {
+        recordCount: 3,
+        vaccinations: [
+          { vaccineName: 'COVID-19', date: '2024-01-15' },
+          { vaccineName: 'Polio', date: '2024-02-20' },
+        ],
+        laboratoryResults: [
+          { testName: 'Blood glucose', value: 95, date: '2024-01-20' },
+          { testName: 'Blood pressure', value: '120/80', date: '2024-01-20' },
+        ],
+        radiologyRecords: [
+          { studyType: 'Chest X-ray', date: '2024-01-15' },
+        ],
+        dischargeSummaries: [],
+        encounters: [],
+      };
+
+      const result = await AIService.generateMedicalSummary(clinicalData, { language: 'en' });
+
+      expect(result).toBeDefined();
+      expect(result.summary).toBeDefined();
+      expect(result.disclaimers).toBeDefined();
+      expect(Array.isArray(result.majorConditions)).toBe(true);
+
+      logger.info('[LIVE-INTEGRATION] ✓ End-to-end flow verified with real Groq API');
     });
 
     it('should support all 6 languages in end-to-end flow (or skip if rate limited)', async () => {
@@ -369,13 +527,13 @@ describe('Phase 7 Independent Verification Suite', () => {
           expect(result).toBeDefined();
           expect(result.summary).toBeDefined();
 
-          logger.info(`✓ End-to-end flow verified for language: ${language}`);
+          logger.info(`[LIVE-INTEGRATION] ✓ End-to-end flow verified for language: ${language}`);
           successCount++;
         } catch (error) {
           // Groq rate limiting is expected during heavy testing
           if (error.message.includes('429') || error.message.includes('Rate limit')) {
             rateLimitHit = true;
-            logger.warn(`Groq rate limit hit for language ${language} - this is expected with free tier`);
+            logger.warn(`[LIVE-INTEGRATION] Groq rate limit hit for language ${language} - this is expected with free tier`);
           } else {
             throw error;
           }
@@ -384,11 +542,11 @@ describe('Phase 7 Independent Verification Suite', () => {
 
       expect(successCount).toBeGreaterThan(0);
       if (rateLimitHit) {
-        logger.info('✓ Groq rate limiting confirms real API calls (not mock) ✓');
+        logger.info('[LIVE-INTEGRATION] ✓ Groq rate limiting confirms real API calls (not mock) ✓');
       }
     });
 
-    it('should generate translation and explanation in end-to-end flow (handle rate limits)', async () => {
+    it('should generate translation and explanation with real Groq API (handle rate limits)', async () => {
       const text = 'Patient has hypertension and is on medication';
 
       try {
@@ -402,13 +560,13 @@ describe('Phase 7 Independent Verification Suite', () => {
         expect(explanation.explanation).toBeDefined();
         expect(Array.isArray(explanation.keyPoints)).toBe(true);
 
-        logger.info('✓ End-to-end flow: translation and explanation verified');
+        logger.info('[LIVE-INTEGRATION] ✓ End-to-end flow: translation and explanation verified with real API');
       } catch (error) {
         if (error.message.includes('429') || error.message.includes('Rate limit')) {
-          logger.warn('Groq rate limit hit during translation test - retrying after delay');
+          logger.warn('[LIVE-INTEGRATION] Groq rate limit hit during translation test');
           // Rate limiting is evidence that real API is being called
           expect(error.message).toContain('429');
-          logger.info('✓ Rate limit error confirms Groq API is being called in production ✓');
+          logger.info('[LIVE-INTEGRATION] ✓ Rate limit error confirms Groq API is being called in production ✓');
         } else {
           throw error;
         }
@@ -417,20 +575,22 @@ describe('Phase 7 Independent Verification Suite', () => {
   });
 
   // ===== SUMMARY REPORT =====
-  describe('Phase 7 Verification Summary', () => {
+  describe('[UNIT] Phase 7 Verification Summary', () => {
     it('should report overall Phase 7 status', () => {
       const summary = {
         task_8_tts: 'BLOCKED — Demo mode (production credentials not configured)',
-        task_9_groq: 'GREEN — Groq adapter verified in production path',
+        task_9_groq_unit: 'GREEN — Groq adapter routing verified (mocked)',
+        task_9_groq_live: 'Requires live API test (see LIVE-INTEGRATION suite)',
         task_10_mock: 'GREEN — Mock adapter used only when Groq unavailable',
         task_11_authorization: 'GREEN — Authorization boundary enforced before AI operations',
         task_12_source_traceability: 'GREEN — Source record IDs traceable through normalization',
         task_14_audit_events: 'GREEN — Audit events logged for all AI operations',
-        task_16_end_to_end: 'GREEN — End-to-end flow verified (data → Groq → response)',
-        overall_status: 'YELLOW — Phase 7 mostly GREEN, TTS is BLOCKED on external credentials',
+        task_16_end_to_end_unit: 'GREEN — End-to-end flow verified (mocked)',
+        task_16_end_to_end_live: 'Requires live API test (see LIVE-INTEGRATION suite)',
+        overall_status: 'YELLOW — Phase 7 unit tests GREEN, TTS is BLOCKED, live integration needs API tokens',
       };
 
-      logger.info('\n=== Phase 7 Independent Verification Summary ===\n');
+      logger.info('\n=== Phase 7 Independent Verification Summary ([UNIT] tests) ===\n');
       Object.entries(summary).forEach(([key, value]) => {
         logger.info(`${key}: ${value}`);
       });
