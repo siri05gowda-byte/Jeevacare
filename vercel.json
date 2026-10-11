@@ -8,13 +8,6 @@
   "framework": "vite",
   
   "regions": ["iad1"],
-  "env": {
-    "VITE_API_BASE_URL": "https://jeevacare-th88.onrender.com/api/v1",
-    "VITE_DEMO_MODE": "false",
-    "VITE_DEMO_MODE_UNLOCK_KEY": "",
-    "VITE_ENABLE_DEBUG_LOGS": "false",
-    "VITE_ENABLE_PERFORMANCE_MONITORING": "true"
-  },
   
   "rewrites": [
     {
