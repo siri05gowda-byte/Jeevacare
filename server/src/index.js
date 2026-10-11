@@ -11,6 +11,11 @@ import TTSAdapter from './adapters/TTSAdapter.js';
 // Initialize Express app
 const app = express();
 
+// Trust proxy - Required for Render deployment
+// Render uses X-Forwarded-* headers which Express must trust for rate limiting and client IP detection
+// Trust only the first proxy (Render's load balancer)
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(helmet());
 app.use(cors(config.cors));
