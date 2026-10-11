@@ -26,8 +26,17 @@ export default function LoginPage() {
     }
 
     try {
-      await login(formData.email, formData.password);
-      navigate('/dashboard');
+      const response = await login(formData.email, formData.password);
+      const role = response?.user?.role;
+      if (role === 'DOCTOR') {
+        navigate('/provider');
+      } else if (role === 'EMERGENCY') {
+        navigate('/emergency');
+      } else if (role === 'HOSPITAL_ADMIN' || role === 'ADMIN') {
+        navigate('/integrated-dashboard');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       setLocalError(err.response?.data?.error?.message || 'Login failed');
     }

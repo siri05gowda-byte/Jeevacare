@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { AlertCircle, Calendar, FileText, Activity } from 'lucide-react';
 import PageContainer from '../components/Layout/PageContainer';
@@ -37,97 +37,109 @@ export default function PatientDashboardV2() {
   const [demoMode, setDemoMode] = useState(isDemoModeEnabled());
 
   // Load patient data from real API only (no automatic demo fallback)
-  useEffect(() => {
-    const loadPatientData = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        setPatientData(null);
-        
-        const patientId = user?._id || user?.id;
-        if (!patientId) {
-          setError('User ID not available. Please log in again.');
-          showError('Authentication error');
-          return;
-        }
-        
-        const token = user?.token || localStorage.getItem('token');
-        if (!token) {
-          setError('Authentication token not found. Please log in again.');
-          showError('Authentication required');
-          return;
-        }
-        
-        const response = await fetch(`/api/v1/patients/${patientId}`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-        
-        if (response.status === 401 || response.status === 403) {
-          setError('You do not have permission to view this patient data. Please contact your healthcare provider.');
-          showError('Access denied');
-          return;
-        }
-        
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          setError(
-            errorData.message || 
-            'Unable to load your health dashboard. The server is not responding. Please try again in a few moments.'
-          );
-          showError('Failed to load dashboard');
-          return;
-        }
-        
-        const data = await response.json();
-        
-        if (!data.success || !data.patient) {
-          setError('Your health records could not be retrieved. Please try again.');
-          showError('Failed to retrieve records');
-          return;
-        }
-        
-        // Normalize empty record collections
-        const normalizedData = {
-          ...data,
-          patient: data.patient || {},
-          stats: data.stats || {},
-          criticalInfo: data.criticalInfo || { allergies: [], conditions: [], medications: [] },
-          recentAppointments: data.recentAppointments || [],
-          timeline: data.timeline || [],
-          records: {
-            lab_results: data.records?.lab_results || [],
-            radiology: data.records?.radiology || [],
-            discharge_summaries: data.records?.discharge_summaries || [],
-            vaccinations: data.records?.vaccinations || [],
-            documents: data.records?.documents || [],
-          },
-        };
-        
-        setPatientData(normalizedData);
-        success('Patient data loaded successfully');
-      } catch (err) {
-        console.error('Failed to load dashboard data:', err);
-        
-        if (err.message.includes('network') || err.message.includes('fetch')) {
-          setError('Network error: Unable to reach the server. Please check your connection and try again.');
-        } else {
-          setError('An unexpected error occurred while loading your health dashboard. Please try again.');
-        }
-        
-        showError('Failed to load dashboard');
-      } finally {
-        setIsLoading(false);
+  const loadPatientData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      setPatientData(null);
+      
+      const patientId = user?._id || user?.id;
+      if (!patientId) {
+        setError('User ID not available. Please log in again.');
+        showError('Authentication error');
+        return;
       }
-    };
+      
+      const token = user?.token || localStorage.getItem('token');
+      if (!token) {
+        setError('Authentication token not found. Please log in again.');
+        showError('Authentication required');
+        return;
+      }
+      
+      // Use /api/v1/patients/profile for patients, or /api/v1/patients/:id for clinicians
+      const endpoint = user?.role === 'PATIENT' ? '/api/v1/patients/profile' : `/api/v1/patients/${patientId}`;
+      const response = await fetch(endpoint, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.status === 401 || response.status === 403) {
+        setError('You do not have permission to view this patient data. Please contact your healthcare provider.');
+        showError('Access denied');
+        return;
+      }
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        setError(
+          errorData.message || 
+          'Unable to load your health dashboard. The server is not responding. Please try again in a few moments.'
+        );
+        showError('Failed to load dashboard');
+        return;
+      }
+      
+      const data = await response.json();
+      const patientObj = data.patient || data.data || {};
+      
+      if (!data.success || (!data.patient && !data.data)) {
+        setError('Your health records could not be retrieved. Please try again.');
+        showError('Failed to retrieve records');
+        return;
+      }
+      
+      // Normalize empty record collections
+      const normalizedData = {
+        ...data,
+        patient: {
+          ...patientObj,
+          firstName: patientObj.firstName || patientObj.personalIdentity?.firstName || user?.profile?.firstName || 'Patient',
+          lastName: patientObj.lastName || patientObj.personalIdentity?.lastName || user?.profile?.lastName || '',
+          jeevaId: patientObj.jeevaId || 'JC-' + (patientObj._id || '').slice(-6).toUpperCase(),
+        },
+        stats: data.stats || {},
+        criticalInfo: data.criticalInfo || {
+          allergies: patientObj.criticalInfo?.allergies || [],
+          conditions: patientObj.criticalInfo?.conditions || [],
+          medications: patientObj.criticalInfo?.medications || [],
+        },
+        recentAppointments: data.recentAppointments || [],
+        timeline: data.timeline || [],
+        records: {
+          lab_results: data.records?.lab_results || [],
+          radiology: data.records?.radiology || [],
+          discharge_summaries: data.records?.discharge_summaries || [],
+          vaccinations: data.records?.vaccinations || [],
+          documents: data.records?.documents || [],
+        },
+      };
+      
+      setPatientData(normalizedData);
+      success('Patient data loaded successfully');
+    } catch (err) {
+      console.error('Failed to load dashboard data:', err);
+      
+      if (err.message.includes('network') || err.message.includes('fetch')) {
+        setError('Network error: Unable to reach the server. Please check your connection and try again.');
+      } else {
+        setError('An unexpected error occurred while loading your health dashboard. Please try again.');
+      }
+      
+      showError('Failed to load dashboard');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user, showError, success]);
 
+  useEffect(() => {
     if (user) {
       loadPatientData();
     }
-  }, [user, showError]);
+  }, [user, loadPatientData]);
 
   // Load AI explanation when patient data is ready
   // Only load if real data was retrieved; do not generate for missing/empty records
@@ -197,7 +209,7 @@ export default function PatientDashboardV2() {
         <div className="alert-error">
           <p>{error}</p>
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => loadPatientData()}
             className="mt-4 btn btn-primary"
           >
             Retry

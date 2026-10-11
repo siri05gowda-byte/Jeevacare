@@ -89,7 +89,7 @@ describe('API Service Interceptors and Vercel Routing Configuration', () => {
     expect(global.localStorage.removeItem).toHaveBeenCalledWith('refreshToken');
   });
 
-  it('should have valid Vercel SPA routing in client/vercel.json', () => {
+  it('should have valid Vercel SPA routing in client/vercel.json without cleanUrls conflict', () => {
     const vercelConfigPath = path.resolve(__dirname, '../../vercel.json');
     expect(fs.existsSync(vercelConfigPath)).toBe(true);
 
@@ -105,5 +105,16 @@ describe('API Service Interceptors and Vercel Routing Configuration', () => {
       (r) => r.source === '/api/:path*' && r.destination.includes('onrender.com')
     );
     expect(apiRewrite).toBeDefined();
+
+    // cleanUrls must not be true for Vite SPA to avoid Vercel 404 file lookups
+    expect(config.cleanUrls).not.toBe(true);
+  });
+
+  it('should ensure root vercel.json also avoids cleanUrls conflicts with SPA routing', () => {
+    const rootVercelConfigPath = path.resolve(__dirname, '../../../../vercel.json');
+    if (fs.existsSync(rootVercelConfigPath)) {
+      const rootConfig = JSON.parse(fs.readFileSync(rootVercelConfigPath, 'utf-8'));
+      expect(rootConfig.cleanUrls).not.toBe(true);
+    }
   });
 });
