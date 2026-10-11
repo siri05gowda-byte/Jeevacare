@@ -9,31 +9,11 @@
   
   "regions": ["iad1"],
   "env": {
-    "VITE_API_BASE_URL": {
-      "default": "http://localhost:5000",
-      "preview": "https://jeevacare-th88.onrender.com",
-      "production": "https://jeevacare-th88.onrender.com"
-    },
-    "VITE_DEMO_MODE": {
-      "default": "false",
-      "preview": "false",
-      "production": "false"
-    },
-    "VITE_DEMO_MODE_UNLOCK_KEY": {
-      "default": "",
-      "preview": "",
-      "production": ""
-    },
-    "VITE_ENABLE_DEBUG_LOGS": {
-      "default": "false",
-      "preview": "false",
-      "production": "false"
-    },
-    "VITE_ENABLE_PERFORMANCE_MONITORING": {
-      "default": "false",
-      "preview": "true",
-      "production": "true"
-    }
+    "VITE_API_BASE_URL": "https://jeevacare-th88.onrender.com",
+    "VITE_DEMO_MODE": "false",
+    "VITE_DEMO_MODE_UNLOCK_KEY": "",
+    "VITE_ENABLE_DEBUG_LOGS": "false",
+    "VITE_ENABLE_PERFORMANCE_MONITORING": "true"
   },
   
   "rewrites": [
