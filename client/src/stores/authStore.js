@@ -37,7 +37,11 @@ export const useAuthStore = create((set, get) => ({
       });
       return response;
     } catch (error) {
-      const errorMessage = error.response?.data?.error?.message || error.message;
+      const errorMessage =
+        error.response?.data?.error?.message ||
+        error.response?.data?.message ||
+        (error.response?.status === 429 ? 'Too many login attempts. Please wait a few moments and try again.' : null) ||
+        error.message;
       set({ isLoading: false, error: errorMessage, user: null });
       throw error;
     }

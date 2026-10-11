@@ -1,0 +1,33 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <!-- Stethoscope forming letter J -->
+  
+  <!-- Stethoscope earpieces (top curve) -->
+  <g id="earpieces">
+    <!-- Left earpiece curve -->
+    <path d="M 50 30 Q 50 50 70 60" stroke="#1e3a8a" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Right earpiece curve -->
+    <path d="M 150 30 Q 150 50 130 60" stroke="#1e3a8a" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Bridge connecting earpieces -->
+    <line x1="70" y1="60" x2="130" y2="60" stroke="#1e3a8a" stroke-width="6" stroke-linecap="round"/>
+  </g>
+  
+  <!-- Main tube forming the J shape -->
+  <g id="main-tube">
+    <!-- Vertical tube on left side -->
+    <path d="M 70 60 Q 70 90 70 130" stroke="#3b82f6" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Curve at bottom forming J hook -->
+    <path d="M 70 130 Q 70 160 100 170" stroke="#3b82f6" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  
+  <!-- Right tube (secondary) -->
+  <g id="secondary-tube">
+    <path d="M 130 60 Q 130 90 130 130" stroke="#1e3a8a" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  
+  <!-- Diaphragm (circle at bottom) -->
+  <g id="diaphragm">
+    <circle cx="100" cy="170" r="12" fill="#10b981" stroke="#0f172a" stroke-width="2"/>
+    <!-- Concentric circles for diaphragm detail -->
+    <circle cx="100" cy="170" r="8" fill="none" stroke="#10b981" stroke-width="1" opacity="0.5"/>
+  </g>
+</svg>

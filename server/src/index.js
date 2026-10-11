@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
+import { authLimiter, apiLimiter } from './utils/rateLimiters.js';
 import config from './config/index.js';
 import { connectDatabase } from './config/database.js';
 import logger from './utils/logger.js';
@@ -11,10 +11,9 @@ import TTSAdapter from './adapters/TTSAdapter.js';
 // Initialize Express app
 const app = express();
 
-// Trust proxy - Required for Render deployment
-// Render uses X-Forwarded-* headers which Express must trust for rate limiting and client IP detection
-// Trust only the first proxy (Render's load balancer)
-app.set('trust proxy', 1);
+// Trust proxy - Required for Render & Cloudflare deployment
+// Trust loopback and private subnets so Express resolves the real client IP behind reverse proxies
+app.set('trust proxy', 'loopback, linklocal, uniquelocal');
 
 // Middleware
 app.use(helmet());
@@ -25,12 +24,12 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Rate limiting
-const limiter = rateLimit({
-  windowMs: config.security.rateLimitWindowMs,
-  max: config.security.rateLimitMaxRequests,
-  message: 'Too many requests from this IP, please try again later.',
-});
-app.use('/api/', limiter);
+// Dedicated brute-force protection for authentication endpoints
+app.use('/api/v1/auth/login', authLimiter);
+app.use('/api/v1/auth/register', authLimiter);
+
+// General API rate limiter for clinical EHR data endpoints
+app.use('/api/', apiLimiter);
 
 // Request logging middleware
 app.use((req, res, next) => {

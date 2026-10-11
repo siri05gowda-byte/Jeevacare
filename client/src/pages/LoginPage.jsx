@@ -38,7 +38,13 @@ export default function LoginPage() {
         navigate('/dashboard');
       }
     } catch (err) {
-      setLocalError(err.response?.data?.error?.message || 'Login failed');
+      setLocalError(
+        err.response?.data?.error?.message ||
+        err.response?.data?.message ||
+        (err.response?.status === 429 ? 'Too many login attempts. Please wait a few moments and try again.' : null) ||
+        err.message ||
+        'Login failed'
+      );
     }
   };
 

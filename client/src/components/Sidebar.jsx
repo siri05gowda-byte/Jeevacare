@@ -77,15 +77,7 @@ export default function Sidebar({ isOpen = true, onClose }) {
             className="flex items-center gap-2 hover:opacity-80 transition-opacity focus-visible:outline-offset-2 rounded"
             onClick={handleLinkClick}
           >
-            <img
-              src="/assets/logos/jeevacare-icon-dark.svg"
-              alt="JeevaCare"
-              className="w-8 h-8"
-            />
-            <div className="flex flex-col">
-              <span className="text-lg font-bold">JeevaCare</span>
-              <span className="text-xs text-gray-300 leading-tight">One Life. One Health</span>
-            </div>
+            <Logo variant="dark" size="md" showText={true} />
           </Link>
         </div>
 

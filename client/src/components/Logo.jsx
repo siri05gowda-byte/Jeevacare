@@ -1,6 +1,10 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 
+import iconLight from '../assets/logos/jeevacare-icon.svg';
+import iconDark from '../assets/logos/jeevacare-icon-dark.svg';
+import iconMonochrome from '../assets/logos/jeevacare-icon-monochrome.svg';
+
 /**
  * Logo Component
  * 
@@ -48,14 +52,13 @@ export default function Logo({
   const getLogoPath = () => {
     switch (finalVariant) {
       case 'dark':
-        return '/assets/logos/jeevacare-icon-dark.svg';
+        return iconDark || '/assets/logos/jeevacare-icon-dark.svg';
       case 'monochrome':
-        return '/assets/logos/jeevacare-icon-monochrome.svg';
+        return iconMonochrome || '/assets/logos/jeevacare-icon-monochrome.svg';
       case 'icon':
-        return '/assets/logos/jeevacare-icon.svg';
       case 'light':
       default:
-        return '/assets/logos/jeevacare-icon.svg';
+        return iconLight || '/assets/logos/jeevacare-icon.svg';
     }
   };
 
