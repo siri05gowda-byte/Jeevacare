@@ -132,7 +132,10 @@ const config = {
 
   // CORS
   cors: {
-    origin: (process.env.CORS_ORIGIN || 'http://localhost:5173').split(','),
+    origin: (process.env.CORS_ORIGIN || 'http://localhost:5173').split(',').map(o => o.trim()),
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    optionsSuccessStatus: 200,
   },
 
   // Logging
