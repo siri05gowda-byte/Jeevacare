@@ -1,6 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "version": 2,
   
   "buildCommand": "npm run build --workspace=client",
   "outputDirectory": "client/dist",
@@ -35,11 +34,6 @@
       "preview": "true",
       "production": "true"
     }
-  },
-  
-  "buildCache": {
-    "nodeModulesPattern": "**/node_modules/**",
-    "npm": true
   },
   
   "rewrites": [
@@ -104,8 +98,5 @@
   ],
   
   "cleanUrls": true,
-  "trailingSlash": false,
-  
-  "public": true,
-  "comments": true
+  "trailingSlash": false
 }
