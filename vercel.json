@@ -11,7 +11,11 @@
   
   "rewrites": [
     {
-      "source": "/:path*",
+      "source": "/api/:path*",
+      "destination": "https://jeevacare-th88.onrender.com/api/:path*"
+    },
+    {
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ],

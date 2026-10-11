@@ -28,10 +28,15 @@ api.interceptors.response.use(
     return response.data;
   },
   (error) => {
-    if (error.response?.status === 401) {
+    const isAuthEndpoint =
+      error.config?.url?.includes('/auth/login') ||
+      error.config?.url?.includes('/auth/register');
+
+    if (error.response?.status === 401 && !isAuthEndpoint) {
       // Token expired or invalid - try to refresh
       const refreshToken = localStorage.getItem('refreshToken');
-      if (refreshToken) {
+      if (refreshToken && !error.config?._retry) {
+        error.config._retry = true;
         return api
           .post('/auth/refresh-token', { refreshToken })
           .then((response) => {
@@ -44,12 +49,18 @@ api.interceptors.response.use(
             // Refresh failed - redirect to login
             localStorage.removeItem('token');
             localStorage.removeItem('refreshToken');
-            window.location.href = '/login';
+            if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+              window.location.href = '/login';
+            }
             return Promise.reject(error);
           });
       } else {
-        // No refresh token - redirect to login
-        window.location.href = '/login';
+        // No refresh token or retry already attempted - redirect to login
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
       }
     }
     return Promise.reject(error);
