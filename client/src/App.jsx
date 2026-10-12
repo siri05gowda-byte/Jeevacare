@@ -15,6 +15,7 @@ import AppointmentBookingPage from './pages/AppointmentBookingPage';
 import ProviderEncounterPage from './pages/ProviderEncounterPage';
 import EmergencyAccessPage from './pages/EmergencyAccessPage';
 import DocumentUploadPage from './pages/DocumentUploadPage';
+import RadiologyPage from './pages/RadiologyPage';
 
 // Protected route component
 function ProtectedRoute({ children }) {
@@ -71,6 +72,7 @@ function App() {
             <Route path="encounter" element={<ProviderEncounterPage />} />
             <Route path="emergency-access" element={<EmergencyAccessPage />} />
             <Route path="upload-documents" element={<DocumentUploadPage />} />
+            <Route path="radiology" element={<RadiologyPage />} />
             <Route path="integrated-dashboard" element={<IntegratedDashboardPage />} />
           </Route>
 

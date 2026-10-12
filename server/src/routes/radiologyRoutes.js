@@ -9,7 +9,7 @@ const { authorize } = { authorize: requireRole };
  * POST /api/radiology
  * Create a radiology record
  */
-router.post('/', authMiddleware, authorize(['DOCTOR', 'NURSE', 'RADIOLOGY_TECHNICIAN']), async (req, res) => {
+router.post('/', authMiddleware, authorize(['DOCTOR', 'RADIOLOGY_TECHNICIAN']), async (req, res) => {
   try {
     const {
       patientId,
@@ -151,7 +151,7 @@ router.get('/patient/:patientId', authMiddleware, async (req, res) => {
  *   reason: string (required - reason for amendment)
  * }
  */
-router.put('/:radiologyId', authMiddleware, authorize(['DOCTOR', 'NURSE', 'RADIOLOGY_TECHNICIAN']), async (req, res) => {
+router.put('/:radiologyId', authMiddleware, authorize(['DOCTOR', 'RADIOLOGY_TECHNICIAN']), async (req, res) => {
   try {
     const { radiologyId } = req.params;
     const updateData = req.body;

@@ -14,6 +14,7 @@ export default function DashboardPage() {
     case 'EMERGENCY':
       return <EmergencyDashboardV2 />;
     case 'HOSPITAL_ADMIN':
+    case 'SYSTEM_ADMIN':
     case 'ADMIN':
       return <IntegratedDashboardPage />;
     case 'PATIENT':

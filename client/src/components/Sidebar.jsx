@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import { Home, Users, Stethoscope, Calendar, AlertCircle, FileText, ChevronDown, X } from 'lucide-react';
+import { Home, Users, Stethoscope, Calendar, AlertCircle, FileText, ChevronDown, X, Activity } from 'lucide-react';
 import Logo from './Logo';
 
 export default function Sidebar({ isOpen = true, onClose }) {
@@ -14,6 +14,7 @@ export default function Sidebar({ isOpen = true, onClose }) {
       { name: 'Dashboard', path: '/dashboard', icon: Home },
       { name: 'My Health', path: '/patient', icon: FileText },
       { name: 'Documents', path: '/documents', icon: FileText },
+      { name: 'Radiology & Imaging', path: '/radiology', icon: Activity },
       { name: 'Appointments', path: '/appointments', icon: Calendar },
       { name: 'Emergency Info', path: '/emergency', icon: AlertCircle },
     ],

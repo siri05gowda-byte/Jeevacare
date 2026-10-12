@@ -32,7 +32,7 @@ export default function LoginPage() {
         navigate('/provider');
       } else if (role === 'EMERGENCY') {
         navigate('/emergency');
-      } else if (role === 'HOSPITAL_ADMIN' || role === 'ADMIN') {
+      } else if (role === 'HOSPITAL_ADMIN' || role === 'SYSTEM_ADMIN') {
         navigate('/integrated-dashboard');
       } else {
         navigate('/dashboard');
@@ -154,12 +154,17 @@ export default function LoginPage() {
               <code className="bg-white/20 px-2 py-1 rounded text-xs font-mono">doctor@demo.com</code>
             </div>
             <div className="flex items-center justify-between">
-              <span><strong>Admin:</strong></span>
+              <span><strong>Hospital Admin:</strong></span>
               <code className="bg-white/20 px-2 py-1 rounded text-xs font-mono">admin@demo.com</code>
             </div>
             <div className="mt-3 pt-3 border-t border-white/20">
               <span className="text-xs"><strong>Password:</strong></span>
               <code className="bg-white/20 px-2 py-1 rounded text-xs font-mono block mt-1">DemoPassword123</code>
+            </div>
+            <div className="mt-3 pt-3 border-t border-white/20 text-xs text-white/80">
+              <p><strong>Patient:</strong> View personal health records</p>
+              <p><strong>Doctor:</strong> Clinical workflows & patient care</p>
+              <p><strong>Hospital Admin:</strong> Facility management</p>
             </div>
           </div>
         </div>

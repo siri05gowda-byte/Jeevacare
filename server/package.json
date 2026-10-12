@@ -11,6 +11,7 @@
     "test:quick": "vitest run src/utils/*.test.js",
     "lint": "eslint src/",
     "seed": "node src/scripts/seedDemoData.js",
+    "seed:comprehensive": "node src/scripts/seedComprehensiveData.js",
     "verify-db": "node src/scripts/verifyDatabase.js"
   },
   "dependencies": {

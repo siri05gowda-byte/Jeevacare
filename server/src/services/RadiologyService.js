@@ -12,9 +12,9 @@ class RadiologyService {
    */
   static async createRadiologyRecord(radiologyData, requestingUser) {
     try {
-      // Only healthcare professionals can create official records
-      if (!['DOCTOR', 'NURSE', 'RADIOLOGY_TECHNICIAN'].includes(requestingUser.role)) {
-        throw new Error('Only healthcare professionals can create radiology records');
+      // Only authorized healthcare professionals can create official records
+      if (!['DOCTOR', 'RADIOLOGY_TECHNICIAN'].includes(requestingUser.role)) {
+        throw new Error('Only doctors and radiology technicians can create radiology records');
       }
 
       // Get patient
@@ -104,7 +104,8 @@ class RadiologyService {
         throw new Error(`Radiology record not found: ${radiologyId}`);
       }
 
-      const patient = await Patient.findById(radiologyRecord.patientId);
+      const targetPatientId = radiologyRecord.patientId?._id || radiologyRecord.patientId;
+      const patient = await Patient.findById(targetPatientId);
 
       // Authorization: patient can view their own, professional can view if authorized
       if (requestingUser.role === 'PATIENT') {
@@ -149,10 +150,15 @@ class RadiologyService {
    */
   static async getPatientRadiologyRecords(patientId, requestingUser, filters = {}) {
     try {
-      const patient = await Patient.findById(patientId);
+      let patient = await Patient.findById(patientId);
+      if (!patient) {
+        patient = await Patient.findOne({ userId: patientId });
+      }
       if (!patient) {
         throw new Error(`Patient not found: ${patientId}`);
       }
+
+      const resolvedPatientId = patient._id;
 
       // Authorization
       if (requestingUser.role === 'PATIENT' && requestingUser._id.toString() !== patient.userId.toString()) {
@@ -165,7 +171,7 @@ class RadiologyService {
           const { authorized } = await ClinicalAuthorizationBoundary.canCreateOfficialClinicalRecord(
             requestingUser._id,
             requestingUser.facilityId,
-            patientId
+            resolvedPatientId
           );
           if (!authorized) {
             throw new Error('Not authorized to view patient radiology records');
@@ -173,7 +179,7 @@ class RadiologyService {
         }
       }
 
-      const query = { patientId };
+      const query = { patientId: resolvedPatientId };
 
       if (filters.modalityType) {
         query.modalityType = filters.modalityType;
@@ -222,9 +228,9 @@ class RadiologyService {
         throw new Error(`Radiology record not found: ${radiologyId}`);
       }
 
-      // Authorization: only healthcare professionals at authorized facility
-      if (!['DOCTOR', 'NURSE', 'RADIOLOGY_TECHNICIAN'].includes(requestingUser.role)) {
-        throw new Error('Only healthcare professionals can update radiology records');
+      // Authorization: only doctors or radiology technicians at authorized facility
+      if (!['DOCTOR', 'RADIOLOGY_TECHNICIAN'].includes(requestingUser.role)) {
+        throw new Error('Only doctors and radiology technicians can update radiology records');
       }
 
       const { authorized } = await ClinicalAuthorizationBoundary.canCreateOfficialClinicalRecord(
