@@ -19,8 +19,8 @@ export const getClientIp = (req) => {
 };
 
 /**
- * Dedicated rate limiter for authentication endpoints (login, register).
- * Provides strict brute-force protection without sharing limits with general EHR API browsing.
+ * Dedicated rate limiter for authentication endpoints (login).
+ * Provides strict brute-force protection without sharing limits with general EHR API browsing or registration.
  */
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -36,6 +36,31 @@ export const authLimiter = rateLimit({
       error: {
         message: 'Too many authentication attempts. Please try again after 15 minutes.',
         code: 'AUTH_RATE_LIMIT_EXCEEDED',
+        statusCode: 429,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  },
+});
+
+/**
+ * Dedicated rate limiter for public registration endpoints.
+ * Operates on an isolated bucket so registration attempts and login attempts do not consume each other's limits.
+ */
+export const registrationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 registration attempts per 15 minutes per IP
+  keyGenerator: (req) => getClientIp(req),
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    const clientIp = getClientIp(req);
+    logger.warn(`Registration rate limit exceeded for client IP: ${clientIp}`);
+    res.status(429).json({
+      success: false,
+      error: {
+        message: 'Too many registration attempts. Please try again after 15 minutes.',
+        code: 'REGISTRATION_RATE_LIMIT_EXCEEDED',
         statusCode: 429,
         timestamp: new Date().toISOString(),
       },

@@ -9,6 +9,7 @@ import AuditService from '../services/AuditService.js';
 import {
   ValidationError,
   AuthenticationError,
+  AuthorizationError,
   ConflictError,
   NotFoundError,
   InvalidOperationError,
@@ -16,20 +17,62 @@ import {
 
 const router = express.Router();
 
+const ALLOWED_PUBLIC_ROLES = ['PATIENT', 'GUARDIAN'];
+const PRIVILEGED_ROLES = [
+  'DOCTOR',
+  'ADMIN',
+  'HOSPITAL_ADMIN',
+  'EMERGENCY',
+  'PARAMEDIC',
+  'SYSTEM_ADMIN',
+  'NURSE',
+  'LAB_TECHNICIAN',
+  'RADIOLOGY_TECHNICIAN',
+  'PHARMACIST',
+  'RECEPTION_STAFF',
+];
+
 /**
  * POST /api/v1/auth/register
- * Register a new user (patient, hospital admin, etc.)
+ * Public registration for patients and guardians only.
+ * Privileged accounts (doctors, hospital admins, etc.) must follow authorized provisioning workflows.
  */
 router.post(
   '/register',
   [
-    body('email').isEmail().normalizeEmail(),
+    body('email').isEmail().withMessage('Please provide a valid email address').normalizeEmail(),
     body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
-    body('role')
-      .isIn(['PATIENT', 'GUARDIAN', 'HOSPITAL_ADMIN', 'DOCTOR', 'EMERGENCY', 'SYSTEM_ADMIN'])
-      .withMessage('Invalid role'),
     body('firstName').trim().notEmpty().withMessage('First name is required'),
     body('lastName').trim().notEmpty().withMessage('Last name is required'),
+    body('role')
+      .optional()
+      .custom((value) => {
+        if (!value) return true;
+        const upper = value.toUpperCase();
+        if (PRIVILEGED_ROLES.includes(upper)) {
+          throw new Error(
+            'Self-registration for privileged roles is prohibited. Privileged accounts must be provisioned through authorized facility workflows.'
+          );
+        }
+        if (!ALLOWED_PUBLIC_ROLES.includes(upper)) {
+          throw new Error('Invalid role. Public registration only permits PATIENT or GUARDIAN accounts.');
+        }
+        return true;
+      }),
+    body('dateOfBirth')
+      .optional({ checkFalsy: true })
+      .isISO8601()
+      .withMessage('Date of birth must be a valid date')
+      .custom((val) => {
+        if (new Date(val) > new Date()) {
+          throw new Error('Date of birth cannot be in the future');
+        }
+        return true;
+      }),
+    body('sex')
+      .optional({ checkFalsy: true })
+      .isIn(['M', 'F', 'O', 'Prefer not to say'])
+      .withMessage('Sex must be M, F, O, or Prefer not to say'),
   ],
   async (req, res, next) => {
     try {
@@ -38,12 +81,28 @@ router.post(
         return next(new ValidationError('Validation failed', errors.array()));
       }
 
-      const { email, password, role, firstName, lastName, phone } = req.body;
+      const { email, password, firstName, lastName, phone } = req.body;
+
+      // Enforce role security: public self-registration defaults to PATIENT
+      const rawRole = (req.body.role || 'PATIENT').toUpperCase();
+      if (PRIVILEGED_ROLES.includes(rawRole)) {
+        return next(
+          new AuthorizationError(
+            'Self-registration for privileged roles is prohibited. Privileged accounts must be provisioned through authorized facility workflows.'
+          )
+        );
+      }
+      if (!ALLOWED_PUBLIC_ROLES.includes(rawRole)) {
+        return next(
+          new ValidationError('Invalid role for public registration. Only PATIENT and GUARDIAN are allowed.')
+        );
+      }
+      const role = rawRole;
 
       // Check if user already exists
       const existingUser = await User.findOne({ email });
       if (existingUser) {
-        return next(new ConflictError('User with this email already exists'));
+        return next(new ConflictError('An account with this email address already exists. Please log in instead.'));
       }
 
       // Create new user
@@ -110,6 +169,9 @@ router.post(
         },
       });
     } catch (error) {
+      if (error.code === 11000) {
+        return next(new ConflictError('An account with this email address already exists. Please log in instead.'));
+      }
       logger.error(`Registration error: ${error.message}`);
       next(error);
     }

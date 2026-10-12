@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import { authLimiter, apiLimiter } from './utils/rateLimiters.js';
+import { authLimiter, registrationLimiter, apiLimiter } from './utils/rateLimiters.js';
 import config from './config/index.js';
 import { connectDatabase } from './config/database.js';
 import logger from './utils/logger.js';
@@ -24,9 +24,9 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Rate limiting
-// Dedicated brute-force protection for authentication endpoints
+// Dedicated brute-force protection for authentication endpoints with isolated buckets
 app.use('/api/v1/auth/login', authLimiter);
-app.use('/api/v1/auth/register', authLimiter);
+app.use('/api/v1/auth/register', registrationLimiter);
 
 // General API rate limiter for clinical EHR data endpoints
 app.use('/api/', apiLimiter);

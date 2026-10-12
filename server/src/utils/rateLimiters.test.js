@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { getClientIp, authLimiter, apiLimiter } from './rateLimiters.js';
+import { getClientIp, authLimiter, registrationLimiter, apiLimiter } from './rateLimiters.js';
 
 describe('rateLimiters Security & Proxy Trust Tests', () => {
   describe('getClientIp helper', () => {
@@ -127,6 +127,47 @@ describe('rateLimiters Security & Proxy Trust Tests', () => {
       const responseStr = JSON.stringify(lastRes.body);
       expect(responseStr).not.toContain('SecretPassword123!');
       expect(responseStr).not.toContain('patient@demo.com');
+    });
+
+    it('enforces isolated registration rate limits and returns REGISTRATION_RATE_LIMIT_EXCEEDED without affecting login', async () => {
+      const app = express();
+      app.set('trust proxy', 'loopback, linklocal, uniquelocal');
+      app.use(express.json());
+
+      app.post('/api/v1/auth/login', authLimiter, (req, res) => {
+        res.json({ success: true, route: 'login' });
+      });
+      app.post('/api/v1/auth/register', registrationLimiter, (req, res) => {
+        res.json({ success: true, route: 'register' });
+      });
+
+      const clientIp = '198.51.100.150';
+
+      // Hit registration endpoint until rate limited (registrationLimiter max is 10)
+      let regRes;
+      for (let i = 0; i < 11; i++) {
+        regRes = await request(app)
+          .post('/api/v1/auth/register')
+          .set('X-Forwarded-For', clientIp)
+          .send({ email: `user${i}@example.com`, password: 'Password123!' });
+      }
+
+      // Registration should now be rate limited with clean JSON error
+      expect(regRes.status).toBe(429);
+      expect(regRes.body.success).toBe(false);
+      expect(regRes.body.error).toBeDefined();
+      expect(regRes.body.error.code).toBe('REGISTRATION_RATE_LIMIT_EXCEEDED');
+      expect(regRes.body.error.message).toContain('Too many registration attempts');
+
+      // Crucial bucket isolation check: Login endpoint must NOT be blocked by registration limit hits!
+      const loginRes = await request(app)
+        .post('/api/v1/auth/login')
+        .set('X-Forwarded-For', clientIp)
+        .send({ email: 'user@example.com', password: 'Password123!' });
+
+      expect(loginRes.status).toBe(200);
+      expect(loginRes.body.success).toBe(true);
+      expect(loginRes.body.route).toBe('login');
     });
   });
 });
