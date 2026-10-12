@@ -26,9 +26,20 @@ class CloudinaryAdapter {
       logger.info('✓ Cloudinary adapter initialized and configured');
     } else {
       logger.warn(
-        '⚠ Cloudinary not configured (missing CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, or CLOUDINARY_API_SECRET). Operating in demo mode.'
+        '⚠ Cloudinary not configured (missing CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, or CLOUDINARY_API_SECRET). Operating in demo mode.',
       );
     }
+  }
+
+  /**
+   * Sanitize parameter against arbitrary argument injection (GHSA-g4mf-96x5-5m2c)
+   * Strips ampersands and shell metacharacters, restricting to safe characters.
+   * @param {string} param
+   * @returns {string}
+   */
+  _sanitizeParam(param) {
+    if (!param || typeof param !== 'string') return '';
+    return param.replace(/[^a-zA-Z0-9._\-/]/g, '_');
   }
 
   /**
@@ -54,10 +65,12 @@ class CloudinaryAdapter {
         throw new ValidationError('File exceeds 100MB limit');
       }
 
-      const folder = options.folder || 'jeevacare/documents';
-      const resourceType = options.resourceType || 'auto';
-      const fileName =
+      const folder = this._sanitizeParam(options.folder || 'jeevacare/documents');
+      const resourceType = ['image', 'raw', 'video', 'auto'].includes(options.resourceType) ? options.resourceType : 'auto';
+      const rawFileName =
         options.fileName || `document-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      const fileName = this._sanitizeParam(rawFileName);
+      const docType = this._sanitizeParam(options.documentType || 'general');
 
       logger.info(`Uploading file to Cloudinary: ${folder}/${fileName}`);
 
@@ -75,10 +88,10 @@ class CloudinaryAdapter {
             tags: [
               'jeevacare',
               'clinical-document',
-              options.documentType || 'general',
+              docType,
             ],
             context: {
-              documentType: options.documentType || 'clinical',
+              documentType: docType,
               uploadedAt: new Date().toISOString(),
             },
           },
@@ -89,7 +102,7 @@ class CloudinaryAdapter {
             } else {
               resolve(result);
             }
-          }
+          },
         );
 
         // Write buffer to stream
@@ -97,7 +110,7 @@ class CloudinaryAdapter {
       });
 
       logger.info(
-        `✓ File uploaded successfully: ${uploadResult.public_id} (${uploadResult.bytes} bytes)`
+        `✓ File uploaded successfully: ${uploadResult.public_id} (${uploadResult.bytes} bytes)`,
       );
 
       return {
@@ -121,7 +134,7 @@ class CloudinaryAdapter {
       if (error.message.includes('401') || error.message.includes('Unauthorized')) {
         throw new ExternalServiceError(
           'Cloudinary',
-          'Invalid credentials: Check CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET'
+          'Invalid credentials: Check CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET',
         );
       }
 
@@ -145,20 +158,21 @@ class CloudinaryAdapter {
         throw new ValidationError('publicId is required');
       }
 
-      logger.info(`Deleting file from Cloudinary: ${publicId}`);
+      const safePublicId = this._sanitizeParam(publicId);
+      logger.info(`Deleting file from Cloudinary: ${safePublicId}`);
 
-      const result = await cloudinary.v2.uploader.destroy(publicId, {
+      const result = await cloudinary.v2.uploader.destroy(safePublicId, {
         invalidate: false,
       });
 
       if (result.result === 'ok') {
-        logger.info(`✓ File deleted successfully: ${publicId}`);
-        return { success: true, publicId, deletedAt: new Date(), isDemo: false };
+        logger.info(`✓ File deleted successfully: ${safePublicId}`);
+        return { success: true, publicId: safePublicId, deletedAt: new Date(), isDemo: false };
       } else {
         logger.warn(`File deletion returned: ${result.result}`);
         return {
           success: result.result === 'ok',
-          publicId,
+          publicId: safePublicId,
           result: result.result,
           isDemo: false,
         };
@@ -185,9 +199,10 @@ class CloudinaryAdapter {
         throw new ValidationError('publicId is required');
       }
 
-      logger.info(`Fetching metadata for: ${publicId}`);
+      const safePublicId = this._sanitizeParam(publicId);
+      logger.info(`Fetching metadata for: ${safePublicId}`);
 
-      const metadata = await cloudinary.v2.api.resource(publicId, {
+      const metadata = await cloudinary.v2.api.resource(safePublicId, {
         resource_type: 'auto',
       });
 
@@ -223,13 +238,14 @@ class CloudinaryAdapter {
         return `https://demo.jeevacare.local/download/${publicId}`;
       }
 
-      const signedUrl = cloudinary.v2.utils.private_download_url(publicId, 'pdf', {
+      const safePublicId = this._sanitizeParam(publicId);
+      const signedUrl = cloudinary.v2.utils.private_download_url(safePublicId, 'pdf', {
         expires_at: Math.floor(Date.now() / 1000) + expirySeconds,
         resource_type: 'auto',
         type: 'private',
       });
 
-      logger.info(`✓ Generated secure download URL for: ${publicId}`);
+      logger.info(`✓ Generated secure download URL for: ${safePublicId}`);
       return signedUrl;
     } catch (error) {
       logger.error(`Failed to generate secure URL: ${error.message}`);

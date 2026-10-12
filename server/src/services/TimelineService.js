@@ -18,6 +18,7 @@ import LaboratoryResult from '../models/LaboratoryResult.js';
 import RadiologyRecord from '../models/RadiologyRecord.js';
 import DischargeSummary from '../models/DischargeSummary.js';
 import ClinicalAuthorizationBoundary from '../utils/clinicalAuthorizationBoundary.js';
+import logger from '../utils/logger.js';
 import AuditService from './AuditService.js';
 
 class TimelineService {
@@ -348,8 +349,8 @@ class TimelineService {
         summary,
       };
     } catch (error) {
-      // Log error but don't use non-existent logError method
-      console.error('VIEW_PATIENT_TIMELINE_ERROR:', error.message);
+      // Log error for debugging
+      logger.error(`VIEW_PATIENT_TIMELINE_ERROR: ${error.message}`);
       throw error;
     }
   }
@@ -430,8 +431,8 @@ class TimelineService {
         relatedRecords,
       };
     } catch (error) {
-      // Log error but don't use non-existent logError method
-      console.error('VIEW_ENCOUNTER_CONTEXT_ERROR:', error.message);
+      // Log error for debugging
+      logger.error(`VIEW_ENCOUNTER_CONTEXT_ERROR: ${error.message}`);
       throw error;
     }
   }

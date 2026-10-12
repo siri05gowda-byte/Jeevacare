@@ -8,17 +8,30 @@
  * 4. Trust proxy configuration works with X-Forwarded-For header
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from 'supertest';
 import app from '../index.js';
 import mongoose from 'mongoose';
 import config from '../config/index.js';
+import User from '../models/User.js';
 
 describe('Auth Routes - CORS and Proxy Trust', () => {
   beforeAll(async () => {
-    // Connect to test database
-    if (mongoose.connection.readyState === 0) {
-      await mongoose.connect(config.database.uri);
+    // Mock User query to return query object with .select() chained method
+    vi.spyOn(User, 'findOne').mockReturnValue({
+      select: vi.fn().mockResolvedValue(null),
+    });
+
+    // If a database is available, connect with short timeout; otherwise proceed without blocking CORS assertions
+    if (mongoose.connection.readyState === 0 && config.database?.uri) {
+      try {
+        await mongoose.connect(config.database.uri, {
+          serverSelectionTimeoutMS: 1000,
+          connectTimeoutMS: 1000,
+        });
+      } catch {
+        // CORS and route registration assertions do not require active MongoDB connectivity
+      }
     }
   });
 

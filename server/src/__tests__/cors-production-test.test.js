@@ -7,18 +7,21 @@
  * - OPTIONS preflight request
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from 'supertest';
 import app from '../index.js';
 import config from '../config/index.js';
 import mongoose from 'mongoose';
+import User from '../models/User.js';
+import AuditService from '../services/AuditService.js';
 
 describe('Production CORS Configuration', () => {
   beforeAll(async () => {
-    // Connect to test database
-    if (mongoose.connection.readyState === 0) {
-      await mongoose.connect(config.database.uri);
-    }
+    // Mock User query and audit to avoid remote DB dependency during CORS tests
+    vi.spyOn(User, 'findOne').mockReturnValue({
+      select: vi.fn().mockResolvedValue(null),
+    });
+    vi.spyOn(AuditService, 'logEvent').mockResolvedValue(true);
 
     // Log CORS configuration (without exposing full env vars)
     console.log('\n=== CORS Configuration at Runtime ===');
@@ -90,7 +93,7 @@ describe('Production CORS Configuration', () => {
       console.log('========================\n');
 
       // Assert the expected behavior
-      expect(response.status).toBeOneOf([200, 204]);
+      expect([200, 204]).toContain(response.status);
       expect(response.headers['access-control-allow-origin']).toBeDefined();
       expect(response.headers['access-control-allow-origin']).toBe(PRODUCTION_ORIGIN);
       expect(response.headers['access-control-allow-methods']).toMatch(/POST/);
@@ -147,7 +150,7 @@ describe('Production CORS Configuration', () => {
       console.log('Trust proxy setting active:', response.status !== 500);
       console.log('=====================================\n');
 
-      expect(response.status).toBeOneOf([200, 204]);
+      expect([200, 204]).toContain(response.status);
       expect(response.headers['access-control-allow-origin']).toBe(PRODUCTION_ORIGIN);
     });
   });

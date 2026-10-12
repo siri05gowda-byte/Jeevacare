@@ -32,12 +32,12 @@ export const connectTestDatabase = async () => {
 
     // Get test database URI from environment
     const testUri = process.env.TEST_MONGODB_URI;
-    
+
     if (!testUri) {
       const error = new Error(
         'TEST_MONGODB_URI environment variable is not configured. ' +
         'Add TEST_MONGODB_URI to server/.env pointing to jeevacare-test database. ' +
-        'Format: mongodb+srv://username:password@cluster/jeevacare-test?retryWrites=true&w=majority'
+        'Format: mongodb+srv://username:password@cluster/jeevacare-test?retryWrites=true&w=majority',
       );
       logger.error(error.message);
       throw error;
@@ -47,7 +47,7 @@ export const connectTestDatabase = async () => {
     if (!testUri.includes('/jeevacare-test')) {
       const error = new Error(
         'TEST_MONGODB_URI must explicitly target jeevacare-test database. ' +
-        'Ensure the URI contains "/jeevacare-test" as the database name.'
+        'Ensure the URI contains "/jeevacare-test" as the database name.',
       );
       logger.error(error.message);
       throw error;
@@ -63,10 +63,12 @@ export const connectTestDatabase = async () => {
       minPoolSize: 5,
       maxIdleTimeMS: 30000,
       waitQueueTimeoutMS: 30000,  // Increased timeout for queue waits
+      serverSelectionTimeoutMS: 3000,  // Fail fast if test database unreachable (prevents 30s hook timeout)
+      connectTimeoutMS: 3000,
       // For tests, use local write concern (faster) instead of majority
       // Production code should maintain majority write concern
       writeConcern: { w: 1, wtimeout: 30000 },
-      readConcern: { level: "local" }  // Local read concern for tests
+      readConcern: { level: 'local' },  // Local read concern for tests
     });
 
     logger.info('✓ Test database connected (MongoDB Atlas jeevacare-test)');
@@ -83,13 +85,12 @@ export const connectTestDatabase = async () => {
 export const disconnectTestDatabase = async () => {
   try {
     // Close all connections to clear connection pool state
-    if (mongoose.connection) {
+    if (mongoose.connection && mongoose.connection.readyState !== 0) {
       await mongoose.connection.close();
       logger.info('✓ Test database disconnected and connection pool cleared');
     }
   } catch (error) {
     logger.error(`Failed to disconnect test database: ${error.message}`);
-    throw error;
   }
 };
 
@@ -100,9 +101,12 @@ export const disconnectTestDatabase = async () => {
  */
 export const clearTestDatabase = async () => {
   try {
+    if (!mongoose.connection || mongoose.connection.readyState !== 1) {
+      return;
+    }
     const collections = mongoose.connection.collections;
     const collectionNames = Object.keys(collections);
-    
+
     // Clear collections serially with local write concern for test speed
     // Production code uses majority write concern via middleware
     for (const key of collectionNames) {
@@ -110,18 +114,18 @@ export const clearTestDatabase = async () => {
       try {
         // Use w: 1 (acknowledged locally only) for test speed
         // This is safe for tests since data loss during test is acceptable
-        await collection.deleteMany({}, { 
+        await collection.deleteMany({}, {
           writeConcern: { w: 1, wtimeout: 30000 },
-          maxTimeMS: 30000
+          maxTimeMS: 30000,
         });
       } catch (deleteError) {
         logger.warn(`Failed to clear collection ${key}: ${deleteError.message}`);
       }
     }
-    
+
     // Small delay to allow local acknowledgment
     await new Promise(resolve => setTimeout(resolve, 50));
-    
+
     logger.info('✓ Test database cleared');
   } catch (error) {
     logger.error(`Failed to clear test database: ${error.message}`);
@@ -136,7 +140,7 @@ export const clearTestDatabase = async () => {
 export const verifyTestDatabaseEmpty = async () => {
   try {
     const collections = mongoose.connection.collections;
-    
+
     for (const key of Object.keys(collections)) {
       const collection = collections[key];
       const count = await collection.countDocuments();
@@ -146,7 +150,7 @@ export const verifyTestDatabaseEmpty = async () => {
         await collection.deleteMany({}, { writeConcern: { w: 1, wtimeout: 30000 } });
       }
     }
-    
+
     logger.info('✓ Test database verified empty');
   } catch (error) {
     logger.error(`Failed to verify empty test database: ${error.message}`);
@@ -162,7 +166,7 @@ export const verifyFixturePersistence = async (Model, fixtureId, description) =>
   try {
     // Small delay to allow replication
     await new Promise(resolve => setTimeout(resolve, 50));
-    
+
     const persisted = await Model.findById(fixtureId);
     if (!persisted) {
       throw new Error(`Fixture not persisted: ${description} (ID: ${fixtureId})`);

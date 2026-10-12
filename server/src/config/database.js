@@ -5,10 +5,10 @@ import logger from '../utils/logger.js';
 const connectDatabase = async () => {
   try {
     logger.info('Connecting to MongoDB...');
-    
+
     // Skip if already connected
     if (mongoose.connection.readyState === 1) {
-      logger.info(`✓ Already connected to MongoDB: ${config.database.uri}`);
+      logger.info('✓ Already connected to MongoDB');
       return mongoose.connection;
     }
 
@@ -17,10 +17,13 @@ const connectDatabase = async () => {
       useUnifiedTopology: true,
     });
 
-    logger.info(`MongoDB connected: ${config.database.uri}`);
+    logger.info('✓ MongoDB connected successfully');
     return mongoose.connection;
   } catch (error) {
-    logger.error(`MongoDB connection error: ${error.message}`);
+    // Redact any connection details from error before logging
+    const safeMessage = error.message?.replace(/mongodb(\+srv)?:\/\/[^:]+:[^@]+@/gi, 'mongodb$1://***:***@') || 'Unknown error';
+    logger.error(`MongoDB connection error: ${safeMessage}`);
+
     // Only exit if not in test environment
     if (process.env.NODE_ENV !== 'test') {
       process.exit(1);

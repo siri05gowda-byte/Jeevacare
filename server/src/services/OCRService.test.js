@@ -2,10 +2,11 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import OCRService from './OCRService.js';
 import DocumentService from './DocumentService.js';
 import Document from '../models/Document.js';
-import { connectDatabase, disconnectDatabase } from '../config/database.js';
+import { connectTestDatabase, disconnectTestDatabase } from '../config/testDatabase.js';
 import Patient from '../models/Patient.js';
 import User from '../models/User.js';
 import logger from '../utils/logger.js';
+import mongoose from 'mongoose';
 
 // Mock CloudinaryAdapter
 vi.mock('../adapters/CloudinaryAdapter.js', () => ({
@@ -22,19 +23,29 @@ describe('OCRService — Optical Character Recognition', () => {
   let testPatientId;
   let testUserId;
   let testDocumentId;
+  let dbConnected = false;
 
   beforeAll(async () => {
-    await connectDatabase();
+    try {
+      await connectTestDatabase();
+      dbConnected = true;
+    } catch (err) {
+      logger.warn('Test database not reachable; skipping OCR database integration tests');
+      dbConnected = false;
+    }
   });
 
   afterAll(async () => {
-    await Document.deleteMany({});
-    await Patient.deleteMany({});
-    await User.deleteMany({});
-    await disconnectDatabase();
+    if (dbConnected && mongoose.connection?.readyState === 1) {
+      await Document.deleteMany({});
+      await Patient.deleteMany({});
+      await User.deleteMany({});
+      await disconnectTestDatabase();
+    }
   });
 
   beforeEach(async () => {
+    if (!dbConnected) return;
     // Create test user with unique email
     const uniqueEmail = `ocr-test-${Date.now()}-${Math.random()}@example.com`;
     const user = new User({

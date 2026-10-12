@@ -18,6 +18,7 @@ import HealthcareProfessional from '../models/HealthcareProfessional.js';
 import HospitalStaff from '../models/HospitalStaff.js';
 import Hospital from '../models/Hospital.js';
 import Patient from '../models/Patient.js';
+import logger from './logger.js';
 import User from '../models/User.js';
 import ProfessionalCredential from '../models/ProfessionalCredential.js';
 import AuditService from '../services/AuditService.js';
@@ -359,9 +360,7 @@ class ClinicalAuthorizationBoundary {
 
       return result;
     } catch (error) {
-      console.error(
-        `Error in clinical authorization boundary: ${error.message}`
-      );
+      logger.error(`Error in clinical authorization boundary: ${error.message}`);
       return {
         authorized: false,
         error: `Authorization check failed: ${error.message}`,

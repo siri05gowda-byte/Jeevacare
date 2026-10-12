@@ -51,6 +51,7 @@ describe('Authorization and Security Test Suite - Phase 4', () => {
 
   // Test Setup
   beforeEach(async () => {
+    if (!dbConnected) return;
     // Initialize test data
     try {
       // Clear all collections before each test to prevent duplicate key errors
@@ -182,6 +183,7 @@ describe('Authorization and Security Test Suite - Phase 4', () => {
 
   // Cleanup after all tests
   afterAll(async () => {
+    if (!dbConnected) return;
     try {
       await clearTestDatabase();
       await disconnectTestDatabase();
@@ -193,6 +195,7 @@ describe('Authorization and Security Test Suite - Phase 4', () => {
 
   // Clear data after each test
   afterEach(async () => {
+    if (!dbConnected) return;
     try {
       await clearTestDatabase();
     } catch (err) {

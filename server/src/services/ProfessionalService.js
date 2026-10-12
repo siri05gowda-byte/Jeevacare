@@ -13,6 +13,7 @@ import ProfessionalCredential from '../models/ProfessionalCredential.js';
 import HospitalStaff from '../models/HospitalStaff.js';
 import User from '../models/User.js';
 import AuditService from './AuditService.js';
+import logger from '../utils/logger.js';
 
 class ProfessionalService {
   /**
@@ -442,7 +443,7 @@ class ProfessionalService {
 
       return !!activeCredentials;
     } catch (error) {
-      console.error(`Error checking clinical operations eligibility: ${error.message}`);
+      logger.error(`Error checking clinical operations eligibility: ${error.message}`);
       return false;
     }
   }
@@ -507,7 +508,7 @@ class ProfessionalService {
 
       return !!association;
     } catch (error) {
-      console.error(`Error checking facility association: ${error.message}`);
+      logger.error(`Error checking facility association: ${error.message}`);
       return false;
     }
   }

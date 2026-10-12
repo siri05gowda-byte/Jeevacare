@@ -13,6 +13,7 @@ import HealthcareProfessional from '../models/HealthcareProfessional.js';
 import Hospital from '../models/Hospital.js';
 import User from '../models/User.js';
 import AuditService from './AuditService.js';
+import logger from '../utils/logger.js';
 
 class StaffService {
   /**
@@ -475,7 +476,7 @@ class StaffService {
       // Check if permission is true
       return staff.permissions[permissionKey] === true;
     } catch (error) {
-      console.error(`Error checking permission: ${error.message}`);
+      logger.error(`Error checking permission: ${error.message}`);
       return false;
     }
   }
@@ -498,7 +499,7 @@ class StaffService {
 
       return !!staff;
     } catch (error) {
-      console.error(`Error checking role: ${error.message}`);
+      logger.error(`Error checking role: ${error.message}`);
       return false;
     }
   }

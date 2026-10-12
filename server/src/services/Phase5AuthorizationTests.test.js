@@ -37,14 +37,24 @@ describe('Phase 5 Authorization Tests', () => {
   let adminUser;
   let dbConnected = false;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     try {
-      if (!dbConnected) {
-        await connectTestDatabase();
-        dbConnected = true;
-      }
-      
-      await clearTestDatabase();
+      await connectTestDatabase();
+      dbConnected = true;
+    } catch {
+      dbConnected = false;
+    }
+  });
+
+  afterAll(async () => {
+    if (dbConnected && mongoose.connection?.readyState === 1) {
+      await disconnectTestDatabase();
+    }
+  });
+
+  beforeEach(async () => {
+    if (!dbConnected) return;
+    await clearTestDatabase();
 
       // Create system admin
       adminUser = new User({

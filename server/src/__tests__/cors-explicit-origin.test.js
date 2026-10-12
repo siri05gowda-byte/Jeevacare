@@ -5,15 +5,23 @@
  * to verify the code works correctly with the production origin
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from 'supertest';
 import mongoose from 'mongoose';
+import User from '../models/User.js';
+import AuditService from '../services/AuditService.js';
 
 describe('CORS with Explicit Production Origin', () => {
   let app;
   let config;
   
   beforeAll(async () => {
+    // Mock User query and audit to avoid remote DB dependency during CORS tests
+    vi.spyOn(User, 'findOne').mockReturnValue({
+      select: vi.fn().mockResolvedValue(null),
+    });
+    vi.spyOn(AuditService, 'logEvent').mockResolvedValue(true);
+
     // EXPLICITLY SET CORS_ORIGIN to production value
     process.env.CORS_ORIGIN = 'http://localhost:5173,http://localhost:3000,http://localhost:8000,https://jeevacare-cmdm.vercel.app';
     
@@ -35,11 +43,6 @@ describe('CORS with Explicit Production Origin', () => {
     console.log('\n=== Config After Explicit Set ===');
     console.log('config.cors.origin:', config.cors.origin);
     console.log('=================================\n');
-    
-    // Connect to test database
-    if (mongoose.connection.readyState === 0) {
-      await mongoose.connect(config.database.uri);
-    }
   });
 
   afterAll(async () => {

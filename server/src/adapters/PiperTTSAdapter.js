@@ -46,8 +46,9 @@ class PiperTTSAdapter {
     try {
       // Check if Piper binary exists
       if (!fs.existsSync(this.binaryPath)) {
-        logger.error(
-          `✗ Piper binary not found at: ${this.binaryPath}`
+        logger.warn(
+          `Piper TTS: Binary not found (${process.platform}). ` +
+          `Set PIPER_BINARY_PATH environment variable. TTS will operate in demo mode.`
         );
         this.isConfigured = false;
         return;
@@ -55,8 +56,10 @@ class PiperTTSAdapter {
 
       // Check if models directory exists
       if (!fs.existsSync(this.modelsPath)) {
-        logger.warn(`✗ Piper models directory not found at: ${this.modelsPath}`);
-        logger.info('Models will be downloaded on first use');
+        logger.warn(`Piper TTS: Models directory not found. TTS will operate in demo mode.`);
+        logger.info('Download models from: https://github.com/rhasspy/piper/releases/tag/2023.11.14-1');
+        this.isConfigured = false;
+        return;
       }
 
       // Verify at least one language model

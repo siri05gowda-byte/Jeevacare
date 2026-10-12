@@ -1,16 +1,20 @@
 import logger from '../utils/logger.js';
-import { formatErrorResponse, JeevaError } from '../utils/errors.js';
+import { formatErrorResponse } from '../utils/errors.js';
+import { redactError } from '../utils/secretRedactor.js';
 
 /**
  * Global error handling middleware
  * Must be registered last in the middleware chain
  */
-export const errorHandler = (err, req, res, next) => {
+export const errorHandler = (err, req, res, _next) => {
+  // Redact sensitive data from error before logging
+  const sanitizedError = redactError(err);
+
   // Log the error
   const errorInfo = {
     method: req.method,
     path: req.path,
-    message: err.message,
+    message: sanitizedError.message,
     code: err.code,
     statusCode: err.statusCode || 500,
     userId: req.user?._id,
@@ -25,7 +29,7 @@ export const errorHandler = (err, req, res, next) => {
   // Determine status code
   const statusCode = err.statusCode || 500;
 
-  // Format error response
+  // Format error response (never include stack traces in production)
   const response = formatErrorResponse(err);
 
   res.status(statusCode).json(response);
@@ -36,7 +40,13 @@ export const errorHandler = (err, req, res, next) => {
  * Should be registered after all other routes
  */
 export const notFoundHandler = (req, res) => {
-  logger.warn(`404 Not Found: ${req.method} ${req.path}`);
+  // Reduce noise: only log non-trivial 404s
+  const isHealthCheck = req.path === '/' || req.path === '/healthz' || req.path === '/health';
+  const isAssetRequest = req.path.match(/\.(js|css|png|jpg|ico|woff2?)$/);
+
+  if (!isHealthCheck && !isAssetRequest) {
+    logger.warn(`404 Not Found: ${req.method} ${req.path}`);
+  }
 
   res.status(404).json({
     success: false,

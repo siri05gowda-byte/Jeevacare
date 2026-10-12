@@ -108,6 +108,22 @@ class TesseractOCRAdapter {
         languages = ['eng'],
       } = options;
 
+      // Reject ASF media files to prevent file-type infinite loop in Jimp (GHSA-5v7r-6r5c-r473)
+      if (Buffer.isBuffer(imageBuffer) && imageBuffer.length >= 4) {
+        if (
+          imageBuffer[0] === 0x30 &&
+          imageBuffer[1] === 0x26 &&
+          imageBuffer[2] === 0xb2 &&
+          imageBuffer[3] === 0x75
+        ) {
+          logger.warn('Rejected malformed/unsupported ASF media container for OCR');
+          return this.createErrorResult(
+            'Invalid image format: ASF media containers are not supported',
+            'UNSUPPORTED_FORMAT'
+          );
+        }
+      }
+
       // Load image using Jimp (v0.16+ API: use Jimp.read(buffer))
       logger.info(`Loading image for OCR (${imageBuffer.length} bytes)`);
       let image = await Jimp.read(imageBuffer);

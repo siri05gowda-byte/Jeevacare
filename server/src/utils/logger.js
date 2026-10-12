@@ -1,5 +1,6 @@
 import winston from 'winston';
 import config from '../config/index.js';
+import { redactSecrets } from './secretRedactor.js';
 
 const logLevels = {
   error: 0,
@@ -19,9 +20,18 @@ const colors = {
 
 winston.addColors(colors);
 
+// Custom format that redacts secrets
+const redactingFormat = winston.format.printf((info) => {
+  const message = typeof info.message === 'string'
+    ? redactSecrets(info.message)
+    : JSON.stringify(info.message);
+
+  return `${info.timestamp} ${info.level}: ${message}`;
+});
+
 const format = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss:ms' }),
-  winston.format.printf((info) => `${info.timestamp} ${info.level}: ${info.message}`),
+  redactingFormat,
 );
 
 const transports = [

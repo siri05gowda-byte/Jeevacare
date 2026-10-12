@@ -47,13 +47,31 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Root endpoint - API information
+app.get('/', (req, res) => {
+  res.json({
+    service: 'JeevaCare API',
+    version: '1.0.0',
+    status: 'running',
+    endpoints: {
+      health: '/healthz',
+      api: '/api/v1',
+    },
+  });
+});
+
+// Support HEAD requests for root endpoint
+app.head('/', (req, res) => {
+  res.status(200).end();
+});
+
 // Render health check endpoint - checks MongoDB connectivity
 app.get('/healthz', async (req, res) => {
   try {
     // Check MongoDB connection state
     // 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
     const dbState = (await import('mongoose')).default.connection.readyState;
-    
+
     if (dbState !== 1) {
       logger.warn(`Health check failed: MongoDB not connected (state: ${dbState})`);
       return res.status(503).json({
@@ -122,7 +140,7 @@ const startServer = async () => {
     const server = app.listen(config.port, () => {
       logger.info(`🚀 JeevaCare API Server running on port ${config.port}`);
       logger.info(`📚 Environment: ${config.environment}`);
-      logger.info(`🗄️  Database: ${config.database.uri.replace(/:\/\/([^:]+):([^@]+)@/, '://***:***@')}`);
+      // Database connection status logged separately by database.js
     });
 
     // Schedule periodic TTS cleanup (every hour)
