@@ -1,6 +1,8 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Search, AlertCircle, Loader } from 'lucide-react';
 import LoadingSkeleton from '../State/LoadingSkeleton';
+import { patientService } from '../../services/patientService';
+import api from '../../services/api';
 
 /**
  * PatientSearch Component
@@ -24,57 +26,37 @@ export default function PatientSearch({ onSelectPatient, onSearch = null, isLoad
   const inputRef = useRef(null);
   const resultsRef = useRef(null);
 
-  // Mock search function (replace with real API call)
-  const defaultSearch = useCallback((searchQuery) => {
-    if (!searchQuery.trim()) return Promise.resolve([]);
+  // API-backed search function
+  const defaultSearch = useCallback(async (searchQuery) => {
+    if (!searchQuery.trim()) return [];
 
-    // Mock data
-    const allPatients = [
-      {
-        id: 'pat-001',
-        name: 'John Doe',
-        email: 'john.doe@example.com',
-        phone: '+1 (555) 123-4567',
-        dateOfBirth: '1990-01-15',
-        jeevaId: 'JC-ABC123',
-        lastVisit: new Date(Date.now() - 86400000 * 7),
-        status: 'active',
-        avatar: '👨‍⚕️',
-      },
-      {
-        id: 'pat-002',
-        name: 'Jane Smith',
-        email: 'jane.smith@example.com',
-        phone: '+1 (555) 234-5678',
-        dateOfBirth: '1985-03-22',
-        jeevaId: 'JC-DEF456',
-        lastVisit: new Date(Date.now() - 86400000 * 30),
-        status: 'active',
-        avatar: '👩‍⚕️',
-      },
-      {
-        id: 'pat-003',
-        name: 'Robert Johnson',
-        email: 'robert.j@example.com',
-        phone: '+1 (555) 345-6789',
-        dateOfBirth: '1978-06-10',
-        jeevaId: 'JC-GHI789',
-        lastVisit: new Date(Date.now() - 86400000 * 60),
-        status: 'active',
-        avatar: '👨‍🦱',
-      },
-    ];
-
-    const searchLower = searchQuery.toLowerCase();
-    const filtered = allPatients.filter(
-      (p) =>
-        p.name.toLowerCase().includes(searchLower) ||
-        p.email.toLowerCase().includes(searchLower) ||
-        p.phone.includes(searchQuery) ||
-        p.jeevaId.includes(searchQuery)
-    );
-
-    return Promise.resolve(filtered);
+    try {
+      // Call backend patient search API
+      const response = await api.get(`/patients/search?q=${encodeURIComponent(searchQuery)}&limit=10`);
+      
+      if (response.success && response.data?.patients) {
+        // Transform backend data to component format
+        return response.data.patients.map(patient => ({
+          id: patient._id,
+          name: `${patient.personalIdentity?.firstName || ''} ${patient.personalIdentity?.lastName || ''}`.trim(),
+          email: patient.personalIdentity?.email || 'N/A',
+          phone: patient.personalIdentity?.phone || 'N/A',
+          dateOfBirth: patient.personalIdentity?.dateOfBirth,
+          jeevaId: patient.jeevaId || 'N/A',
+          lastVisit: patient.lastVisit ? new Date(patient.lastVisit) : new Date(),
+          status: patient.status || 'active',
+          avatar: patient.personalIdentity?.gender === 'F' ? '👩' : patient.personalIdentity?.gender === 'M' ? '👨' : '🧑',
+          // Include full patient object for downstream use
+          _raw: patient
+        }));
+      }
+      
+      return [];
+    } catch (error) {
+      console.error('Patient search API error:', error);
+      // Return empty array on error to show "no results" UI
+      return [];
+    }
   }, []);
 
   // Handle search input

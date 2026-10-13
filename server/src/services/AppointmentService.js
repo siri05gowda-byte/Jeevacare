@@ -168,40 +168,38 @@ class AppointmentService {
   }
 
   /**
-   * Get appointments for a doctor on a specific date
-   * @param {String} providerId
-   * @param {String} hospitalId
-   * @param {Date} appointmentDate
-   * @param {Object} requestingUser
+   * Get appointments for a doctor with filters
+   * @param {String} doctorId - User ID of the doctor
+   * @param {Object} requestingUser - {id, role, facilityId}
+   * @param {Object} filters - {facilityId (required), status, date, startDate, endDate}
    * @returns {Array} Appointments
    */
-  static async getDoctorAppointments(
-    providerId,
-    hospitalId,
-    appointmentDate,
-    requestingUser
-  ) {
+  static async getDoctorAppointments(doctorId, requestingUser, filters = {}) {
     try {
       // Only doctor or hospital staff can view doctor's appointments
       if (requestingUser.role === 'PATIENT') {
         throw new Error('Patients cannot view doctor appointment lists');
       }
 
-      const provider = await User.findById(providerId);
+      const provider = await User.findById(doctorId);
       if (!provider) {
-        throw new Error(`Provider not found: ${providerId}`);
+        throw new Error(`Provider not found: ${doctorId}`);
       }
 
-      const facility = await Hospital.findById(hospitalId);
+      if (!filters.facilityId) {
+        throw new Error('facilityId is required to retrieve appointments');
+      }
+
+      const facility = await Hospital.findById(filters.facilityId);
       if (!facility) {
-        throw new Error(`Facility not found: ${hospitalId}`);
+        throw new Error(`Facility not found: ${filters.facilityId}`);
       }
 
       // Verify requesting user has access to this facility
       if (requestingUser.role === 'DOCTOR') {
         const { authorized } =
           await ClinicalAuthorizationBoundary.canCreateOfficialClinicalRecord(
-            requestingUser._id,
+            requestingUser.id,
             facility._id,
             null
           );
@@ -210,25 +208,55 @@ class AppointmentService {
         }
       }
 
-      const startOfDay = new Date(appointmentDate);
-      startOfDay.setHours(0, 0, 0, 0);
+      // Build query
+      const query = {
+        providerId: doctorId,
+        hospitalId: filters.facilityId,
+      };
 
-      const endOfDay = new Date(appointmentDate);
-      endOfDay.setHours(23, 59, 59, 999);
+      // Add status filter if provided
+      if (filters.status) {
+        query.status = filters.status;
+      }
 
-      const appointments = await Appointment.find({
-        providerId,
-        hospitalId,
-        appointmentDate: {
+      // Add date filters
+      if (filters.date) {
+        // Single date - get appointments for that day
+        const startOfDay = new Date(filters.date);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(filters.date);
+        endOfDay.setHours(23, 59, 59, 999);
+        query.appointmentDate = {
           $gte: startOfDay,
           $lte: endOfDay,
-        },
-      })
+        };
+      } else if (filters.startDate || filters.endDate) {
+        // Date range
+        query.appointmentDate = {};
+        if (filters.startDate) {
+          query.appointmentDate.$gte = new Date(filters.startDate);
+        }
+        if (filters.endDate) {
+          query.appointmentDate.$lte = new Date(filters.endDate);
+        }
+      }
+
+      const appointments = await Appointment.find(query)
         .populate('patientId', 'jeevaId personalIdentity')
         .populate('providerId', 'email profile.firstName profile.lastName')
-        .sort({ appointmentDate: 1 });
+        .populate('hospitalId', 'name facilityId address')
+        .sort({ appointmentDate: 1, startTime: 1 });
 
-      return appointments;
+      // Transform for frontend compatibility
+      return appointments.map(apt => ({
+        ...apt.toObject(),
+        patientName: apt.patientId ? 
+          `${apt.patientId.personalIdentity?.firstName || ''} ${apt.patientId.personalIdentity?.lastName || ''}`.trim() : 
+          'Unknown Patient',
+        patientJeevaId: apt.patientId?.jeevaId || 'N/A',
+        scheduledDateTime: apt.appointmentDate, // Alias for compatibility
+        reason: apt.reasonForVisit || apt.notes || 'General Consultation',
+      }));
     } catch (error) {
       throw new Error(`Failed to get doctor appointments: ${error.message}`);
     }

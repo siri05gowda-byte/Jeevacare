@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Users, Calendar, Clock, CheckCircle, Check, ArrowRight } from 'lucide-react';
 import PageContainer from '../components/Layout/PageContainer';
 import SectionTitle from '../components/Layout/SectionTitle';
@@ -6,6 +6,8 @@ import PatientSearch from '../components/Search/PatientSearch';
 import LoadingSkeleton from '../components/State/LoadingSkeleton';
 import EmptyState from '../components/State/EmptyState';
 import { useToast, ToastContainer } from '../components/State/Toast';
+import { useAuthStore } from '../stores/authStore';
+import { appointmentService } from '../services/appointmentService';
 
 /**
  * ProviderDashboard (V2)
@@ -15,43 +17,79 @@ import { useToast, ToastContainer } from '../components/State/Toast';
  */
 export default function ProviderDashboardV2() {
   const { toasts, success, error: showError, remove } = useToast();
+  const user = useAuthStore((state) => state.user);
   const [selectedPatient, setSelectedPatient] = useState(null);
+  const [todayAppointments, setTodayAppointments] = useState([]);
+  const [isLoadingAppointments, setIsLoadingAppointments] = useState(true);
+  const [appointmentError, setAppointmentError] = useState(null);
 
-  // Mock schedule data
-  const todayAppointments = [
-    {
-      id: 'apt-1',
-      patientName: 'John Doe',
-      time: '09:00 AM',
-      status: 'completed',
-      type: 'Follow-up',
-      jeevaId: 'JC-ABC123',
-    },
-    {
-      id: 'apt-2',
-      patientName: 'Jane Smith',
-      time: '10:30 AM',
-      status: 'in-progress',
-      type: 'Routine Check-up',
-      jeevaId: 'JC-DEF456',
-    },
-    {
-      id: 'apt-3',
-      patientName: 'Robert Johnson',
-      time: '02:00 PM',
-      status: 'scheduled',
-      type: 'Consultation',
-      jeevaId: 'JC-GHI789',
-    },
-    {
-      id: 'apt-4',
-      patientName: 'Emily Davis',
-      time: '03:30 PM',
-      status: 'scheduled',
-      type: 'Routine Check-up',
-      jeevaId: 'JC-JKL012',
-    },
-  ];
+  // Load today's appointments for doctor
+  useEffect(() => {
+    const loadAppointments = async () => {
+      // Only load appointments if user is a doctor with professionalId
+      if (!user || user.role !== 'DOCTOR') {
+        setIsLoadingAppointments(false);
+        return;
+      }
+
+      try {
+        setIsLoadingAppointments(true);
+        setAppointmentError(null);
+        
+        // Get professional ID from user profile
+        // Note: The backend needs to return professionalId in user object or we need to fetch it
+        const professionalId = user.professionalId || user._id;
+        
+        // Get today's date range
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        const filters = {
+          date: today.toISOString(),
+          facilityId: user.facilityId // Required by backend
+        };
+
+        if (!filters.facilityId) {
+          // No facility ID available - show empty state
+          setTodayAppointments([]);
+          setIsLoadingAppointments(false);
+          return;
+        }
+
+        const response = await appointmentService.getDoctorAppointments(professionalId, filters);
+        
+        if (response?.success && response?.data) {
+          // Transform appointments to UI format
+          const appointments = response.data.map(apt => ({
+            id: apt._id,
+            patientName: apt.patientName || 'Unknown Patient',
+            time: new Date(apt.scheduledDateTime).toLocaleTimeString('en-US', {
+              hour: '2-digit',
+              minute: '2-digit'
+            }),
+            status: apt.status || 'scheduled',
+            type: apt.reason || 'General Consultation',
+            jeevaId: apt.patientJeevaId || 'N/A',
+            _raw: apt
+          }));
+          
+          setTodayAppointments(appointments);
+        } else {
+          setTodayAppointments([]);
+        }
+      } catch (error) {
+        console.error('Error loading appointments:', error);
+        setAppointmentError(error.message || 'Failed to load appointments');
+        setTodayAppointments([]);
+      } finally {
+        setIsLoadingAppointments(false);
+      }
+    };
+
+    loadAppointments();
+  }, [user]);
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -214,31 +252,47 @@ export default function ProviderDashboardV2() {
             </div>
 
             <div className="space-y-2">
-              {todayAppointments.map((apt) => (
-                <div
-                  key={apt.id}
-                  className="p-3 border border-gray-200 rounded-lg hover:border-jeevacare-blue hover:shadow-sm transition-all cursor-pointer"
-                  onClick={() => {
-                    success(`Clicked appointment: ${apt.patientName} at ${apt.time}`);
-                  }}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900 text-sm">{apt.patientName}</p>
-                      <p className="text-xs text-gray-600">{apt.type}</p>
+              {isLoadingAppointments ? (
+                <LoadingSkeleton type="list" count={3} />
+              ) : appointmentError ? (
+                <EmptyState
+                  type="error"
+                  title="Failed to load appointments"
+                  description={appointmentError}
+                />
+              ) : todayAppointments.length === 0 ? (
+                <EmptyState
+                  type="default"
+                  title="No appointments today"
+                  description="Your schedule is clear for today"
+                />
+              ) : (
+                todayAppointments.map((apt) => (
+                  <div
+                    key={apt.id}
+                    className="p-3 border border-gray-200 rounded-lg hover:border-jeevacare-blue hover:shadow-sm transition-all cursor-pointer"
+                    onClick={() => {
+                      success(`Clicked appointment: ${apt.patientName} at ${apt.time}`);
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900 text-sm">{apt.patientName}</p>
+                        <p className="text-xs text-gray-600">{apt.type}</p>
+                      </div>
+                      <div className="flex-shrink-0 text-right">
+                        <span className={`badge badge-sm ${getStatusColor(apt.status)}`}>
+                          {getStatusIcon(apt.status)} <span>{apt.status}</span>
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex-shrink-0 text-right">
-                      <span className={`badge badge-sm ${getStatusColor(apt.status)}`}>
-                        {getStatusIcon(apt.status)} <span>{apt.status}</span>
-                      </span>
+                    <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                      <Clock size={12} />
+                      {apt.time}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-                    <Clock size={12} />
-                    {apt.time}
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
 
             {/* View Full Schedule */}
