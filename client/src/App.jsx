@@ -13,6 +13,7 @@ import EmergencyDashboardV2 from './pages/EmergencyDashboardV2';
 import HospitalPatientsPage from './pages/HospitalPatientsPage';
 import HospitalAppointmentsPage from './pages/HospitalAppointmentsPage';
 import HospitalSchedulePage from './pages/HospitalSchedulePage';
+import HospitalStaffPage from './pages/HospitalStaffPage';
 import PatientAppointmentsPage from './pages/PatientAppointmentsPage';
 import DocumentsPage from './pages/DocumentsPage';
 import AppointmentBookingPage from './pages/AppointmentBookingPage';
@@ -85,6 +86,7 @@ function App() {
             <Route path="settings" element={<SettingsPage />} />
             
             {/* Hospital/Doctor routes */}
+            <Route path="hospital/staff" element={<HospitalStaffPage />} />
             <Route path="hospital/patients" element={<HospitalPatientsPage />} />
             <Route path="hospital/appointments" element={<HospitalAppointmentsPage />} />
             <Route path="hospital/schedule" element={<HospitalSchedulePage />} />

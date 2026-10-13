@@ -406,7 +406,8 @@ export const requireHospitalAdmin = async (req, res, next) => {
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
-    const facilityId = req.params.facilityId || req.body.facilityId;
+    // Check for facilityId or hospitalId (both used in different endpoints)
+    const facilityId = req.params.facilityId || req.body.facilityId || req.body.hospitalId;
 
     if (!facilityId) {
       return res.status(400).json({

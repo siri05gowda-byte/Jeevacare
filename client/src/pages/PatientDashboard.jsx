@@ -38,14 +38,61 @@ export default function PatientDashboard() {
   }
 
   if (error) {
+    // Check if it's a "no patient record" error
+    const isNoPatientRecord = error.includes('patient profile') || 
+                              error.includes('not found') || 
+                              error.includes('Unable to retrieve');
+    
     return (
       <div className="p-8">
-        <div className="p-6 bg-red-50 border border-red-200 rounded-lg">
-          <h2 className="text-lg font-semibold text-red-900">Failed to Load Dashboard</h2>
-          <p className="text-red-800 mt-2">{error}</p>
+        <div className={`p-6 border rounded-lg ${isNoPatientRecord ? 'bg-yellow-50 border-yellow-200' : 'bg-red-50 border-red-200'}`}>
+          <h2 className={`text-lg font-semibold ${isNoPatientRecord ? 'text-yellow-900' : 'text-red-900'}`}>
+            {isNoPatientRecord ? 'Patient Profile Not Found' : 'Failed to Load Dashboard'}
+          </h2>
+          <p className={`mt-2 ${isNoPatientRecord ? 'text-yellow-800' : 'text-red-800'}`}>{error}</p>
+          
+          {isNoPatientRecord && (
+            <div className="mt-4 p-4 bg-white rounded border border-yellow-300">
+              <h3 className="font-semibold text-gray-900 mb-2">How to create your patient profile:</h3>
+              <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
+                <li>Contact your healthcare provider or hospital administrator</li>
+                <li>They will create your patient record and link it to your account</li>
+                <li>Once created, return here to view your health dashboard</li>
+              </ol>
+            </div>
+          )}
+          
           <button
             onClick={() => loadAllPatientData(patientId)}
-            className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition"
+            className={`mt-4 px-4 py-2 text-white rounded transition ${isNoPatientRecord ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-red-600 hover:bg-red-700'}`}
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Check if patient data is missing despite no error
+  if (!patient) {
+    return (
+      <div className="p-8">
+        <div className="p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <h2 className="text-lg font-semibold text-yellow-900">No Patient Profile Found</h2>
+          <p className="text-yellow-800 mt-2">
+            Your account does not have an associated patient profile yet.
+          </p>
+          <div className="mt-4 p-4 bg-white rounded border border-yellow-300">
+            <h3 className="font-semibold text-gray-900 mb-2">How to create your patient profile:</h3>
+            <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
+              <li>Contact your healthcare provider or hospital administrator</li>
+              <li>They will create your patient record and link it to your account</li>
+              <li>Once created, return here to view your health dashboard</li>
+            </ol>
+          </div>
+          <button
+            onClick={() => loadAllPatientData(patientId)}
+            className="mt-4 px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 transition"
           >
             Retry
           </button>

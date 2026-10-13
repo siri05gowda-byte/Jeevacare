@@ -62,9 +62,15 @@ export const usePatientStore = create((set, get) => ({
         // PATIENT role accessing their own profile
         patient = await patientService.getProfile(null);
         effectivePatientId = patient.data?._id || patient._id;
+        
+        // Validate we got a patient ID
+        if (!effectivePatientId) {
+          throw new Error('Unable to retrieve patient profile. You may not have a patient record yet.');
+        }
       } else {
         // DOCTOR/ADMIN accessing specific patient
         patient = await patientService.getProfile(patientId);
+        effectivePatientId = patientId;
       }
 
       // Now load all other data using the effective patient ID
@@ -75,11 +81,26 @@ export const usePatientStore = create((set, get) => ({
         criticalInfo,
         emergencyProfile,
       ] = await Promise.all([
-        patientService.getStats(effectivePatientId).catch(() => ({})),
-        patientService.getTimeline(effectivePatientId).catch(() => ({ events: [] })),
-        patientService.getMedicalSummary(effectivePatientId).catch(() => null),
-        patientService.getCriticalInfo(effectivePatientId).catch(() => ({})),
-        patientService.getEmergencyProfile(effectivePatientId).catch(() => ({})),
+        patientService.getStats(effectivePatientId).catch((err) => {
+          console.warn('Failed to load stats:', err);
+          return {};
+        }),
+        patientService.getTimeline(effectivePatientId).catch((err) => {
+          console.warn('Failed to load timeline:', err);
+          return { events: [] };
+        }),
+        patientService.getMedicalSummary(effectivePatientId).catch((err) => {
+          console.warn('Failed to load medical summary:', err);
+          return null;
+        }),
+        patientService.getCriticalInfo(effectivePatientId).catch((err) => {
+          console.warn('Failed to load critical info:', err);
+          return {};
+        }),
+        patientService.getEmergencyProfile(effectivePatientId).catch((err) => {
+          console.warn('Failed to load emergency profile:', err);
+          return {};
+        }),
       ]);
 
       set({
@@ -92,7 +113,10 @@ export const usePatientStore = create((set, get) => ({
         error: null,
       });
     } catch (error) {
-      const errorMessage = error.response?.data?.error?.message || error.message;
+      const errorMessage = error.response?.data?.error?.message || 
+                          error.response?.data?.message || 
+                          error.message || 
+                          'Failed to load patient dashboard';
       set({ error: errorMessage });
       throw error;
     } finally {

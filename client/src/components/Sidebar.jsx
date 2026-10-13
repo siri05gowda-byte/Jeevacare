@@ -39,6 +39,10 @@ export default function Sidebar({ isOpen = true, onClose }) {
       { name: 'Patients', path: '/hospital/patients', icon: Users },
       { name: 'Facilities', path: '/hospital/facilities', icon: FileText },
     ],
+    SYSTEM_ADMIN: [
+      { name: 'Dashboard', path: '/integrated-dashboard', icon: Home },
+      { name: 'Staff Management', path: '/hospital/staff', icon: Users },
+    ],
     EMERGENCY: [
       { name: 'Emergency Access', path: '/emergency', icon: AlertCircle },
       { name: 'Incidents', path: '/emergency/incidents', icon: FileText },
