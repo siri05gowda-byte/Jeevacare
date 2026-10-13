@@ -49,33 +49,46 @@ export const usePatientStore = create((set, get) => ({
 
   /**
    * Load all patient data at once
+   * If patientId is null, it fetches the current user's profile first to get the patientId
    */
   loadAllPatientData: async (patientId) => {
     set({ loading: true, error: null });
     try {
+      // If no patientId provided, get current user's profile first
+      let effectivePatientId = patientId;
+      let patient;
+      
+      if (!patientId) {
+        // PATIENT role accessing their own profile
+        patient = await patientService.getProfile(null);
+        effectivePatientId = patient.data?._id || patient._id;
+      } else {
+        // DOCTOR/ADMIN accessing specific patient
+        patient = await patientService.getProfile(patientId);
+      }
+
+      // Now load all other data using the effective patient ID
       const [
-        patient,
         stats,
         timeline,
         medicalSummary,
         criticalInfo,
         emergencyProfile,
       ] = await Promise.all([
-        patientService.getProfile(patientId),
-        patientService.getStats(patientId).catch(() => ({})),
-        patientService.getTimeline(patientId).catch(() => ({ events: [] })),
-        patientService.getMedicalSummary(patientId).catch(() => null),
-        patientService.getCriticalInfo(patientId).catch(() => ({})),
-        patientService.getEmergencyProfile(patientId).catch(() => ({})),
+        patientService.getStats(effectivePatientId).catch(() => ({})),
+        patientService.getTimeline(effectivePatientId).catch(() => ({ events: [] })),
+        patientService.getMedicalSummary(effectivePatientId).catch(() => null),
+        patientService.getCriticalInfo(effectivePatientId).catch(() => ({})),
+        patientService.getEmergencyProfile(effectivePatientId).catch(() => ({})),
       ]);
 
       set({
-        patient,
-        stats: stats.stats || stats,
-        timeline: timeline.events || timeline,
-        medicalSummary,
-        criticalInfo,
-        emergencyProfile,
+        patient: patient.data || patient,
+        stats: stats.data || stats.stats || stats,
+        timeline: timeline.data || timeline.events || timeline,
+        medicalSummary: medicalSummary?.data || medicalSummary,
+        criticalInfo: criticalInfo?.data || criticalInfo,
+        emergencyProfile: emergencyProfile?.data || emergencyProfile,
         error: null,
       });
     } catch (error) {

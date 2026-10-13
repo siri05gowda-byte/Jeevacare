@@ -1,53 +1,25 @@
-import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import { X, AlertCircle, FileText, Info, AlertTriangle, Syringe, Pill, BookOpen, RotateCcw, Volume2 } from 'lucide-react';
-import api from '../services/api.js';
-import '../styles/AIHealthSummaryCard.css';
+import React, { useState, useEffect } from 'react';
+import { Brain, RefreshCw, AlertCircle, CheckCircle, Globe, Loader } from 'lucide-react';
+import api from '../services/api';
 
-/**
- * AI Health Summary Card Component
- * Displays AI-generated medical history summary with language selection and audio
- */
-export default function AIHealthSummaryCard({ patientId, currentUser }) {
+export default function AIHealthSummaryCard({ patientId }) {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [language, setLanguage] = useState('en');
-  const [languages, setLanguages] = useState([]);
-  const [explanationVisible, setExplanationVisible] = useState(false);
-  const [explanation, setExplanation] = useState(null);
-  const [audioUrl, setAudioUrl] = useState(null);
-  const [audioLoading, setAudioLoading] = useState(false);
-  const [isStale, setIsStale] = useState(false);
 
-  // Supported languages
-  const LANGUAGE_MAP = {
-    en: 'English',
-    hi: 'हिन्दी',
-    kn: 'ಕನ್ನಡ',
-    te: 'తెలుగు',
-    ta: 'தமிழ்',
-    ml: 'മലയാളം',
-  };
+  const languages = [
+    { code: 'en', name: 'English' },
+    { code: 'hi', name: 'हिंदी (Hindi)' },
+    { code: 'kn', name: 'ಕನ್ನಡ (Kannada)' },
+    { code: 'te', name: 'తెలుగు (Telugu)' },
+    { code: 'ta', name: 'தமிழ் (Tamil)' },
+    { code: 'ml', name: 'മലയാളം (Malayalam)' },
+  ];
 
-  // Fetch available languages
-  useEffect(() => {
-    const fetchLanguages = async () => {
-      try {
-        const response = await api.get(`/patients/${patientId}/ai-languages`);
-        if (response.data.success) {
-          setLanguages(response.data.languages);
-        }
-      } catch (err) {
-        console.error('Failed to fetch languages:', err);
-      }
-    };
+  const loadSummary = async (regenerate = false) => {
+    if (!patientId) return;
 
-    fetchLanguages();
-  }, [patientId]);
-
-  // Generate or fetch summary
-  const generateSummary = async (regenerate = false) => {
     setLoading(true);
     setError(null);
 
@@ -57,296 +29,204 @@ export default function AIHealthSummaryCard({ patientId, currentUser }) {
         regenerate,
       });
 
-      if (response.data.success) {
-        setSummary(response.data.summary);
-        setExplanationVisible(false);
-        setExplanation(null);
-        setAudioUrl(null);
-        setIsStale(response.data.summary.cacheStatus === 'stale');
+      if (response.success && response.summary) {
+        setSummary(response.summary);
       } else {
-        setError(response.data.error || 'Failed to generate summary');
+        setError('Failed to load AI summary');
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to generate summary');
-      console.error('Summary generation error:', err);
+      console.error('AI summary error:', err);
+      
+      // Handle different error types
+      if (err.response?.status === 403) {
+        setError('You do not have permission to view this summary');
+      } else if (err.response?.data?.code === 'NO_RECORDS') {
+        setError(null);
+        setSummary({ summaryContent: null, sourceRecordCount: 0 });
+      } else if (err.response?.data?.code === 'AI_UNAVAILABLE') {
+        setError('AI service is currently unavailable. Please try again later.');
+      } else {
+        setError(err.response?.data?.error || err.message || 'Failed to generate summary');
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  // Generate explanation
-  const generateExplanation = async () => {
-    if (!summary) return;
+  useEffect(() => {
+    loadSummary();
+  }, [patientId, language]);
 
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await api.post(
-        `/patients/${patientId}/ai-summary/${summary._id}/explain`,
-        { language }
-      );
-
-      if (response.data.success) {
-        setExplanation(response.data.explanation);
-        setExplanationVisible(true);
-      } else {
-        setError(response.data.error || 'Failed to generate explanation');
-      }
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to generate explanation');
-      console.error('Explanation generation error:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Generate audio
-  const generateAudio = async () => {
-    if (!explanation) return;
-
-    setAudioLoading(true);
-    setError(null);
-
-    try {
-      const response = await api.post(`/patients/${patientId}/ai-audio`, {
-        explanationText: explanation.explanation,
-        language,
-      });
-
-      if (response.data.success) {
-        setAudioUrl(response.data.audio.url);
-      } else {
-        setError(response.data.error || 'Failed to generate audio');
-      }
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to generate audio');
-      console.error('Audio generation error:', err);
-    } finally {
-      setAudioLoading(false);
-    }
-  };
-
-  // Handle language change
-  const handleLanguageChange = (newLanguage) => {
-    setLanguage(newLanguage);
-    setExplanationVisible(false);
-    setExplanation(null);
-    setAudioUrl(null);
-  };
-
-  return (
-    <div className="ai-health-summary-card">
-      <div className="card-header">
-        <h2 className="flex items-center gap-2">
-          <AlertCircle size={20} />
-          <span>AI Health Summary</span>
-        </h2>
-        {isStale && <span className="stale-badge">Stale</span>}
+  if (loading && !summary) {
+    return (
+      <div className="card">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-2 bg-purple-100 rounded-lg">
+            <Brain size={24} className="text-purple-600" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">AI Health Summary</h2>
+            <p className="text-sm text-gray-600">Generating your personalized summary...</p>
+          </div>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <Loader size={32} className="animate-spin text-purple-600" />
+        </div>
       </div>
+    );
+  }
 
-      {/* Disclaimer */}
-      <div className="disclaimer">
-        <p className="flex items-center gap-2">
-          <Info size={16} />
-          <span>This AI-generated summary is based on your documented JeevaCare records. It is for information and understanding only and does not replace professional medical advice.</span>
-        </p>
+  if (error) {
+    return (
+      <div className="card">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-2 bg-purple-100 rounded-lg">
+            <Brain size={24} className="text-purple-600" />
+          </div>
+          <h2 className="text-lg font-semibold text-gray-900">AI Health Summary</h2>
+        </div>
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start">
+            <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="ml-3">
+              <p className="text-sm text-red-800">{error}</p>
+              <button
+                onClick={() => loadSummary(false)}
+                className="mt-2 text-sm text-red-700 hover:text-red-900 font-medium"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
+    );
+  }
 
-      {/* Error State */}
-      {error && (
-        <div className="error-state">
-          <p className="flex items-center gap-2">
-            <X size={16} className="text-red-600" />
-            <span>{error}</span>
+  // No records case
+  if (summary && summary.sourceRecordCount === 0) {
+    return (
+      <div className="card">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-2 bg-purple-100 rounded-lg">
+            <Brain size={24} className="text-purple-600" />
+          </div>
+          <h2 className="text-lg font-semibold text-gray-900">AI Health Summary</h2>
+        </div>
+        <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-center">
+          <p className="text-sm text-gray-600">
+            No medical records available yet. Your AI health summary will appear here once you
+            have clinical records, lab results, or other health data in the system.
           </p>
         </div>
-      )}
+      </div>
+    );
+  }
 
-      {/* Language Selector */}
-      <div className="language-selector">
-        <label>Language:</label>
-        <div className="language-buttons">
-          {Object.entries(LANGUAGE_MAP).map(([code, name]) => (
-            <button
-              key={code}
-              className={`language-btn ${language === code ? 'active' : ''}`}
-              onClick={() => handleLanguageChange(code)}
+  return (
+    <div className="card">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-purple-100 rounded-lg">
+            <Brain size={24} className="text-purple-600" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">AI Health Summary</h2>
+            {summary?.generatedAt && (
+              <p className="text-xs text-gray-500">
+                Generated {new Date(summary.generatedAt).toLocaleString()}
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {/* Language Selector */}
+          <div className="relative">
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="pl-8 pr-8 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent appearance-none bg-white"
               disabled={loading}
             >
-              {name}
-            </button>
-          ))}
+              {languages.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.name}
+                </option>
+              ))}
+            </select>
+            <Globe
+              size={16}
+              className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"
+            />
+          </div>
+
+          {/* Regenerate Button */}
+          <button
+            onClick={() => loadSummary(true)}
+            disabled={loading}
+            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+            title="Regenerate summary"
+          >
+            <RefreshCw size={16} className={`text-gray-600 ${loading ? 'animate-spin' : ''}`} />
+          </button>
         </div>
       </div>
 
-      {/* Loading State */}
-      {loading && (
-        <div className="loading-state">
-          <div className="spinner"></div>
-          <p>Generating AI summary...</p>
-        </div>
-      )}
-
-      {/* Summary Display */}
-      {!loading && summary && (
-        <div className="summary-content">
-          <div className="summary-info">
-            <p className="generated-at">Generated: {new Date(summary.generatedAt).toLocaleString()}</p>
-            <p className="source-count">Based on {summary.sourceRecordCount} medical records</p>
-            <p className="model-info">Provider: {summary.modelInfo.provider}</p>
+      {/* Summary Content */}
+      {summary?.summaryContent ? (
+        <div className="space-y-4">
+          <div className="prose prose-sm max-w-none">
+            <div className="text-gray-700 whitespace-pre-wrap leading-relaxed">
+              {summary.summaryContent}
+            </div>
           </div>
 
-          {/* Summary Sections */}
-          <div className="summary-sections">
-            {summary.summaryContent.overview && (
-              <section className="summary-section">
-                <h3>Overview</h3>
-                <p>{summary.summaryContent.overview.patientName || 'Patient'}</p>
-              </section>
-            )}
-
-            {summary.summaryContent.allergies?.documented?.length > 0 && (
-              <section className="summary-section">
-                <h3 className="flex items-center gap-2">
-                  <AlertCircle size={18} className="text-red-600" />
-                  <span>Allergies</span>
-                </h3>
-                <ul>
-                  {summary.summaryContent.allergies.documented.map((allergy, i) => (
-                    <li key={i}>{allergy}</li>
-                  ))}
-                </ul>
-              </section>
-            )}
-
-            {summary.summaryContent.currentMedications?.medications?.length > 0 && (
-              <section className="summary-section">
-                <h3 className="flex items-center gap-2">
-                  <Pill size={18} />
-                  <span>Current Medications</span>
-                </h3>
-                <ul>
-                  {summary.summaryContent.currentMedications.medications.map((med, i) => (
-                    <li key={i}>
-                      {med.name} {med.dosage && `- ${med.dosage}`}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-
-            {summary.summaryContent.conditions?.active?.length > 0 && (
-              <section className="summary-section">
-                <h3 className="flex items-center gap-2">
-                  <FileText size={18} />
-                  <span>Known Conditions</span>
-                </h3>
-                <ul>
-                  {summary.summaryContent.conditions.active.map((condition, i) => (
-                    <li key={i}>{condition}</li>
-                  ))}
-                </ul>
-              </section>
-            )}
-
-            {summary.summaryContent.vaccinations?.completed?.length > 0 && (
-              <section className="summary-section">
-                <h3 className="flex items-center gap-2">
-                  <Syringe size={18} />
-                  <span>Vaccinations</span>
-                </h3>
-                <p>{summary.summaryContent.vaccinations.completed.length} recorded</p>
-              </section>
-            )}
-
-            {summary.summaryContent.missingInformation?.length > 0 && (
-              <section className="summary-section missing">
-                <h3 className="flex items-center gap-2">
-                  <Info size={18} />
-                  <span>Missing Information</span>
-                </h3>
-                <ul>
-                  {summary.summaryContent.missingInformation.map((item, i) => (
-                    <li key={i}>{item}</li>
-                  ))}
-                </ul>
-              </section>
-            )}
-          </div>
-
-          {/* Action Buttons */}
-          <div className="action-buttons">
-            <button
-              className="btn btn-primary"
-              onClick={() => generateExplanation()}
-              disabled={loading}
-            >
-              <BookOpen size={16} className="inline mr-2" />
-              Explain Simply
-            </button>
-            <button
-              className="btn btn-secondary"
-              onClick={() => generateSummary(true)}
-              disabled={loading}
-            >
-              <RotateCcw size={16} className="inline mr-2" />
-              Regenerate
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Explanation Display */}
-      {explanationVisible && explanation && (
-        <div className="explanation-content">
-          <h3 className="flex items-center gap-2">
-            <BookOpen size={18} />
-            <span>Simple Explanation</span>
-          </h3>
-          <div className="explanation-text">{explanation.explanation}</div>
-
-          {explanation.keyPoints?.length > 0 && (
-            <div className="key-points">
-              <h4>Key Points</h4>
-              <ul>
-                {explanation.keyPoints.map((point, i) => (
-                  <li key={i}>{point}</li>
-                ))}
-              </ul>
+          {/* Metadata */}
+          {summary.sourceRecordCount > 0 && (
+            <div className="pt-3 border-t border-gray-200">
+              <p className="text-xs text-gray-500">
+                Based on {summary.sourceRecordCount} medical record{summary.sourceRecordCount > 1 ? 's' : ''}
+                {summary.modelInfo?.name && ` • Generated by ${summary.modelInfo.name}`}
+              </p>
             </div>
           )}
 
-          {/* Audio Controls */}
-          <div className="audio-section">
-            {audioLoading && <p>Generating audio...</p>}
-            {audioUrl && (
-              <div className="audio-player">
-                <audio controls>
-                  <source src={audioUrl} type="audio/mpeg" />
-                  Your browser does not support the audio element.
-                </audio>
+          {/* Disclaimers */}
+          {summary.disclaimers && summary.disclaimers.length > 0 && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <div className="flex items-start">
+                <AlertCircle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="ml-2">
+                  <p className="text-xs text-amber-800 font-medium mb-1">Important Notice</p>
+                  {summary.disclaimers.map((disclaimer, index) => (
+                    <p key={index} className="text-xs text-amber-700 mb-1 last:mb-0">
+                      {disclaimer}
+                    </p>
+                  ))}
+                </div>
               </div>
-            )}
-            <button
-              className="btn btn-audio"
-              onClick={() => generateAudio()}
-              disabled={audioLoading}
-            >
-              <Volume2 size={16} className="inline mr-2" />
-              Listen
-            </button>
-          </div>
-        </div>
-      )}
+            </div>
+          )}
 
-      {/* Empty State */}
-      {!loading && !summary && (
-        <div className="empty-state">
-          <p>No AI summary generated yet</p>
-          <button className="btn btn-primary" onClick={() => generateSummary()} disabled={loading}>
-            Generate Summary
-          </button>
+          {!summary.disclaimers && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <div className="flex items-start">
+                <AlertCircle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                <p className="ml-2 text-xs text-amber-700">
+                  This AI-generated summary is for informational purposes only and does not
+                  replace professional medical advice, diagnosis, or treatment. Always consult
+                  with your healthcare provider for medical guidance.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+          <p className="text-sm text-gray-600 text-center">
+            No summary content available
+          </p>
         </div>
       )}
     </div>

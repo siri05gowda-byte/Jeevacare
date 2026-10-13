@@ -16,6 +16,7 @@ import ProviderEncounterPage from './pages/ProviderEncounterPage';
 import EmergencyAccessPage from './pages/EmergencyAccessPage';
 import DocumentUploadPage from './pages/DocumentUploadPage';
 import RadiologyPage from './pages/RadiologyPage';
+import SettingsPage from './pages/SettingsPage';
 
 // Protected route component
 function ProtectedRoute({ children }) {
@@ -74,6 +75,7 @@ function App() {
             <Route path="upload-documents" element={<DocumentUploadPage />} />
             <Route path="radiology" element={<RadiologyPage />} />
             <Route path="integrated-dashboard" element={<IntegratedDashboardPage />} />
+            <Route path="settings" element={<SettingsPage />} />
           </Route>
 
           {/* Catch-all */}

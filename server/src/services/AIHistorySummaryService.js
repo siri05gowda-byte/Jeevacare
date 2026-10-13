@@ -42,7 +42,17 @@ class AIHistorySummaryService {
         };
       }
 
+      // Ensure user object and role are available
       const requester = authResult.user;
+      if (!requester || !requester.role) {
+        logger.error(`Authorization passed but user object is incomplete for requester ${requesterId}`);
+        return {
+          success: false,
+          error: 'Authorization context incomplete',
+          code: 'AUTH_CONTEXT_ERROR',
+        };
+      }
+
       const language = options.language || 'en';
 
       // ===== STEP 2: CHECK FOR CACHED SUMMARY =====
@@ -88,11 +98,11 @@ class AIHistorySummaryService {
       logger.info(`Retrieving authorized clinical records for patient ${patientId}`);
 
       const [vaccinations, labResults, radiologyRecords, dischargeSummaries, encounters] = await Promise.all([
-        VaccinationService.getPatientVaccinations(patientId),
-        LaboratoryService.getPatientLaboratoryResults(patientId),
-        RadiologyService.getPatientRadiologyRecords(patientId),
-        DischargeSummaryService.getPatientDischargeSummaries(patientId),
-        EncounterService.getPatientEncounters(patientId),
+        VaccinationService.getPatientVaccinations(patientId, requester),
+        LaboratoryService.getPatientLaboratoryResults(patientId, requester),
+        RadiologyService.getPatientRadiologyRecords(patientId, requester),
+        DischargeSummaryService.getPatientDischargeSummaries(patientId, requester),
+        EncounterService.getPatientEncounters(patientId, requester),
       ]);
 
       // ===== STEP 4: NORMALIZE RECORDS INTO STRUCTURED FORMAT =====
@@ -159,10 +169,13 @@ class AIHistorySummaryService {
         };
       }
 
-      // ===== STEP 8: ATTACH SOURCE REFERENCES =====
-      const summaryWithSources = this.attachSourceReferences(aiResponse, sourceRecords);
+      // ===== STEP 8: TRANSFORM AI RESPONSE TO MODEL FORMAT =====
+      const transformedContent = this.transformAIResponseToModelFormat(aiResponse);
 
-      // ===== STEP 9: CREATE SUMMARY DOCUMENT =====
+      // ===== STEP 9: ATTACH SOURCE REFERENCES =====
+      const summaryWithSources = this.attachSourceReferences(transformedContent, sourceRecords);
+
+      // ===== STEP 10: CREATE SUMMARY DOCUMENT =====
       const summary = new AIHistorySummary({
         patientId,
         requestedBy: requesterId,
@@ -190,7 +203,7 @@ class AIHistorySummaryService {
 
       await summary.save();
 
-      // ===== STEP 10: AUDIT GENERATION =====
+      // ===== STEP 11: AUDIT GENERATION =====
       const auditEvent = await AuditService.logEvent({
         actor: requesterId,
         actorRole: requester.role || 'PATIENT',
@@ -215,7 +228,7 @@ class AIHistorySummaryService {
 
       logger.info(`Successfully generated AI summary for patient ${patientId}`);
 
-      // ===== STEP 11: RETURN STRUCTURED RESULT =====
+      // ===== STEP 12: RETURN STRUCTURED RESULT =====
       return {
         success: true,
         summary,
@@ -372,6 +385,119 @@ Organize the summary into these sections:
 - Missing Information (fields with no documentation)
 
 Format as structured JSON.`;
+  }
+
+  /**
+   * Transform AI response to model format
+   * Converts flat Groq response to nested AIHistorySummary schema
+   */
+  static transformAIResponseToModelFormat(aiResponse) {
+    return {
+      overview: {
+        lastUpdated: new Date(),
+      },
+      allergies: {
+        documented: Array.isArray(aiResponse.allergies) ? aiResponse.allergies : [],
+        notes: typeof aiResponse.allergies === 'string' ? aiResponse.allergies : '',
+      },
+      currentMedications: {
+        medications: Array.isArray(aiResponse.currentMedications) 
+          ? aiResponse.currentMedications.map(m => ({
+              name: typeof m === 'string' ? m : m.name || m.medication || '',
+              dosage: typeof m === 'object' ? m.dosage : '',
+              frequency: typeof m === 'object' ? m.frequency : '',
+              indication: typeof m === 'object' ? m.indication : '',
+            }))
+          : [],
+        lastUpdated: new Date(),
+      },
+      conditions: {
+        active: Array.isArray(aiResponse.majorConditions) ? aiResponse.majorConditions : [],
+        historical: [],
+        notes: aiResponse.summary || '',
+        lastUpdated: new Date(),
+      },
+      vaccinations: {
+        completed: Array.isArray(aiResponse.vaccinations)
+          ? aiResponse.vaccinations.map(v => ({
+              vaccine: typeof v === 'string' ? v : v.vaccine || v.name || '',
+              date: typeof v === 'object' ? v.date : null,
+              provider: typeof v === 'object' ? v.provider : '',
+              status: typeof v === 'object' ? v.status : 'completed',
+            }))
+          : [],
+        pending: [],
+        notes: '',
+        lastUpdated: new Date(),
+      },
+      laboratoryInvestigations: {
+        recent: Array.isArray(aiResponse.laboratoryFindings)
+          ? aiResponse.laboratoryFindings.map(l => ({
+              testName: typeof l === 'string' ? l : l.test || l.testName || '',
+              result: typeof l === 'object' ? l.result : '',
+              referenceRange: typeof l === 'object' ? l.referenceRange : '',
+              date: typeof l === 'object' ? l.date : null,
+              status: typeof l === 'object' ? l.status : '',
+            }))
+          : [],
+        abnormal: [],
+        lastUpdated: new Date(),
+      },
+      radiologyStudies: {
+        recent: Array.isArray(aiResponse.radiologyFindings)
+          ? aiResponse.radiologyFindings.map(r => ({
+              studyType: typeof r === 'string' ? r : r.studyType || r.study || '',
+              findings: typeof r === 'object' ? r.findings : r,
+              date: typeof r === 'object' ? r.date : null,
+              facility: typeof r === 'object' ? r.facility : '',
+            }))
+          : [],
+        significant: [],
+        lastUpdated: new Date(),
+      },
+      proceduresAndSurgeries: {
+        procedures: Array.isArray(aiResponse.procedures)
+          ? aiResponse.procedures.map(p => ({
+              procedure: typeof p === 'string' ? p : p.procedure || p.name || '',
+              date: typeof p === 'object' ? p.date : null,
+              facility: typeof p === 'object' ? p.facility : '',
+              outcome: typeof p === 'object' ? p.outcome : '',
+            }))
+          : [],
+        surgeries: [],
+        lastUpdated: new Date(),
+      },
+      hospitalizations: {
+        recent: [],
+        significant: [],
+        lastUpdated: new Date(),
+      },
+      consultations: {
+        recent: [],
+        lastUpdated: new Date(),
+      },
+      dischargeAndFollowUp: {
+        recentDischarges: [],
+        pendingFollowUps: [],
+        lastUpdated: new Date(),
+      },
+      importantEvents: Array.isArray(aiResponse.importantEvents)
+        ? aiResponse.importantEvents.map(e => ({
+            event: typeof e === 'string' ? e : e.event || e.description || '',
+            date: typeof e === 'object' ? e.date : null,
+            significance: typeof e === 'object' ? e.significance || e.notes : '',
+          }))
+        : [],
+      missingInformation: Array.isArray(aiResponse.missingInformation)
+        ? aiResponse.missingInformation.map(m => ({
+            field: typeof m === 'string' ? m : m.field || '',
+            reason: typeof m === 'object' ? m.reason || 'Not documented' : 'Not documented',
+          }))
+        : typeof aiResponse.missingInformation === 'string'
+        ? [{ field: 'General', reason: aiResponse.missingInformation }]
+        : [],
+      notes: aiResponse.summary || '',
+    };
   }
 
   /**

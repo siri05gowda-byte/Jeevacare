@@ -15,23 +15,23 @@ export default function EmergencyDashboardV2() {
   const { toasts, success, error: showError, remove } = useToast();
   const [selectedCase, setSelectedCase] = useState(null);
 
-  // Mock emergency cases data
+  // Indian synthetic emergency cases demo data
   const emergencyCases = [
     {
       id: 'case-1',
-      patientName: 'John Doe',
-      jeevaId: 'JC-ABC123',
+      patientName: 'Ramesh Pillai',
+      jeevaId: 'JC-RP-2024-013',
       severity: 'critical',
       condition: 'Severe chest pain',
-      age: 45,
-      location: 'Downtown St., Apt 512',
-      coordinates: { lat: 40.7128, lng: -74.006 },
+      age: 61,
+      location: 'MG Road, Apollo City Hospital area, Bangalore',
+      coordinates: { lat: 12.9716, lng: 77.5946 },
       bloodType: 'O+',
-      allergies: ['Penicillin', 'Shellfish'],
-      medications: ['Aspirin', 'Metoprolol'],
+      allergies: ['Penicillin'],
+      medications: ['Aspirin', 'Metoprolol', 'Atorvastatin'],
       emergencyContacts: [
-        { name: 'Sarah Doe (Spouse)', phone: '+1 (555) 123-4501' },
-        { name: 'Dr. Johnson (Cardiologist)', phone: '+1 (555) 987-6543' },
+        { name: 'Lakshmi Pillai (Spouse)', phone: '+91-9876540001' },
+        { name: 'Dr. Priya Sharma (Cardiologist)', phone: '+91-9000000001' },
       ],
       incidentTime: new Date(Date.now() - 600000), // 10 min ago
       responders: 2,
@@ -39,18 +39,19 @@ export default function EmergencyDashboardV2() {
     },
     {
       id: 'case-2',
-      patientName: 'Jane Smith',
-      jeevaId: 'JC-DEF456',
+      patientName: 'Aisha Syed',
+      jeevaId: 'JC-AS-2024-019',
       severity: 'high',
       condition: 'Severe allergic reaction',
-      age: 28,
-      location: 'Park Avenue, Mall Level 3',
-      coordinates: { lat: 40.73, lng: -73.98 },
+      age: 41,
+      location: 'Anna Salai, Express Avenue Mall, Chennai',
+      coordinates: { lat: 13.0827, lng: 80.2707 },
       bloodType: 'B-',
-      allergies: ['Peanuts', 'Tree nuts', 'Latex'],
-      medications: ['Epinephrine auto-injector'],
+      allergies: ['Peanuts', 'Tree nuts', 'Shellfish'],
+      medications: ['Epinephrine auto-injector', 'Antihistamine'],
       emergencyContacts: [
-        { name: 'Michael Smith (Brother)', phone: '+1 (555) 234-5602' },
+        { name: 'Yusuf Syed (Husband)', phone: '+91-9876540002' },
+        { name: 'Dr. Lakshmi Menon (Family Physician)', phone: '+91-9000000003' },
       ],
       incidentTime: new Date(Date.now() - 300000), // 5 min ago
       responders: 1,
@@ -58,22 +59,42 @@ export default function EmergencyDashboardV2() {
     },
     {
       id: 'case-3',
-      patientName: 'Robert Johnson',
-      jeevaId: 'JC-GHI789',
+      patientName: 'Mohan Krishnan',
+      jeevaId: 'JC-MK-2024-015',
       severity: 'medium',
-      condition: 'Fall with possible fracture',
-      age: 72,
-      location: 'Home - 456 Maple Road',
-      coordinates: { lat: 40.758, lng: -73.985 },
+      condition: 'Fall with possible hip fracture',
+      age: 71,
+      location: 'Home - Residency Road, Bangalore',
+      coordinates: { lat: 12.9698, lng: 77.5983 },
       bloodType: 'A+',
       allergies: ['NSAIDs'],
-      medications: ['Warfarin', 'Lisinopril'],
+      medications: ['Warfarin', 'Lisinopril', 'Calcium supplements'],
       emergencyContacts: [
-        { name: 'Emily Johnson (Daughter)', phone: '+1 (555) 345-6703' },
+        { name: 'Radha Krishnan (Daughter)', phone: '+91-9876540003' },
+        { name: 'Dr. Arjun Patel (Orthopedic)', phone: '+91-9000000004' },
       ],
       incidentTime: new Date(Date.now() - 120000), // 2 min ago
       responders: 0,
       status: 'new',
+    },
+    {
+      id: 'case-4',
+      patientName: 'Fatima Begum',
+      jeevaId: 'JC-FB-2024-016',
+      severity: 'medium',
+      condition: 'Acute asthma exacerbation',
+      age: 38,
+      location: 'Linking Road, Bandra, Mumbai',
+      coordinates: { lat: 19.0596, lng: 72.8295 },
+      bloodType: 'AB+',
+      allergies: ['Sulfa drugs'],
+      medications: ['Albuterol inhaler', 'Budesonide'],
+      emergencyContacts: [
+        { name: 'Ahmed Begum (Brother)', phone: '+91-9876540004' },
+      ],
+      incidentTime: new Date(Date.now() - 480000), // 8 min ago
+      responders: 1,
+      status: 'responded',
     },
   ];
 

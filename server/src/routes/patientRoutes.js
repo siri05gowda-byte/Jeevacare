@@ -100,7 +100,7 @@ router.get(
         actor: req.user._id,
         actorRole: 'PATIENT',
         patient: patient._id,
-        action: 'view_patient_profile',
+        action: 'patient_record_accessed',
         ipAddress: req.ip,
         userAgent: req.get('user-agent'),
       });
@@ -141,7 +141,7 @@ router.get(
         actor: req.user._id,
         actorRole: req.user.role,
         patient: patient._id,
-        action: 'view_patient_profile',
+        action: 'patient_record_accessed',
         ipAddress: req.ip,
         userAgent: req.get('user-agent'),
       });
@@ -473,5 +473,75 @@ router.use((error, req, res, next) => {
     error: error.message,
   });
 });
+
+/**
+ * GET /api/v1/patients/:patientId/stats
+ * Get patient's medical record statistics
+ * Accessible by: PATIENT (own), DOCTOR, HOSPITAL_ADMIN, NURSE
+ */
+router.get(
+  '/:patientId/stats',
+  [param('patientId').isMongoId().withMessage('Invalid patient ID')],
+  handleValidationErrors,
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const { patientId } = req.params;
+
+      // Authorization: Patient can only access their own stats
+      if (req.user.role === 'PATIENT') {
+        const patient = await PatientService.getPatientByUserId(req.user._id);
+        if (!patient || patient._id.toString() !== patientId) {
+          return res.status(403).json({
+            success: false,
+            message: 'Not authorized to access this patient',
+          });
+        }
+      }
+
+      // Import required models
+      const Vaccination = (await import('../models/Vaccination.js')).default;
+      const LaboratoryResult = (await import('../models/LaboratoryResult.js')).default;
+      const RadiologyRecord = (await import('../models/RadiologyRecord.js')).default;
+      const DischargeSummary = (await import('../models/DischargeSummary.js')).default;
+      const Document = (await import('../models/Document.js')).default;
+
+      // Count records in parallel
+      const [
+        vaccinations,
+        labResults,
+        radiology,
+        dischargeSummaries,
+        documents,
+      ] = await Promise.all([
+        Vaccination.countDocuments({ patientId, verificationStatus: 'verified' }),
+        LaboratoryResult.countDocuments({ patientId, verificationStatus: 'verified' }),
+        RadiologyRecord.countDocuments({ patientId, verificationStatus: 'verified' }),
+        DischargeSummary.countDocuments({ patientId, verificationStatus: 'verified' }),
+        Document.countDocuments({ patientId }),
+      ]);
+
+      const stats = {
+        vaccinations,
+        labResults,
+        radiology,
+        dischargeSummaries,
+        documents,
+        totalRecords: vaccinations + labResults + radiology + dischargeSummaries,
+      };
+
+      res.json({
+        success: true,
+        data: stats,
+      });
+    } catch (error) {
+      logger.error(`Failed to get patient stats: ${error.message}`);
+      res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
+);
 
 export default router;

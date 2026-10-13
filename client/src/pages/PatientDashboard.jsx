@@ -19,16 +19,19 @@ export default function PatientDashboard() {
     loadAllPatientData,
   } = usePatientStore();
 
-  // Get patient ID from user context (could be user.id if user is patient, or user.patient.id if user is guardian)
-  const patientId = user?.patient?.id || user?.id;
+  // Get patient ID - for PATIENT role, pass null to use /profile endpoint
+  // For GUARDIAN or other roles, pass the specific patientId
+  const patientId = user?.role === 'PATIENT' ? null : (user?.patient?.id || user?.id);
 
   useEffect(() => {
-    if (patientId) {
+    // PATIENT role users pass null to use their own profile endpoint
+    // Other roles pass specific patientId
+    if (user?.role === 'PATIENT' || patientId) {
       loadAllPatientData(patientId).catch((err) => {
         console.error('Failed to load dashboard data:', err);
       });
     }
-  }, [patientId, loadAllPatientData]);
+  }, [patientId, user?.role, loadAllPatientData]);
 
   if (loading) {
     return <LoadingState message="Loading your health dashboard..." />;
@@ -41,7 +44,7 @@ export default function PatientDashboard() {
           <h2 className="text-lg font-semibold text-red-900">Failed to Load Dashboard</h2>
           <p className="text-red-800 mt-2">{error}</p>
           <button
-            onClick={() => patientId && loadAllPatientData(patientId)}
+            onClick={() => loadAllPatientData(patientId)}
             className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition"
           >
             Retry
@@ -170,7 +173,7 @@ export default function PatientDashboard() {
       </div>
 
       {/* AI Health Summary */}
-      <AIHealthSummaryCard patientId={patientId} currentUser={user} />
+      <AIHealthSummaryCard patientId={patient?._id} />
 
       {/* Recent Items Section */}
       <div className="mb-8">

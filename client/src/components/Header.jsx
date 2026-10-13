@@ -1,15 +1,22 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { LogOut, Settings, Menu, X } from 'lucide-react';
 import Logo from './Logo';
 
 export default function Header({ onMenuToggle }) {
+  const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   const [showDropdown, setShowDropdown] = useState(false);
 
   const handleLogout = async () => {
     await logout();
     window.location.href = '/login';
+  };
+
+  const handleSettings = () => {
+    setShowDropdown(false);
+    navigate('/settings');
   };
 
   return (
@@ -57,6 +64,7 @@ export default function Header({ onMenuToggle }) {
         {showDropdown && (
           <div className="absolute right-0 top-12 bg-white border border-gray-200 rounded-lg shadow-lg w-48 z-50 animate-slide-in-up">
             <button
+              onClick={handleSettings}
               className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-sm transition-colors focus-visible:outline-offset-2"
               aria-label="Open settings"
             >

@@ -2,9 +2,17 @@ import api from './api';
 
 export const patientService = {
   /**
-   * Get current patient profile
+   * Get patient profile
+   * If no patientId is provided, gets the current user's patient profile
+   * If patientId is provided, gets the specified patient (requires DOCTOR/ADMIN role)
    */
   getProfile: async (patientId) => {
+    // If no patientId provided, use the /profile endpoint for the current user
+    if (!patientId) {
+      const response = await api.get('/patients/profile');
+      return response;
+    }
+    // Otherwise, get specific patient by ID (requires DOCTOR/ADMIN role)
     const response = await api.get(`/patients/${patientId}`);
     return response;
   },
@@ -38,9 +46,9 @@ export const patientService = {
    * Get AI-generated medical summary
    */
   getMedicalSummary: async (patientId, options = {}) => {
-    const response = await api.post(`/patients/${patientId}/medical-summary`, {
+    const response = await api.post(`/patients/${patientId}/ai-summary`, {
       language: options.language || 'en',
-      includeContext: options.includeContext !== false,
+      regenerate: options.regenerate || false,
     });
     return response;
   },
@@ -49,7 +57,7 @@ export const patientService = {
    * Get patient's critical information (for emergency)
    */
   getCriticalInfo: async (patientId) => {
-    const response = await api.get(`/patients/${patientId}/critical-info`);
+    const response = await api.get(`/emergency/profile/${patientId}/summary`);
     return response;
   },
 
@@ -57,7 +65,7 @@ export const patientService = {
    * Get patient's emergency profile
    */
   getEmergencyProfile: async (patientId) => {
-    const response = await api.get(`/patients/${patientId}/emergency-profile`);
+    const response = await api.get(`/emergency/profile/${patientId}`);
     return response;
   },
 

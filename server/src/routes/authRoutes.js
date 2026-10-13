@@ -280,10 +280,42 @@ router.post(
       const token = generateToken(user._id, user.role);
       const refreshToken = generateRefreshToken(user._id);
 
+      // Prepare user response with additional data
+      const userResponse = user.toJSON();
+
+      // Add facilityId at top level for convenience
+      if (userResponse.profile?.hospitalId) {
+        userResponse.facilityId = userResponse.profile.hospitalId;
+      }
+
+      // If user is a healthcare professional, fetch their professional profile
+      if (['DOCTOR', 'NURSE', 'LAB_TECHNICIAN', 'RADIOLOGY_TECHNICIAN', 'PHARMACIST'].includes(user.role)) {
+        const HealthcareProfessional = (await import('../models/HealthcareProfessional.js')).default;
+        const professional = await HealthcareProfessional.findOne({ userId: user._id })
+          .select('_id professionalId professionalType specialization verificationStatus')
+          .lean();
+        
+        if (professional) {
+          userResponse.professional = professional;
+          userResponse.professionalId = professional._id;
+        }
+      }
+
+      // If user is a patient, fetch their patient profile
+      if (user.role === 'PATIENT') {
+        const patient = await Patient.findOne({ userId: user._id })
+          .select('_id jeevaId')
+          .lean();
+        
+        if (patient) {
+          userResponse.patient = patient;
+        }
+      }
+
       res.json({
         success: true,
         message: 'Login successful',
-        user: user.toJSON(),
+        user: userResponse,
         tokens: {
           token,
           refreshToken,
@@ -362,14 +394,267 @@ router.post('/logout', authMiddleware, async (req, res, next) => {
 });
 
 /**
+ * PUT /api/v1/auth/profile
+ * Update user profile
+ */
+router.put(
+  '/profile',
+  [
+    body('firstName').optional().trim().notEmpty().withMessage('First name cannot be empty'),
+    body('lastName').optional().trim().notEmpty().withMessage('Last name cannot be empty'),
+    body('phone').optional().trim(),
+  ],
+  authMiddleware,
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return next(new ValidationError('Validation failed', errors.array()));
+      }
+
+      const { firstName, lastName, phone } = req.body;
+      const updates = {};
+
+      if (firstName) updates['profile.firstName'] = firstName;
+      if (lastName) updates['profile.lastName'] = lastName;
+      if (phone !== undefined) updates['profile.phone'] = phone;
+
+      const user = await User.findByIdAndUpdate(
+        req.user._id,
+        { $set: updates },
+        { new: true, runValidators: true }
+      );
+
+      if (!user) {
+        return next(new NotFoundError('User not found'));
+      }
+
+      await AuditService.logEvent({
+        actor: req.user._id,
+        actorRole: req.user.role,
+        action: 'patient_profile_updated',
+        details: { updatedFields: Object.keys(updates) },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+      });
+
+      res.json({
+        success: true,
+        message: 'Profile updated successfully',
+        user: user.toJSON(),
+      });
+    } catch (error) {
+      logger.error(`Profile update error: ${error.message}`);
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/v1/auth/change-password
+ * Change user password
+ */
+router.post(
+  '/change-password',
+  [
+    body('currentPassword').notEmpty().withMessage('Current password is required'),
+    body('newPassword')
+      .isLength({ min: 8 })
+      .withMessage('New password must be at least 8 characters')
+      .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
+      .withMessage('Password must contain at least one uppercase letter, one lowercase letter, and one number'),
+  ],
+  authMiddleware,
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return next(new ValidationError('Validation failed', errors.array()));
+      }
+
+      const { currentPassword, newPassword } = req.body;
+
+      // Get user with password
+      const user = await User.findById(req.user._id).select('+passwordHash');
+
+      if (!user) {
+        return next(new NotFoundError('User not found'));
+      }
+
+      // Verify current password
+      const passwordMatch = await user.comparePassword(currentPassword);
+
+      if (!passwordMatch) {
+        await AuditService.logAuthenticationEvent({
+          actor: user._id,
+          action: 'password_change',
+          status: 'failure',
+          statusMessage: 'Current password incorrect',
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent'),
+        });
+
+        return next(new AuthenticationError('Current password is incorrect'));
+      }
+
+      // Update password
+      user.passwordHash = newPassword; // Will be hashed by pre-save hook
+      await user.save();
+
+      await AuditService.logAuthenticationEvent({
+        actor: user._id,
+        action: 'password_change',
+        status: 'success',
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+      });
+
+      res.json({
+        success: true,
+        message: 'Password changed successfully',
+      });
+    } catch (error) {
+      logger.error(`Password change error: ${error.message}`);
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/v1/auth/upload-profile-picture
+ * Upload profile picture to Cloudinary
+ */
+router.post('/upload-profile-picture', authMiddleware, async (req, res, next) => {
+  try {
+    const multer = (await import('multer')).default;
+    const CloudinaryAdapter = (await import('../adapters/CloudinaryAdapter.js')).default;
+
+    // Configure multer for memory storage
+    const upload = multer({
+      storage: multer.memoryStorage(),
+      limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB
+      },
+      fileFilter: (req, file, cb) => {
+        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+        if (allowedTypes.includes(file.mimetype)) {
+          cb(null, true);
+        } else {
+          cb(new Error('Invalid file type. Only JPEG, PNG, and WebP are allowed.'));
+        }
+      },
+    }).single('profilePicture');
+
+    // Handle file upload
+    upload(req, res, async (err) => {
+      if (err) {
+        return next(new ValidationError(err.message));
+      }
+
+      if (!req.file) {
+        return next(new ValidationError('No file uploaded'));
+      }
+
+      try {
+        // Upload to Cloudinary
+        const result = await CloudinaryAdapter.uploadFile(req.file.buffer, {
+          folder: 'jeevacare/profile-pictures',
+          resourceType: 'image',
+          fileName: `profile-${req.user._id}-${Date.now()}`,
+          documentType: 'profile-picture',
+        });
+
+        // Update user profile
+        const user = await User.findByIdAndUpdate(
+          req.user._id,
+          { $set: { 'profile.profilePictureUrl': result.secureUrl || result.url } },
+          { new: true }
+        );
+
+        await AuditService.logEvent({
+          actor: req.user._id,
+          actorRole: req.user.role,
+          action: 'patient_profile_updated',
+          details: { updatedFields: ['profilePictureUrl'] },
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent'),
+        });
+
+        res.json({
+          success: true,
+          message: 'Profile picture uploaded successfully',
+          url: result.secureUrl || result.url,
+          user: user.toJSON(),
+        });
+      } catch (uploadError) {
+        logger.error(`Cloudinary upload error: ${uploadError.message}`);
+        next(new Error('Failed to upload profile picture'));
+      }
+    });
+  } catch (error) {
+    logger.error(`Profile picture upload error: ${error.message}`);
+    next(error);
+  }
+});
+
+/**
  * GET /api/v1/auth/current-user
- * Get current authenticated user
+ * Get current authenticated user with populated data
  */
 router.get('/current-user', authMiddleware, async (req, res) => {
   try {
+    const user = await User.findById(req.user._id)
+      .populate('profile.hospitalId', 'name')
+      .lean();
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found',
+      });
+    }
+
+    // Remove sensitive fields
+    delete user.passwordHash;
+    delete user.twoFactorSecret;
+
+    // Add facilityId at top level for convenience
+    if (user.profile?.hospitalId) {
+      if (typeof user.profile.hospitalId === 'object') {
+        user.facilityId = user.profile.hospitalId._id;
+        user.facilityName = user.profile.hospitalId.name;
+      } else {
+        user.facilityId = user.profile.hospitalId;
+      }
+    }
+
+    // If user is a healthcare professional, fetch their professional profile
+    if (['DOCTOR', 'NURSE', 'LAB_TECHNICIAN', 'RADIOLOGY_TECHNICIAN', 'PHARMACIST'].includes(user.role)) {
+      const HealthcareProfessional = (await import('../models/HealthcareProfessional.js')).default;
+      const professional = await HealthcareProfessional.findOne({ userId: user._id })
+        .select('_id professionalId professionalType specialization verificationStatus facilityAssociations')
+        .lean();
+      
+      if (professional) {
+        user.professional = professional;
+        user.professionalId = professional._id;
+      }
+    }
+
+    // If user is a patient, fetch their patient profile
+    if (user.role === 'PATIENT') {
+      const patient = await Patient.findOne({ userId: user._id })
+        .select('_id jeevaId personalIdentity')
+        .lean();
+      
+      if (patient) {
+        user.patient = patient;
+      }
+    }
+
     res.json({
       success: true,
-      user: req.user.toJSON(),
+      user,
     });
   } catch (error) {
     logger.error(`Current user fetch error: ${error.message}`);
