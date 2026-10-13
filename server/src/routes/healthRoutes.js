@@ -7,6 +7,18 @@ import ttsAdapter from '../adapters/TTSAdapter.js';
 const router = express.Router();
 
 /**
+ * GET /api/v1/health
+ * Basic API v1 health check
+ */
+router.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'JeevaCare API v1 is healthy',
+    timestamp: new Date(),
+  });
+});
+
+/**
  * GET /api/v1/health/services
  * Check status of all external service adapters
  */

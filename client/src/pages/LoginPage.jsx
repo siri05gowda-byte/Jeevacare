@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
+import api from '../services/api';
 import Logo from '../components/Logo';
 
 export default function LoginPage() {
@@ -8,6 +9,13 @@ export default function LoginPage() {
   const { login, isLoading, error, clearError } = useAuthStore();
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [localError, setLocalError] = useState('');
+
+  // Non-blocking warmup ping to spin up cloud backend (e.g. Render free tier) while user types credentials
+  useEffect(() => {
+    api.get('/health/config', { timeout: 15000 }).catch(() => {
+      // Non-blocking background warmup
+    });
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -38,12 +46,18 @@ export default function LoginPage() {
         navigate('/dashboard');
       }
     } catch (err) {
+      const isTimeout =
+        err.code === 'ECONNABORTED' ||
+        err.message?.includes('timeout') ||
+        err.message?.includes('Network Error');
       setLocalError(
-        err.response?.data?.error?.message ||
-        err.response?.data?.message ||
-        (err.response?.status === 429 ? 'Too many login attempts. Please wait a few moments and try again.' : null) ||
-        err.message ||
-        'Login failed'
+        isTimeout
+          ? 'The server is taking longer than usual to respond (waking up from sleep). Please try again in a few moments.'
+          : err.response?.data?.error?.message ||
+            err.response?.data?.message ||
+            (err.response?.status === 429 ? 'Too many login attempts. Please wait a few moments and try again.' : null) ||
+            err.message ||
+            'Login failed'
       );
     }
   };

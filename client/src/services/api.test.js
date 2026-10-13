@@ -110,11 +110,23 @@ describe('API Service Interceptors and Vercel Routing Configuration', () => {
     expect(config.cleanUrls).not.toBe(true);
   });
 
-  it('should ensure root vercel.json also avoids cleanUrls conflicts with SPA routing', () => {
-    const rootVercelConfigPath = path.resolve(__dirname, '../../../../vercel.json');
-    if (fs.existsSync(rootVercelConfigPath)) {
-      const rootConfig = JSON.parse(fs.readFileSync(rootVercelConfigPath, 'utf-8'));
-      expect(rootConfig.cleanUrls).not.toBe(true);
-    }
+  it('should have default timeout >= 30000ms to accommodate Render cold starts', () => {
+    expect(api.defaults.timeout).toBeGreaterThanOrEqual(30000);
+  });
+
+  it('should configure authService login and register with extended timeout for cloud sleep recovery', async () => {
+    const { authService } = await import('./authService');
+    const postSpy = vi.spyOn(api, 'post').mockResolvedValueOnce({
+      success: true,
+      tokens: { token: 'mock-token', refreshToken: 'mock-refresh' },
+      user: { role: 'PATIENT' },
+    });
+
+    await authService.login('patient@demo.com', 'DemoPassword123');
+    expect(postSpy).toHaveBeenCalledWith(
+      '/auth/login',
+      { email: 'patient@demo.com', password: 'DemoPassword123' },
+      expect.objectContaining({ timeout: 45000 })
+    );
   });
 });

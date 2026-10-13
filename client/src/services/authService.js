@@ -2,7 +2,7 @@ import api from './api';
 
 export const authService = {
   register: async (userData) => {
-    const response = await api.post('/auth/register', userData);
+    const response = await api.post('/auth/register', userData, { timeout: 45000 });
     if (response.tokens) {
       localStorage.setItem('token', response.tokens.token);
       localStorage.setItem('refreshToken', response.tokens.refreshToken);
@@ -11,7 +11,7 @@ export const authService = {
   },
 
   login: async (email, password) => {
-    const response = await api.post('/auth/login', { email, password });
+    const response = await api.post('/auth/login', { email, password }, { timeout: 45000 });
     if (response.tokens) {
       localStorage.setItem('token', response.tokens.token);
       localStorage.setItem('refreshToken', response.tokens.refreshToken);
