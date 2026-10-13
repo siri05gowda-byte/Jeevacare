@@ -13,7 +13,9 @@ import {
   Filter, 
   RefreshCw,
   Building2,
-  FileCheck
+  FileCheck,
+  Upload,
+  Download
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import DocumentCard from '../components/DocumentCard';
@@ -22,6 +24,7 @@ import EmptyState from '../components/EmptyState';
 import HealthExplainer from '../components/AI/HealthExplainer';
 import aiService from '../services/aiService';
 import ttsService from '../services/ttsService';
+import radiologyService from '../services/radiologyService';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
 
@@ -40,6 +43,19 @@ export default function RadiologyPage() {
   const [aiError, setAiError] = useState(null);
   const [selectedLanguage, setSelectedLanguage] = useState('English');
   const [showOcrModal, setShowOcrModal] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadData, setUploadData] = useState({
+    file: null,
+    studyDate: '',
+    reportDate: '',
+    modalityType: 'X_RAY',
+    bodyPart: '',
+    clinicalIndication: '',
+    radiologistName: '',
+    radiologistLicense: '',
+  });
+  const [uploadLoading, setUploadLoading] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
 
   const resolvePatientId = useCallback(async (token) => {
     if (user?.profile?.patientId) return user.profile.patientId;
@@ -115,24 +131,43 @@ export default function RadiologyPage() {
     setAiLoading(true);
     setAiError(null);
     try {
-      const explanation = await aiService.getHealthExplanation(
-        record._id,
-        'radiology',
-        {
-          modality: record.modalityType,
-          bodyPart: record.bodyPart,
-          clinicalIndication: record.clinicalIndication,
-          findings: record.findings,
-          impression: record.impression,
-          recommendation: record.recommendation,
-          studyDate: record.studyDate,
-        },
-        language
-      );
-      setAiExplanation(explanation);
+      // First, check if we need to extract text
+      if (!record.findings && !record.impression && !record.ocrData?.extractedText && record.imageReference?.cloudinaryPublicId) {
+        logger.info(`No findings/impression text found, attempting OCR extraction for ${record._id}`);
+        try {
+          await radiologyService.extractRadiologyText(record._id);
+          // Reload the record to get updated OCR data
+          const updatedRecord = await radiologyService.getRadiologyRecord(record._id);
+          setSelectedRecord(updatedRecord);
+          record = updatedRecord; // Use updated record for explanation
+        } catch (ocrError) {
+          logger.warn(`OCR extraction failed: ${ocrError.message}`);
+          // Continue anyway - AI will work with metadata
+        }
+      }
+
+      // Generate explanation using the real backend AI service
+      const result = await radiologyService.explainRadiologyReport(record._id, language);
+      
+      setAiExplanation({
+        explanation: result.data.explanation,
+        keyPoints: result.data.keyPoints || [],
+        uncertainties: result.data.uncertainties || [],
+        disclaimers: result.data.disclaimers || [],
+        metadata: result.data.metadata,
+      });
     } catch (err) {
       console.error('AI Explanation error:', err);
-      setAiError(err.message || 'Unable to generate AI explanation at this time');
+      
+      if (err.response?.data?.code === 'NO_TEXT_AVAILABLE') {
+        setAiError('No report text available. The report needs findings or an uploaded document to explain.');
+      } else if (err.response?.data?.code === 'AI_SERVICE_ERROR') {
+        setAiError('AI service is temporarily unavailable. Please try again later.');
+      } else if (err.response?.data?.code === 'UNSUPPORTED_FORMAT') {
+        setAiError('The report file format is not supported for text extraction.');
+      } else {
+        setAiError(err.message || 'Unable to generate AI explanation at this time');
+      }
       setAiExplanation(null);
     } finally {
       setAiLoading(false);
@@ -173,6 +208,69 @@ export default function RadiologyPage() {
     }
   };
 
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setUploadData(prev => ({ ...prev, file }));
+      setUploadError(null);
+    }
+  };
+
+  const handleUploadSubmit = async (e) => {
+    e.preventDefault();
+    setUploadLoading(true);
+    setUploadError(null);
+
+    try {
+      const patientId = await resolvePatientId(localStorage.getItem('token'));
+      if (!patientId) {
+        throw new Error('Unable to resolve patient identity');
+      }
+
+      // Get hospital ID from user profile
+      const hospitalId = user?.profile?.hospitalId || user?.hospitalId || user?.facilityId;
+      if (!hospitalId) {
+        throw new Error('Hospital ID not found in user profile');
+      }
+
+      await radiologyService.uploadRadiologyReport({
+        ...uploadData,
+        patientId,
+        hospitalId,
+      });
+
+      // Reset form and close modal
+      setUploadData({
+        file: null,
+        studyDate: '',
+        reportDate: '',
+        modalityType: 'X_RAY',
+        bodyPart: '',
+        clinicalIndication: '',
+        radiologistName: '',
+        radiologistLicense: '',
+      });
+      setShowUploadModal(false);
+
+      // Reload records
+      await loadRadiologyRecords();
+    } catch (err) {
+      console.error('Upload error:', err);
+      setUploadError(err.message || 'Failed to upload radiology report');
+    } finally {
+      setUploadLoading(false);
+    }
+  };
+
+  const handleDownloadReport = async (radiologyId) => {
+    try {
+      await radiologyService.downloadRadiologyReport(radiologyId);
+    } catch (err) {
+      console.error('Download error:', err);
+      alert(`Failed to download report: ${err.message}`);
+    }
+  };
+
   // Filter records
   const filteredRecords = radiologyRecords.filter((record) => {
     if (filterCritical && !record.hasCriticalFindings) return false;
@@ -204,6 +302,13 @@ export default function RadiologyPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowUploadModal(true)}
+            className="flex items-center gap-2 px-3.5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm"
+          >
+            <Upload size={16} />
+            <span>Upload Report</span>
+          </button>
           <button
             onClick={() => setShowOcrModal(true)}
             className="flex items-center gap-2 px-3.5 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
@@ -311,6 +416,18 @@ export default function RadiologyPage() {
                 type="radiology"
                 onView={() => setSelectedRecord(record)}
               />
+              {/* Quick Download button if file available */}
+              {record.imageReference?.cloudinaryPublicId && (
+                <div className="absolute top-4 right-48 sm:right-52">
+                  <button
+                    onClick={() => handleDownloadReport(record._id)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded-md transition-colors"
+                  >
+                    <Download size={14} className="text-green-600" />
+                    <span>Download</span>
+                  </button>
+                </div>
+              )}
               {/* Quick AI Explanation CTA overlay button */}
               <div className="absolute top-4 right-24 sm:right-28">
                 <button
@@ -568,6 +685,200 @@ export default function RadiologyPage() {
                 Got it
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Report Modal */}
+      {showUploadModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200 animate-slide-in-up">
+            <form onSubmit={handleUploadSubmit}>
+              {/* Modal Header */}
+              <div className="sticky top-0 bg-white z-10 px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 text-blue-700 rounded-lg">
+                    <Upload size={22} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">Upload Radiology Report</h2>
+                    <p className="text-xs text-gray-500">Upload PDF or image of radiology study</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowUploadModal(false)}
+                  className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+                  aria-label="Close modal"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                {/* Error Display */}
+                {uploadError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-sm text-red-800">
+                    <AlertCircle size={16} className="text-red-600 flex-shrink-0" />
+                    <span>{uploadError}</span>
+                  </div>
+                )}
+
+                {/* File Upload */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Report File <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,.tiff"
+                    onChange={handleFileChange}
+                    required
+                    className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 p-2"
+                  />
+                  {uploadData.file && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Selected: {uploadData.file.name} ({(uploadData.file.size / 1024 / 1024).toFixed(2)} MB)
+                    </p>
+                  )}
+                </div>
+
+                {/* Modality Type */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Modality Type <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={uploadData.modalityType}
+                    onChange={(e) => setUploadData(prev => ({ ...prev, modalityType: e.target.value }))}
+                    required
+                    className="block w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="X_RAY">X-Ray</option>
+                    <option value="CT_SCAN">CT Scan</option>
+                    <option value="MRI">MRI</option>
+                    <option value="ULTRASOUND">Ultrasound</option>
+                    <option value="PET_SCAN">PET Scan</option>
+                    <option value="DEXA_SCAN">DEXA Scan</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+
+                {/* Body Part */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Body Part <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={uploadData.bodyPart}
+                    onChange={(e) => setUploadData(prev => ({ ...prev, bodyPart: e.target.value }))}
+                    required
+                    placeholder="e.g., Chest, Abdomen, Left Knee"
+                    className="block w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Study Date */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Study Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={uploadData.studyDate}
+                    onChange={(e) => setUploadData(prev => ({ ...prev, studyDate: e.target.value }))}
+                    required
+                    className="block w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Report Date */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Report Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={uploadData.reportDate}
+                    onChange={(e) => setUploadData(prev => ({ ...prev, reportDate: e.target.value }))}
+                    required
+                    className="block w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Clinical Indication */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Clinical Indication
+                  </label>
+                  <textarea
+                    value={uploadData.clinicalIndication}
+                    onChange={(e) => setUploadData(prev => ({ ...prev, clinicalIndication: e.target.value }))}
+                    placeholder="Reason for imaging study"
+                    rows={2}
+                    className="block w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Radiologist Info */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Radiologist Name
+                    </label>
+                    <input
+                      type="text"
+                      value={uploadData.radiologistName}
+                      onChange={(e) => setUploadData(prev => ({ ...prev, radiologistName: e.target.value }))}
+                      placeholder="Dr. Name"
+                      className="block w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      License Number
+                    </label>
+                    <input
+                      type="text"
+                      value={uploadData.radiologistLicense}
+                      onChange={(e) => setUploadData(prev => ({ ...prev, radiologistLicense: e.target.value }))}
+                      placeholder="License #"
+                      className="block w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowUploadModal(false)}
+                  disabled={uploadLoading}
+                  className="px-5 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={uploadLoading}
+                  className="px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2"
+                >
+                  {uploadLoading ? (
+                    <>
+                      <RefreshCw size={16} className="animate-spin" />
+                      <span>Uploading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload size={16} />
+                      <span>Upload Report</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

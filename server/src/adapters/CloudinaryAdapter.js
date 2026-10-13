@@ -239,13 +239,21 @@ class CloudinaryAdapter {
       }
 
       const safePublicId = this._sanitizeParam(publicId);
-      const signedUrl = cloudinary.v2.utils.private_download_url(safePublicId, 'pdf', {
-        expires_at: Math.floor(Date.now() / 1000) + expirySeconds,
+      
+      // Generate authenticated URL with signature
+      // Note: Files must be uploaded with appropriate access mode for this to work
+      const timestamp = Math.floor(Date.now() / 1000) + expirySeconds;
+      
+      // Use cloudinary.url() with sign_url option for authenticated access
+      const signedUrl = cloudinary.v2.url(safePublicId, {
         resource_type: 'auto',
-        type: 'private',
+        type: 'upload',
+        sign_url: true,
+        secure: true,
+        expires_at: timestamp,
       });
 
-      logger.info(`✓ Generated secure download URL for: ${safePublicId}`);
+      logger.info(`✓ Generated secure download URL for: ${safePublicId} (expires in ${expirySeconds}s)`);
       return signedUrl;
     } catch (error) {
       logger.error(`Failed to generate secure URL: ${error.message}`);

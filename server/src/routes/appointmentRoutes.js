@@ -260,4 +260,46 @@ router.delete('/:appointmentId', authMiddleware, async (req, res) => {
   }
 });
 
+/**
+ * PATCH /appointments/:appointmentId/status
+ * Update appointment status
+ * 
+ * Body: {
+ *   status: string ('scheduled' | 'arrived' | 'in-progress' | 'completed' | 'cancelled' | 'no-show')
+ * }
+ */
+router.patch('/:appointmentId/status', authMiddleware, async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const { status } = req.body;
+
+    const validStatuses = ['scheduled', 'arrived', 'in-progress', 'completed', 'cancelled', 'no-show'];
+    if (!status || !validStatuses.includes(status)) {
+      return res.status(400).json({
+        error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
+      });
+    }
+
+    const appointment = await AppointmentService.updateAppointmentStatus(
+      appointmentId,
+      status,
+      {
+        id: req.user.id,
+        role: req.user.role,
+        facilityId: req.user.facilityId,
+      }
+    );
+
+    res.json({
+      success: true,
+      data: appointment,
+      message: `Appointment status updated to ${status}`,
+    });
+  } catch (error) {
+    res.status(error.message.includes('Not found') ? 404 : error.message.includes('Not authorized') ? 403 : 400).json({
+      error: error.message,
+    });
+  }
+});
+
 export default router;

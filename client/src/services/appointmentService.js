@@ -78,4 +78,12 @@ export const appointmentService = {
     const response = await api.get(url);
     return response;
   },
+
+  /**
+   * Update appointment status
+   */
+  updateAppointmentStatus: async (appointmentId, status) => {
+    const response = await api.patch(`/appointments/${appointmentId}/status`, { status });
+    return response;
+  },
 };

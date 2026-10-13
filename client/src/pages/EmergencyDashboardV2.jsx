@@ -149,7 +149,18 @@ export default function EmergencyDashboardV2() {
   };
 
   const handleOpenMaps = (coordinates) => {
-    success(`Opening maps to location: ${coordinates.lat.toFixed(4)}, ${coordinates.lng.toFixed(4)}`);
+    if (!coordinates || typeof coordinates.lat !== 'number' || typeof coordinates.lng !== 'number') {
+      showError('Invalid location coordinates');
+      return;
+    }
+    
+    // Create Google Maps URL with the coordinates
+    const mapsUrl = `https://www.google.com/maps?q=${coordinates.lat},${coordinates.lng}`;
+    
+    // Open in new tab
+    window.open(mapsUrl, '_blank', 'noopener,noreferrer');
+    
+    success(`Opening Google Maps to location: ${coordinates.lat.toFixed(4)}, ${coordinates.lng.toFixed(4)}`);
   };
 
   return (

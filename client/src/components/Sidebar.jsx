@@ -23,6 +23,15 @@ export default function Sidebar({ isOpen = true, onClose }) {
       { name: 'Patients', path: '/hospital/patients', icon: Users },
       { name: 'Appointments', path: '/hospital/appointments', icon: Calendar },
       { name: 'My Schedule', path: '/hospital/schedule', icon: Stethoscope },
+      { name: 'Upload Documents', path: '/staff/upload-documents', icon: FileText },
+    ],
+    LAB_TECHNICIAN: [
+      { name: 'Dashboard', path: '/provider', icon: Home },
+      { name: 'Upload Documents', path: '/staff/upload-documents', icon: FileText },
+    ],
+    RADIOLOGY_TECHNICIAN: [
+      { name: 'Dashboard', path: '/provider', icon: Home },
+      { name: 'Upload Documents', path: '/staff/upload-documents', icon: FileText },
     ],
     HOSPITAL_ADMIN: [
       { name: 'Dashboard', path: '/hospital/dashboard', icon: Home },

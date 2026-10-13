@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { param, body, query, validationResult } from 'express-validator';
 import multer from 'multer';
 import DocumentService from '../services/DocumentService.js';
-import { authMiddleware } from '../middleware/authentication.js';
+import { authMiddleware, requireRole } from '../middleware/authentication.js';
 import logger from '../utils/logger.js';
 
 const router = Router();
@@ -43,10 +43,13 @@ const upload = multer({
 /**
  * Upload medical document
  * POST /api/v1/documents/upload
+ * Accessible by staff roles: DOCTOR, LAB_TECHNICIAN, RADIOLOGY_TECHNICIAN, NURSE, HOSPITAL_ADMIN
+ * Patients cannot upload documents for other patients using this endpoint
  */
 router.post(
   '/upload',
   authMiddleware,
+  requireRole('DOCTOR', 'LAB_TECHNICIAN', 'RADIOLOGY_TECHNICIAN', 'NURSE', 'HOSPITAL_ADMIN'),
   upload.single('file'),
   [
     body('patientId')
@@ -183,6 +186,90 @@ router.get(
       res.status(500).json({
         success: false,
         error: 'Failed to retrieve document',
+        details: error.message,
+      });
+    }
+  }
+);
+
+/**
+ * Download document file
+ * GET /api/v1/documents/:documentId/download
+ */
+router.get(
+  '/:documentId/download',
+  authMiddleware,
+  [param('documentId').isMongoId().withMessage('Invalid document ID')],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { documentId } = req.params;
+      const requesterId = req.user._id;
+
+      const result = await DocumentService.getDocument(documentId, requesterId);
+
+      if (!result.success) {
+        return res.status(result.statusCode || 404).json({
+          success: false,
+          error: result.error,
+          code: result.code,
+        });
+      }
+
+      const document = result.document;
+      
+      // Check if file reference exists
+      if (!document.fileReference?.cloudinaryPublicId || !document.fileReference?.cloudinaryUrl) {
+        return res.status(404).json({
+          success: false,
+          error: 'Document file not found in storage',
+          code: 'FILE_NOT_FOUND',
+        });
+      }
+
+      // Get secure download URL from Cloudinary
+      const CloudinaryAdapter = (await import('../adapters/CloudinaryAdapter.js')).default;
+      const downloadUrl = await CloudinaryAdapter.getSecureDownloadUrl(
+        document.fileReference.cloudinaryPublicId,
+        3600 // 1 hour expiry
+      );
+
+      if (!downloadUrl) {
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to generate download link',
+          code: 'DOWNLOAD_GENERATION_FAILED',
+        });
+      }
+
+      // Log download in audit trail
+      await (await import('../services/AuditService.js')).default.logEvent({
+        actor: requesterId,
+        action: 'document_downloaded',
+        resource: documentId,
+        resourceType: 'document',
+        patient: document.patientId,
+        status: 'success',
+        details: {
+          documentName: document.name,
+          fileSize: document.fileReference.fileSize,
+        },
+      });
+
+      res.json({
+        success: true,
+        downloadUrl,
+        fileName: document.name,
+      });
+    } catch (error) {
+      logger.error(`Failed to download document: ${error.message}`);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to generate download link',
         details: error.message,
       });
     }

@@ -10,11 +10,16 @@ import IntegratedDashboardPage from './pages/IntegratedDashboardPage';
 import PatientDashboardV2 from './pages/PatientDashboardV2';
 import ProviderDashboardV2 from './pages/ProviderDashboardV2';
 import EmergencyDashboardV2 from './pages/EmergencyDashboardV2';
+import HospitalPatientsPage from './pages/HospitalPatientsPage';
+import HospitalAppointmentsPage from './pages/HospitalAppointmentsPage';
+import HospitalSchedulePage from './pages/HospitalSchedulePage';
+import PatientAppointmentsPage from './pages/PatientAppointmentsPage';
 import DocumentsPage from './pages/DocumentsPage';
 import AppointmentBookingPage from './pages/AppointmentBookingPage';
 import ProviderEncounterPage from './pages/ProviderEncounterPage';
 import EmergencyAccessPage from './pages/EmergencyAccessPage';
 import DocumentUploadPage from './pages/DocumentUploadPage';
+import StaffDocumentUpload from './pages/StaffDocumentUpload';
 import RadiologyPage from './pages/RadiologyPage';
 import SettingsPage from './pages/SettingsPage';
 
@@ -69,13 +74,20 @@ function App() {
             <Route path="provider" element={<ProviderDashboardV2 />} />
             <Route path="emergency" element={<EmergencyDashboardV2 />} />
             <Route path="documents" element={<DocumentsPage />} />
-            <Route path="appointments" element={<AppointmentBookingPage />} />
+            <Route path="radiology" element={<RadiologyPage />} />
+            <Route path="appointments" element={<PatientAppointmentsPage />} />
+            <Route path="appointments/book" element={<AppointmentBookingPage />} />
             <Route path="encounter" element={<ProviderEncounterPage />} />
             <Route path="emergency-access" element={<EmergencyAccessPage />} />
             <Route path="upload-documents" element={<DocumentUploadPage />} />
-            <Route path="radiology" element={<RadiologyPage />} />
+            <Route path="staff/upload-documents" element={<StaffDocumentUpload />} />
             <Route path="integrated-dashboard" element={<IntegratedDashboardPage />} />
             <Route path="settings" element={<SettingsPage />} />
+            
+            {/* Hospital/Doctor routes */}
+            <Route path="hospital/patients" element={<HospitalPatientsPage />} />
+            <Route path="hospital/appointments" element={<HospitalAppointmentsPage />} />
+            <Route path="hospital/schedule" element={<HospitalSchedulePage />} />
           </Route>
 
           {/* Catch-all */}

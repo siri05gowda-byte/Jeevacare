@@ -451,6 +451,86 @@ class AppointmentService {
       );
     }
   }
+
+  /**
+   * Update appointment status
+   * @param {String} appointmentId
+   * @param {String} newStatus - New status ('scheduled', 'arrived', 'in-progress', 'completed', 'cancelled', 'no-show')
+   * @param {Object} requestingUser
+   * @returns {Object} Updated appointment
+   */
+  static async updateAppointmentStatus(appointmentId, newStatus, requestingUser) {
+    try {
+      const appointment = await Appointment.findById(appointmentId);
+
+      if (!appointment) {
+        throw new Error(`Appointment not found: ${appointmentId}`);
+      }
+
+      // Authorization: Only doctor or staff at the facility can update status
+      if (requestingUser.role === 'PATIENT') {
+        throw new Error('Patients cannot update appointment status');
+      }
+
+      if (requestingUser.role === 'DOCTOR') {
+        // Verify doctor is authorized at this facility
+        const patient = await Patient.findById(appointment.patientId);
+        if (!patient) {
+          throw new Error('Patient not found for appointment');
+        }
+
+        const { authorized } =
+          await ClinicalAuthorizationBoundary.canCreateOfficialClinicalRecord(
+            requestingUser._id,
+            appointment.hospitalId,
+            patient._id
+          );
+        
+        if (!authorized) {
+          throw new Error('Not authorized to update this appointment');
+        }
+      }
+
+      // Update the status
+      const oldStatus = appointment.status;
+      appointment.status = newStatus;
+      
+      // Add status change to history
+      if (!appointment.statusHistory) {
+        appointment.statusHistory = [];
+      }
+      
+      appointment.statusHistory.push({
+        status: newStatus,
+        changedAt: new Date(),
+        changedBy: requestingUser._id,
+        changedByRole: requestingUser.role,
+      });
+
+      await appointment.save();
+
+      // Audit event
+      await AuditService.logEvent({
+        action: 'appointment_status_updated',
+        actor: requestingUser._id,
+        actorRole: requestingUser.role,
+        resource: appointment._id,
+        resourceType: 'appointment',
+        patient: appointment.patientId,
+        status: 'success',
+        details: {
+          appointmentId: appointment._id,
+          oldStatus,
+          newStatus,
+          facilityId: appointment.hospitalId,
+        },
+      });
+
+      return appointment;
+    } catch (error) {
+      throw new Error(`Failed to update appointment status: ${error.message}`);
+    }
+  }
 }
 
 export default AppointmentService;

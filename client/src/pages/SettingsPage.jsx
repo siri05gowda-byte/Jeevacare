@@ -123,20 +123,37 @@ export default function SettingsPage() {
       const formData = new FormData();
       formData.append('profilePicture', file);
 
-      const response = await api.post('/auth/upload-profile-picture', formData, {
+      const token = localStorage.getItem('token');
+      
+      // Use fetch directly for multipart to avoid axios header interference
+      const response = await fetch(`${api.defaults.baseURL}/auth/upload-profile-picture`, {
+        method: 'POST',
         headers: {
-          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${token}`,
         },
+        body: formData,
       });
 
-      if (response.success) {
-        setUser(response.user);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || errorData.message || 'Upload failed');
+      }
+
+      const data = await response.json();
+      
+      if (data.success) {
+        // Refresh user data
+        const userResponse = await fetch(`${api.defaults.baseURL}/auth/current-user`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const userData = await userResponse.json();
+        setUser(userData.user);
         setPictureMessage({ type: 'success', text: 'Profile picture updated successfully' });
       }
     } catch (error) {
       setPictureMessage({
         type: 'error',
-        text: error.response?.data?.error || error.message || 'Failed to upload picture',
+        text: error.message || 'Failed to upload picture',
       });
     } finally {
       setUploadingPicture(false);
