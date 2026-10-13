@@ -101,6 +101,9 @@ app.use('/api/v1/newborn', (await import('./routes/newbornRoutes.js')).default);
 app.use('/api/v1/guardians', (await import('./routes/guardianRoutes.js')).default);
 app.use('/api/v1/emergency', (await import('./routes/emergencyRoutes.js')).default);
 
+// Phase 4 Staff Management Routes
+app.use('/api/v1/staff', (await import('./routes/staffRoutes.js')).default);
+
 // Phase 5 Clinical Core Routes
 app.use('/api/v1/appointments', (await import('./routes/appointmentRoutes.js')).default);
 app.use('/api/v1/schedules', (await import('./routes/scheduleRoutes.js')).default);
