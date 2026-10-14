@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Users, UserPlus, CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Users, UserPlus, CheckCircle, XCircle, Clock, AlertCircle, Search } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { staffService } from '../services/staffService';
 import LoadingState from '../components/LoadingState';
@@ -23,9 +23,69 @@ export default function HospitalStaffPage() {
     specialization: '',
   });
 
+  // User and facility search state
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [facilitySearchQuery, setFacilitySearchQuery] = useState('');
+  const [userSearchResults, setUserSearchResults] = useState([]);
+  const [facilitySearchResults, setFacilitySearchResults] = useState([]);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [selectedFacility, setSelectedFacility] = useState(null);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [showFacilityDropdown, setShowFacilityDropdown] = useState(false);
+
   useEffect(() => {
     loadStaffData();
   }, []);
+
+  // Debounced search for users
+  const searchUsers = useCallback(async (query) => {
+    if (!query || query.trim().length < 2) {
+      setUserSearchResults([]);
+      return;
+    }
+    
+    try {
+      const response = await staffService.searchUsers(query);
+      setUserSearchResults(response.data || []);
+    } catch (err) {
+      console.error('User search failed:', err);
+      setUserSearchResults([]);
+    }
+  }, []);
+
+  // Debounced search for facilities
+  const searchFacilities = useCallback(async (query) => {
+    if (!query || query.trim().length < 2) {
+      setFacilitySearchResults([]);
+      return;
+    }
+    
+    try {
+      const response = await staffService.searchFacilities(query);
+      setFacilitySearchResults(response.data || []);
+    } catch (err) {
+      console.error('Facility search failed:', err);
+      setFacilitySearchResults([]);
+    }
+  }, []);
+
+  // Handle user search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      searchUsers(userSearchQuery);
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [userSearchQuery, searchUsers]);
+
+  // Handle facility search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      searchFacilities(facilitySearchQuery);
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [facilitySearchQuery, searchFacilities]);
 
   const loadStaffData = async () => {
     setLoading(true);
@@ -51,20 +111,25 @@ export default function HospitalStaffPage() {
     e.preventDefault();
     setError(null);
     
-    if (!selectedFacilityId) {
-      setError('Please select a facility first');
+    if (!selectedFacility) {
+      setError('Please select a facility');
       return;
     }
 
-    if (!inviteForm.userId) {
-      setError('User ID is required');
+    if (!selectedUser) {
+      setError('Please select a user');
       return;
     }
 
     try {
       await staffService.inviteStaff({
-        ...inviteForm,
-        hospitalId: selectedFacilityId,
+        userId: selectedUser._id,
+        hospitalId: selectedFacility._id,
+        role: inviteForm.role,
+        department: inviteForm.department,
+        employmentStatus: inviteForm.employmentStatus,
+        startDate: inviteForm.startDate,
+        specialization: inviteForm.specialization,
       });
       
       setShowInviteForm(false);
@@ -76,6 +141,10 @@ export default function HospitalStaffPage() {
         startDate: new Date().toISOString().split('T')[0],
         specialization: '',
       });
+      setSelectedUser(null);
+      setSelectedFacility(null);
+      setUserSearchQuery('');
+      setFacilitySearchQuery('');
       
       // Reload staff data
       await loadStaffData();
@@ -167,37 +236,139 @@ export default function HospitalStaffPage() {
         <div className="mb-8 p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Invite New Staff Member</h2>
           <form onSubmit={handleInviteStaff} className="space-y-4">
-            <div>
+            {/* User Search */}
+            <div className="relative">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                User ID (MongoDB ObjectId) *
+                Search User *
               </label>
-              <input
-                type="text"
-                value={inviteForm.userId}
-                onChange={(e) => setInviteForm({ ...inviteForm, userId: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="507f1f77bcf86cd799439011"
-                required
-              />
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search size={18} className="text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  value={selectedUser ? `${selectedUser.firstName} ${selectedUser.lastName} (${selectedUser.email})` : userSearchQuery}
+                  onChange={(e) => {
+                    setUserSearchQuery(e.target.value);
+                    setSelectedUser(null);
+                    setShowUserDropdown(true);
+                  }}
+                  onFocus={() => setShowUserDropdown(true)}
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Type name or email..."
+                  required
+                />
+              </div>
+              {showUserDropdown && userSearchResults.length > 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  {userSearchResults.map((user) => (
+                    <button
+                      key={user._id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedUser(user);
+                        setUserSearchQuery('');
+                        setShowUserDropdown(false);
+                      }}
+                      className="w-full text-left px-4 py-2 hover:bg-blue-50 transition"
+                    >
+                      <div className="font-medium text-gray-900">
+                        {user.firstName} {user.lastName}
+                      </div>
+                      <div className="text-sm text-gray-600">{user.email}</div>
+                      <div className="text-xs text-gray-500">Role: {user.role}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {selectedUser && (
+                <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="font-medium text-green-900">
+                        {selectedUser.firstName} {selectedUser.lastName}
+                      </div>
+                      <div className="text-sm text-green-700">{selectedUser.email}</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedUser(null)}
+                      className="text-green-700 hover:text-green-900"
+                    >
+                      <XCircle size={20} />
+                    </button>
+                  </div>
+                </div>
+              )}
               <p className="text-xs text-gray-500 mt-1">
-                The MongoDB ObjectId of the user you want to invite. User must have registered first.
+                Search for registered users by name or email
               </p>
             </div>
 
-            <div>
+            {/* Facility Search */}
+            <div className="relative">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Facility ID *
+                Search Facility *
               </label>
-              <input
-                type="text"
-                value={selectedFacilityId || ''}
-                onChange={(e) => setSelectedFacilityId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="507f1f77bcf86cd799439012"
-                required
-              />
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search size={18} className="text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  value={selectedFacility ? selectedFacility.name : facilitySearchQuery}
+                  onChange={(e) => {
+                    setFacilitySearchQuery(e.target.value);
+                    setSelectedFacility(null);
+                    setShowFacilityDropdown(true);
+                  }}
+                  onFocus={() => setShowFacilityDropdown(true)}
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Type facility name..."
+                  required
+                />
+              </div>
+              {showFacilityDropdown && facilitySearchResults.length > 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  {facilitySearchResults.map((facility) => (
+                    <button
+                      key={facility._id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedFacility(facility);
+                        setFacilitySearchQuery('');
+                        setShowFacilityDropdown(false);
+                      }}
+                      className="w-full text-left px-4 py-2 hover:bg-blue-50 transition"
+                    >
+                      <div className="font-medium text-gray-900">{facility.name}</div>
+                      <div className="text-sm text-gray-600">{facility.type}</div>
+                      {facility.address && (
+                        <div className="text-xs text-gray-500">{facility.address}</div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {selectedFacility && (
+                <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="font-medium text-green-900">{selectedFacility.name}</div>
+                      <div className="text-sm text-green-700">{selectedFacility.type}</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedFacility(null)}
+                      className="text-green-700 hover:text-green-900"
+                    >
+                      <XCircle size={20} />
+                    </button>
+                  </div>
+                </div>
+              )}
               <p className="text-xs text-gray-500 mt-1">
-                The MongoDB ObjectId of the hospital/facility
+                Search for hospitals and clinics by name
               </p>
             </div>
 
@@ -361,15 +532,16 @@ export default function HospitalStaffPage() {
           Staff Onboarding Process
         </h3>
         <ul className="text-sm text-blue-800 space-y-2">
-          <li>1. Staff member registers an account (as PATIENT role)</li>
-          <li>2. Hospital admin invites the user to the facility with the desired role</li>
-          <li>3. Hospital admin (or SYSTEM_ADMIN) approves the invitation</li>
-          <li>4. Staff member can now log in and access facility features</li>
+          <li>1. Staff member registers an account on JeevaCare</li>
+          <li>2. Hospital admin searches for and selects the user</li>
+          <li>3. Hospital admin invites the user to the facility with the desired role</li>
+          <li>4. Hospital admin (or SYSTEM_ADMIN) approves the invitation</li>
+          <li>5. Staff member can now log in and access facility features</li>
         </ul>
         <div className="mt-4 p-3 bg-blue-100 rounded">
           <p className="text-xs text-blue-900">
-            <strong>Note:</strong> To get User IDs and Facility IDs, you can use the database directly or 
-            implement user search functionality. Staff members must register first before they can be invited.
+            <strong>Note:</strong> Use the search fields above to find registered users and facilities. 
+            Staff members must register first before they can be invited to a facility.
           </p>
         </div>
       </div>

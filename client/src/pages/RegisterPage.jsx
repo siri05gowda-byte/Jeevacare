@@ -11,14 +11,34 @@ export default function RegisterPage() {
     password: '',
     firstName: '',
     lastName: '',
+    phone: '',
     role: 'PATIENT',
     dateOfBirth: '',
     sex: '',
+    aadhaarNumber: '',
+    // Staff-specific fields
+    specialization: '',
+    department: '',
+    licenseNumber: '',
     termsAccepted: false,
   });
   const [localError, setLocalError] = useState('');
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+
+  // Role categories for dynamic form fields
+  const STAFF_ROLES = [
+    'DOCTOR',
+    'NURSE',
+    'LAB_TECHNICIAN',
+    'RADIOLOGY_TECHNICIAN',
+    'PHARMACIST',
+    'PARAMEDIC',
+    'RECEPTION_STAFF',
+    'OTHER_STAFF',
+  ];
+
+  const isStaffRole = STAFF_ROLES.includes(formData.role);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -56,6 +76,12 @@ export default function RegisterPage() {
         return 'Date of birth cannot be in the future.';
       }
     }
+    if (formData.aadhaarNumber && formData.aadhaarNumber.trim()) {
+      const cleaned = formData.aadhaarNumber.replace(/[\s-]/g, '');
+      if (!/^\d{12}$/.test(cleaned)) {
+        return 'Aadhaar number must be exactly 12 digits.';
+      }
+    }
     if (!formData.termsAccepted) {
       return 'You must accept the Terms and Conditions and Privacy Policy.';
     }
@@ -74,21 +100,41 @@ export default function RegisterPage() {
     }
 
     try {
-      const response = await register({
+      const registrationData = {
         email: formData.email.trim(),
         password: formData.password,
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
         role: formData.role || 'PATIENT',
+        phone: formData.phone.trim() || undefined,
         dateOfBirth: formData.dateOfBirth || undefined,
         sex: formData.sex || undefined,
+        aadhaarNumber: formData.aadhaarNumber.trim() || undefined,
         termsAccepted: formData.termsAccepted,
         privacyPolicyAccepted: formData.termsAccepted,
-      });
+      };
+
+      // Add staff-specific fields if applicable
+      if (isStaffRole) {
+        if (formData.specialization) registrationData.specialization = formData.specialization.trim();
+        if (formData.department) registrationData.department = formData.department.trim();
+        if (formData.licenseNumber) registrationData.licenseNumber = formData.licenseNumber.trim();
+      }
+
+      const response = await register(registrationData);
 
       // Role-based post-registration navigation
       const role = response?.user?.role;
-      if (role === 'DOCTOR') {
+      const isStaff = STAFF_ROLES.includes(role);
+      
+      if (isStaff) {
+        // Staff accounts need verification - show info message
+        navigate('/dashboard', { 
+          state: { 
+            message: 'Registration successful! Your account is pending verification. You will be able to access staff features once a hospital administrator approves your account.' 
+          } 
+        });
+      } else if (role === 'DOCTOR') {
         navigate('/provider');
       } else if (role === 'EMERGENCY') {
         navigate('/emergency');
@@ -134,7 +180,7 @@ export default function RegisterPage() {
           {/* Header & Logo */}
           <div className="text-center mb-6">
             <div className="flex justify-center mb-3">
-              <Logo variant="light" size="md" />
+              <Logo variant="full" size="md" />
             </div>
             <p className="text-gray-600 text-sm">Join your lifelong health journey</p>
           </div>
@@ -242,13 +288,113 @@ export default function RegisterPage() {
                 disabled={isLoading}
                 required
               >
-                <option value="PATIENT">Patient (Personal Health Record)</option>
-                <option value="GUARDIAN">Guardian (Family Health Manager)</option>
+                <optgroup label="Personal Accounts">
+                  <option value="PATIENT">Patient (Personal Health Record)</option>
+                  <option value="GUARDIAN">Guardian (Family Health Manager)</option>
+                </optgroup>
+                <optgroup label="Healthcare Staff">
+                  <option value="DOCTOR">Doctor</option>
+                  <option value="NURSE">Nurse</option>
+                  <option value="LAB_TECHNICIAN">Lab Technician</option>
+                  <option value="RADIOLOGY_TECHNICIAN">Radiology Technician</option>
+                  <option value="PHARMACIST">Pharmacist</option>
+                  <option value="PARAMEDIC">Paramedic</option>
+                  <option value="RECEPTION_STAFF">Reception Staff</option>
+                  <option value="OTHER_STAFF">Other Healthcare Staff</option>
+                </optgroup>
               </select>
-              <p className="text-xs text-gray-500 mt-1">
-                Clinical and hospital staff accounts are provisioned by facility administrators.
-              </p>
+              {isStaffRole ? (
+                <p className="text-xs text-amber-600 mt-1 flex items-start gap-1">
+                  <span className="text-base">⚠️</span>
+                  <span>
+                    Staff accounts require verification. After registration, you will need to be invited
+                    and approved by a hospital administrator before accessing clinical features.
+                  </span>
+                </p>
+              ) : (
+                <p className="text-xs text-gray-500 mt-1">
+                  Patient and Guardian accounts are verified immediately upon registration.
+                </p>
+              )}
             </div>
+
+            {/* Phone Number (required for staff) */}
+            <div>
+              <label className="form-label" htmlFor="phone">
+                Phone Number {isStaffRole && <span className="text-red-500">*</span>}
+              </label>
+              <input
+                id="phone"
+                type="tel"
+                name="phone"
+                value={formData.phone}
+                onChange={handleChange}
+                className="form-input w-full"
+                placeholder="+91 9876543210"
+                disabled={isLoading}
+                required={isStaffRole}
+              />
+            </div>
+
+            {/* Staff-specific fields */}
+            {isStaffRole && (
+              <>
+                {formData.role === 'DOCTOR' && (
+                  <div>
+                    <label className="form-label" htmlFor="specialization">
+                      Specialization
+                    </label>
+                    <input
+                      id="specialization"
+                      type="text"
+                      name="specialization"
+                      value={formData.specialization}
+                      onChange={handleChange}
+                      className="form-input w-full"
+                      placeholder="e.g., General Practice, Cardiology"
+                      disabled={isLoading}
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="form-label" htmlFor="department">
+                    Department
+                  </label>
+                  <input
+                    id="department"
+                    type="text"
+                    name="department"
+                    value={formData.department}
+                    onChange={handleChange}
+                    className="form-input w-full"
+                    placeholder="e.g., General Medicine, Laboratory"
+                    disabled={isLoading}
+                  />
+                </div>
+
+                {['DOCTOR', 'NURSE', 'PHARMACIST'].includes(formData.role) && (
+                  <div>
+                    <label className="form-label" htmlFor="licenseNumber">
+                      Professional License Number
+                    </label>
+                    <input
+                      id="licenseNumber"
+                      type="text"
+                      name="licenseNumber"
+                      value={formData.licenseNumber}
+                      onChange={handleChange}
+                      className="form-input w-full"
+                      placeholder="Enter license/registration number"
+                      disabled={isLoading}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Optional: Will be verified during hospital onboarding
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
 
             {/* Date of Birth & Sex */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -286,6 +432,27 @@ export default function RegisterPage() {
                   <option value="Prefer not to say">Prefer not to say</option>
                 </select>
               </div>
+            </div>
+
+            {/* Aadhaar Number (Optional) */}
+            <div>
+              <label className="form-label" htmlFor="aadhaarNumber">
+                Aadhaar Number (Optional)
+              </label>
+              <input
+                id="aadhaarNumber"
+                type="text"
+                name="aadhaarNumber"
+                value={formData.aadhaarNumber}
+                onChange={handleChange}
+                className="form-input w-full"
+                placeholder="1234 5678 9012"
+                maxLength="14"
+                disabled={isLoading}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                12-digit Aadhaar number. Spaces and hyphens will be removed automatically.
+              </p>
             </div>
 
             {/* Terms and Privacy Acceptance */}

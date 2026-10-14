@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { param, body, query, validationResult } from 'express-validator';
 import multer from 'multer';
 import DocumentService from '../services/DocumentService.js';
+import Notification from '../models/Notification.js';
 import { authMiddleware, requireRole } from '../middleware/authentication.js';
 import logger from '../utils/logger.js';
 
@@ -132,6 +133,26 @@ router.post(
           error: result.error,
           code: result.code,
         });
+      }
+
+      // Create notification for patient about new document
+      try {
+        await Notification.createNotification({
+          userId: result.document.patient,
+          type: 'document_uploaded',
+          title: 'New Document Uploaded',
+          message: `A new ${documentType.replace(/_/g, ' ')} has been uploaded to your medical records${issuingFacility ? ` by ${issuingFacility}` : ''}.`,
+          link: '/documents',
+          metadata: {
+            documentId: result.document._id,
+            documentType,
+            uploadedBy: requesterId,
+            issuingFacility,
+          },
+        });
+      } catch (notifError) {
+        logger.warn(`Failed to create document upload notification: ${notifError.message}`);
+        // Don't fail the upload if notification fails
       }
 
       res.json({

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { LogOut, Settings, Menu, X } from 'lucide-react';
 import Logo from './Logo';
+import NotificationBell from './NotificationBell';
 
 export default function Header({ onMenuToggle }) {
   const navigate = useNavigate();
@@ -45,7 +46,10 @@ export default function Header({ onMenuToggle }) {
       </div>
 
       {/* Right: User Controls */}
-      <div className="flex items-center gap-4 relative">
+      <div className="flex items-center gap-2 relative">
+        {/* Notification Bell */}
+        <NotificationBell />
+
         <div className="text-right hidden sm:block">
           <p className="text-sm font-medium text-gray-800">{user?.profile?.firstName}</p>
           <p className="text-xs text-gray-500">{user?.role}</p>

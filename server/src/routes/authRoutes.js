@@ -6,6 +6,7 @@ import logger from '../utils/logger.js';
 import { generateToken, generateRefreshToken, verifyRefreshToken } from '../utils/auth.js';
 import { authMiddleware } from '../middleware/authentication.js';
 import AuditService from '../services/AuditService.js';
+import { generateJeevaId } from '../utils/jeevaIdGenerator.js';
 import {
   ValidationError,
   AuthenticationError,
@@ -17,25 +18,44 @@ import {
 
 const router = express.Router();
 
-const ALLOWED_PUBLIC_ROLES = ['PATIENT', 'GUARDIAN'];
-const PRIVILEGED_ROLES = [
+// All supported user roles for registration
+const ALL_USER_ROLES = [
+  'PATIENT',
+  'GUARDIAN',
   'DOCTOR',
-  'ADMIN',
-  'HOSPITAL_ADMIN',
-  'EMERGENCY',
-  'PARAMEDIC',
-  'SYSTEM_ADMIN',
   'NURSE',
   'LAB_TECHNICIAN',
   'RADIOLOGY_TECHNICIAN',
   'PHARMACIST',
+  'PARAMEDIC',
   'RECEPTION_STAFF',
+  'OTHER_STAFF',
 ];
+
+// Roles that bypass verification (patients and guardians)
+const AUTO_VERIFIED_ROLES = ['PATIENT', 'GUARDIAN'];
+
+// Roles that require verification (all staff roles)
+const STAFF_ROLES = [
+  'DOCTOR',
+  'NURSE',
+  'LAB_TECHNICIAN',
+  'RADIOLOGY_TECHNICIAN',
+  'PHARMACIST',
+  'PARAMEDIC',
+  'RECEPTION_STAFF',
+  'OTHER_STAFF',
+];
+
+// Administrative roles that cannot self-register
+const ADMIN_ROLES = ['HOSPITAL_ADMIN', 'EMERGENCY', 'SYSTEM_ADMIN'];
 
 /**
  * POST /api/v1/auth/register
- * Public registration for patients and guardians only.
- * Privileged accounts (doctors, hospital admins, etc.) must follow authorized provisioning workflows.
+ * Public registration for all user roles.
+ * - PATIENT/GUARDIAN: Auto-verified
+ * - Staff roles: Pending verification until hospital admin approves
+ * - Admin roles: Cannot self-register
  */
 router.post(
   '/register',
@@ -49,13 +69,13 @@ router.post(
       .custom((value) => {
         if (!value) return true;
         const upper = value.toUpperCase();
-        if (PRIVILEGED_ROLES.includes(upper)) {
+        if (ADMIN_ROLES.includes(upper)) {
           throw new Error(
-            'Self-registration for privileged roles is prohibited. Privileged accounts must be provisioned through authorized facility workflows.'
+            'Self-registration for administrative roles is prohibited. Admin accounts must be provisioned by system administrators.'
           );
         }
-        if (!ALLOWED_PUBLIC_ROLES.includes(upper)) {
-          throw new Error('Invalid role. Public registration only permits PATIENT or GUARDIAN accounts.');
+        if (!ALL_USER_ROLES.includes(upper)) {
+          throw new Error('Invalid role. Please select a valid user role.');
         }
         return true;
       }),
@@ -73,6 +93,18 @@ router.post(
       .optional({ checkFalsy: true })
       .isIn(['M', 'F', 'O', 'Prefer not to say'])
       .withMessage('Sex must be M, F, O, or Prefer not to say'),
+    body('aadhaarNumber')
+      .optional({ checkFalsy: true })
+      .trim()
+      .custom((value) => {
+        if (!value) return true;
+        // Remove spaces and hyphens
+        const cleaned = value.replace(/[\s-]/g, '');
+        if (!/^\d{12}$/.test(cleaned)) {
+          throw new Error('Aadhaar number must be exactly 12 digits');
+        }
+        return true;
+      }),
   ],
   async (req, res, next) => {
     try {
@@ -81,20 +113,20 @@ router.post(
         return next(new ValidationError('Validation failed', errors.array()));
       }
 
-      const { email, password, firstName, lastName, phone } = req.body;
+      const { email, password, firstName, lastName, phone, aadhaarNumber } = req.body;
 
-      // Enforce role security: public self-registration defaults to PATIENT
+      // Enforce role security
       const rawRole = (req.body.role || 'PATIENT').toUpperCase();
-      if (PRIVILEGED_ROLES.includes(rawRole)) {
+      if (ADMIN_ROLES.includes(rawRole)) {
         return next(
           new AuthorizationError(
-            'Self-registration for privileged roles is prohibited. Privileged accounts must be provisioned through authorized facility workflows.'
+            'Self-registration for administrative roles is prohibited. Admin accounts must be provisioned by system administrators.'
           )
         );
       }
-      if (!ALLOWED_PUBLIC_ROLES.includes(rawRole)) {
+      if (!ALL_USER_ROLES.includes(rawRole)) {
         return next(
-          new ValidationError('Invalid role for public registration. Only PATIENT and GUARDIAN are allowed.')
+          new ValidationError('Invalid role for registration.')
         );
       }
       const role = rawRole;
@@ -105,15 +137,27 @@ router.post(
         return next(new ConflictError('An account with this email address already exists. Please log in instead.'));
       }
 
+      // Generate unique JeevaId
+      const jeevaId = await generateJeevaId();
+
+      // Determine verification status based on role
+      const verificationStatus = AUTO_VERIFIED_ROLES.includes(role) ? 'verified' : 'pending';
+
+      // Clean and prepare Aadhaar number if provided
+      const cleanedAadhaar = aadhaarNumber ? aadhaarNumber.replace(/[\s-]/g, '') : undefined;
+
       // Create new user
       const user = new User({
         email,
         passwordHash: password,
         role,
+        jeevaId,
+        verificationStatus,
         profile: {
           firstName,
           lastName,
           phone,
+          ...(cleanedAadhaar && { aadhaarNumber: cleanedAadhaar }),
         },
         consentRecord: {
           termsAccepted: req.body.termsAccepted || false,

@@ -84,4 +84,25 @@ export const staffService = {
     const response = await api.post(`/staff/${staffId}/reactivate`);
     return response;
   },
+
+  /**
+   * Search registered users for staff invitation
+   */
+  searchUsers: async (query, role) => {
+    const params = new URLSearchParams();
+    if (query) params.append('q', query);
+    if (role) params.append('role', role);
+    const response = await api.get(`/staff/search-users?${params.toString()}`);
+    return response;
+  },
+
+  /**
+   * Search facilities
+   */
+  searchFacilities: async (query) => {
+    const params = new URLSearchParams();
+    if (query) params.append('q', query);
+    const response = await api.get(`/staff/search-facilities?${params.toString()}`);
+    return response;
+  },
 };

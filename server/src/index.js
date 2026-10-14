@@ -104,6 +104,9 @@ app.use('/api/v1/emergency', (await import('./routes/emergencyRoutes.js')).defau
 // Phase 4 Staff Management Routes
 app.use('/api/v1/staff', (await import('./routes/staffRoutes.js')).default);
 
+// Notification Routes
+app.use('/api/v1/notifications', (await import('./routes/notificationRoutes.js')).default);
+
 // Phase 5 Clinical Core Routes
 app.use('/api/v1/appointments', (await import('./routes/appointmentRoutes.js')).default);
 app.use('/api/v1/schedules', (await import('./routes/scheduleRoutes.js')).default);

@@ -71,7 +71,7 @@ export default function LoginPage() {
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
               <Logo
-                variant="light"
+                variant="full"
                 size="lg"
                 showText={true}
                 className="flex-col gap-2"

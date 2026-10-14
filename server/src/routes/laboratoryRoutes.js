@@ -1,6 +1,8 @@
 import express from 'express';
 import { authMiddleware, requireRole } from '../middleware/authentication.js';
 import LaboratoryService from '../services/LaboratoryService.js';
+import Notification from '../models/Notification.js';
+import logger from '../utils/logger.js';
 
 const router = express.Router();
 const { authorize } = { authorize: requireRole };
@@ -50,6 +52,25 @@ router.post('/', authMiddleware, authorize(['DOCTOR', 'NURSE', 'LAB_TECHNICIAN']
       role: req.user.role,
       facilityId: req.user.facilityId,
     });
+
+    // Create notification for patient about new lab results
+    try {
+      await Notification.createNotification({
+        userId: patientId,
+        type: 'lab_result_ready',
+        title: 'Lab Results Available',
+        message: `Your lab results for ${labTestName} are now available${interpretation ? '. Please review them' : ''}.`,
+        link: '/documents',
+        metadata: {
+          labResultId: labResult._id,
+          labTestName,
+          labName,
+          resultReceivedDate,
+        },
+      });
+    } catch (notifError) {
+      logger?.warn?.(`Failed to create lab result notification: ${notifError.message}`);
+    }
 
     res.status(201).json({
       success: true,

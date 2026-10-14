@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { User, Lock, Camera, Save, AlertCircle, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { User, Lock, Camera, Save, AlertCircle, CheckCircle, Building2 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
+import { staffService } from '../services/staffService';
 import api from '../services/api';
 
 export default function SettingsPage() {
@@ -28,6 +29,31 @@ export default function SettingsPage() {
   // Profile picture state
   const [uploadingPicture, setUploadingPicture] = useState(false);
   const [pictureMessage, setPictureMessage] = useState(null);
+
+  // Facility affiliations state
+  const [facilities, setFacilities] = useState([]);
+  const [loadingFacilities, setLoadingFacilities] = useState(false);
+
+  // Load facility affiliations on mount
+  useEffect(() => {
+    if (user?._id) {
+      loadFacilityAffiliations();
+    }
+  }, [user?._id]);
+
+  const loadFacilityAffiliations = async () => {
+    if (!user?._id) return;
+    
+    setLoadingFacilities(true);
+    try {
+      const response = await staffService.getUserActiveStaffRecords(user._id);
+      setFacilities(response.data || []);
+    } catch (error) {
+      console.error('Failed to load facility affiliations:', error);
+    } finally {
+      setLoadingFacilities(false);
+    }
+  };
 
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
@@ -195,6 +221,138 @@ export default function SettingsPage() {
       {/* Profile Tab */}
       {activeTab === 'profile' && (
         <div className="space-y-6">
+          {/* Account Information - JeevaId & Status */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Account Information</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  JeevaCare ID
+                </label>
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-bold text-jeevacare-blue">
+                    {user?.jeevaId || 'Not Assigned'}
+                  </span>
+                  {user?.jeevaId && (
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(user.jeevaId);
+                        setProfileMessage({ type: 'success', text: 'JeevaCare ID copied to clipboard' });
+                        setTimeout(() => setProfileMessage(null), 3000);
+                      }}
+                      className="text-xs text-blue-600 hover:text-blue-700 underline"
+                      title="Copy ID"
+                    >
+                      Copy
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Your permanent JeevaCare identifier
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Verification Status
+                </label>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      user?.verificationStatus === 'verified'
+                        ? 'bg-green-100 text-green-800'
+                        : user?.verificationStatus === 'pending'
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : 'bg-red-100 text-red-800'
+                    }`}
+                  >
+                    {user?.verificationStatus === 'verified' && '✓ Verified'}
+                    {user?.verificationStatus === 'pending' && '⏳ Pending'}
+                    {user?.verificationStatus === 'rejected' && '✗ Rejected'}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {user?.verificationStatus === 'verified' && 'Your account is fully verified'}
+                  {user?.verificationStatus === 'pending' &&
+                    'Your account is awaiting verification by a hospital administrator'}
+                  {user?.verificationStatus === 'rejected' && 'Please contact support for assistance'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Facility Affiliations - For staff members */}
+          {user?.role && !['PATIENT', 'GUARDIAN'].includes(user.role) && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <Building2 size={20} />
+                Facility Affiliations
+              </h2>
+              {loadingFacilities ? (
+                <div className="text-center py-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="text-sm text-gray-500 mt-2">Loading affiliations...</p>
+                </div>
+              ) : facilities.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <Building2 size={48} className="mx-auto mb-3 text-gray-300" />
+                  <p className="text-sm">No facility affiliations yet</p>
+                  <p className="text-xs mt-1">
+                    You will see your affiliated hospitals and clinics here once approved
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {facilities.map((affiliation) => (
+                    <div
+                      key={affiliation._id}
+                      className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h3 className="font-medium text-gray-900">
+                            {affiliation.hospital?.name || affiliation.hospitalName || 'Unknown Facility'}
+                          </h3>
+                          <p className="text-sm text-gray-600 mt-1">
+                            Role: <span className="font-medium">{affiliation.role.replace(/_/g, ' ')}</span>
+                          </p>
+                          {affiliation.department && (
+                            <p className="text-sm text-gray-600">
+                              Department: <span className="font-medium">{affiliation.department}</span>
+                            </p>
+                          )}
+                          {affiliation.specialization && (
+                            <p className="text-sm text-gray-600">
+                              Specialization: <span className="font-medium">{affiliation.specialization}</span>
+                            </p>
+                          )}
+                        </div>
+                        <div className="ml-4">
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${
+                              affiliation.associationStatus === 'active'
+                                ? 'bg-green-100 text-green-800'
+                                : affiliation.associationStatus === 'pending'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}
+                          >
+                            {affiliation.associationStatus}
+                          </span>
+                        </div>
+                      </div>
+                      {affiliation.startDate && (
+                        <p className="text-xs text-gray-500 mt-2">
+                          Since: {new Date(affiliation.startDate).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Profile Picture */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Profile Picture</h2>

@@ -8,9 +8,11 @@ import { body, param, query, validationResult } from 'express-validator';
 import { authMiddleware, requireRole, requirePatientIsolation } from '../middleware/authentication.js';
 import EmergencyProfileService from '../services/EmergencyProfileService.js';
 import EmergencyAccessService from '../services/EmergencyAccessService.js';
+import EmergencyTokenService from '../services/EmergencyTokenService.js';
 import PatientService from '../services/PatientService.js';
 import AuditService from '../services/AuditService.js';
 import logger from '../utils/logger.js';
+import QRCode from 'qrcode';
 
 const router = express.Router();
 
@@ -613,6 +615,257 @@ router.get(
     } catch (error) {
       logger.error(`Failed to get access history: ${error.message}`);
       res.status(403).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
+);
+
+// ==================== EMERGENCY TOKEN & QR CODE ENDPOINTS ====================
+
+/**
+ * POST /api/v1/emergency/token/:patientId/generate
+ * Generate emergency access token and QR code
+ * Accessible by: Patient only
+ */
+router.post(
+  '/token/:patientId/generate',
+  [param('patientId').isMongoId().withMessage('Invalid patient ID')],
+  handleValidationErrors,
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const { patientId } = req.params;
+
+      // Verify user owns this patient record
+      if (req.user._id.toString() !== patientId && req.user.role !== 'SYSTEM_ADMIN') {
+        return res.status(403).json({
+          success: false,
+          message: 'You can only generate tokens for your own emergency profile',
+        });
+      }
+
+      const result = await EmergencyTokenService.generateEmergencyToken(patientId);
+
+      res.json({
+        success: true,
+        message: 'Emergency token generated',
+        data: result,
+      });
+    } catch (error) {
+      logger.error(`Failed to generate emergency token: ${error.message}`);
+      res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/v1/emergency/token/:patientId/qr-code
+ * Get QR code image for emergency access
+ * Accessible by: Patient only
+ */
+router.get(
+  '/token/:patientId/qr-code',
+  [param('patientId').isMongoId().withMessage('Invalid patient ID')],
+  handleValidationErrors,
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const { patientId } = req.params;
+
+      // Verify user owns this patient record
+      if (req.user._id.toString() !== patientId && req.user.role !== 'SYSTEM_ADMIN') {
+        return res.status(403).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+      }
+
+      const status = await EmergencyTokenService.getTokenStatus(patientId);
+
+      if (!status.hasToken || !status.isActive) {
+        return res.status(404).json({
+          success: false,
+          message: 'No active emergency token found. Please generate a new token.',
+        });
+      }
+
+      // Get the profile with token
+      const profile = await EmergencyProfileService.getEmergencyProfile(
+        patientId,
+        req.user._id,
+        req.user.role
+      );
+
+      if (!profile.emergencyAccessToken?.token) {
+        return res.status(404).json({
+          success: false,
+          message: 'Token not found',
+        });
+      }
+
+      // Generate QR code URL pointing to emergency validation endpoint
+      const qrData = JSON.stringify({
+        type: 'jeevacare_emergency',
+        token: profile.emergencyAccessToken.token,
+        jeevaId: profile.jeevaId,
+      });
+
+      const qrCodeDataURL = await QRCode.toDataURL(qrData, {
+        width: 400,
+        margin: 2,
+        color: {
+          dark: '#1e40af',
+          light: '#ffffff',
+        },
+      });
+
+      res.json({
+        success: true,
+        data: {
+          qrCode: qrCodeDataURL,
+          expiresAt: profile.emergencyAccessToken.expiresAt,
+        },
+      });
+    } catch (error) {
+      logger.error(`Failed to generate QR code: ${error.message}`);
+      res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
+);
+
+/**
+ * POST /api/v1/emergency/token/validate
+ * Validate emergency token from QR scan
+ * Accessible by: Healthcare professionals
+ */
+router.post(
+  '/token/validate',
+  [body('token').trim().notEmpty().withMessage('Token required')],
+  handleValidationErrors,
+  authMiddleware,
+  requireRole('DOCTOR', 'NURSE', 'PARAMEDIC', 'EMERGENCY'),
+  async (req, res) => {
+    try {
+      const { token } = req.body;
+
+      const validation = await EmergencyTokenService.validateEmergencyToken(token);
+
+      if (!validation.valid) {
+        return res.status(400).json({
+          success: false,
+          message: validation.error || 'Invalid token',
+        });
+      }
+
+      // Log validation attempt
+      await AuditService.logEvent({
+        action: 'emergency_token_validated',
+        actor: req.user._id,
+        resource: 'EmergencyProfile',
+        resourceId: validation.profileId,
+        details: {
+          patientId: validation.patientId,
+          jeevaId: validation.jeevaId,
+          validatedBy: req.user._id,
+          validatedAt: new Date(),
+        },
+      });
+
+      res.json({
+        success: true,
+        data: validation,
+      });
+    } catch (error) {
+      logger.error(`Token validation failed: ${error.message}`);
+      res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
+);
+
+/**
+ * POST /api/v1/emergency/token/:patientId/revoke
+ * Revoke emergency token
+ * Accessible by: Patient only
+ */
+router.post(
+  '/token/:patientId/revoke',
+  [
+    param('patientId').isMongoId().withMessage('Invalid patient ID'),
+    body('reason').optional().trim(),
+  ],
+  handleValidationErrors,
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const { patientId } = req.params;
+      const { reason } = req.body;
+
+      // Verify user owns this patient record
+      if (req.user._id.toString() !== patientId && req.user.role !== 'SYSTEM_ADMIN') {
+        return res.status(403).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+      }
+
+      await EmergencyTokenService.revokeEmergencyToken(patientId, reason);
+
+      res.json({
+        success: true,
+        message: 'Emergency token revoked',
+      });
+    } catch (error) {
+      logger.error(`Failed to revoke token: ${error.message}`);
+      res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/v1/emergency/token/:patientId/status
+ * Get emergency token status
+ * Accessible by: Patient only
+ */
+router.get(
+  '/token/:patientId/status',
+  [param('patientId').isMongoId().withMessage('Invalid patient ID')],
+  handleValidationErrors,
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const { patientId } = req.params;
+
+      // Verify user owns this patient record
+      if (req.user._id.toString() !== patientId && req.user.role !== 'SYSTEM_ADMIN') {
+        return res.status(403).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+      }
+
+      const status = await EmergencyTokenService.getTokenStatus(patientId);
+
+      res.json({
+        success: true,
+        data: status,
+      });
+    } catch (error) {
+      logger.error(`Failed to get token status: ${error.message}`);
+      res.status(400).json({
         success: false,
         message: error.message,
       });

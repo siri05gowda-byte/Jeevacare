@@ -15,7 +15,9 @@
 
 import express from 'express';
 import AppointmentService from '../services/AppointmentService.js';
+import Notification from '../models/Notification.js';
 import { authMiddleware, requireRole } from '../middleware/authentication.js';
+import logger from '../utils/logger.js';
 
 const router = express.Router();
 const { authorize } = { authorize: requireRole };
@@ -61,6 +63,27 @@ router.post('/book', authMiddleware, async (req, res) => {
       role: req.user.role,
       facilityId: req.user.facilityId,
     });
+
+    // Create notification for patient about new appointment
+    try {
+      await Notification.createNotification({
+        userId: patientId,
+        type: 'appointment_created',
+        title: 'Appointment Scheduled',
+        message: `Your appointment has been scheduled for ${new Date(scheduledDateTime).toLocaleString()}. Reason: ${reason}`,
+        link: '/appointments',
+        metadata: {
+          appointmentId: appointment._id,
+          providerId,
+          facilityId,
+          scheduledDateTime,
+          reason,
+        },
+      });
+    } catch (notifError) {
+      logger?.warn?.(`Failed to create appointment notification: ${notifError.message}`);
+      // Don't fail the appointment if notification fails
+    }
 
     res.status(201).json({
       success: true,
@@ -215,6 +238,24 @@ router.patch('/:appointmentId/reschedule', authMiddleware, async (req, res) => {
       }
     );
 
+    // Create notification for patient about rescheduled appointment
+    try {
+      await Notification.createNotification({
+        userId: appointment.patientId || appointment.patient,
+        type: 'appointment_updated',
+        title: 'Appointment Rescheduled',
+        message: `Your appointment has been rescheduled to ${new Date(newScheduledDateTime).toLocaleString()}${reason ? `. Reason: ${reason}` : '.'}`,
+        link: '/appointments',
+        metadata: {
+          appointmentId: appointment._id,
+          newScheduledDateTime,
+          reason,
+        },
+      });
+    } catch (notifError) {
+      logger?.warn?.(`Failed to create reschedule notification: ${notifError.message}`);
+    }
+
     res.json({
       success: true,
       data: appointment,
@@ -247,6 +288,24 @@ router.delete('/:appointmentId', authMiddleware, async (req, res) => {
       role: req.user.role,
       facilityId: req.user.facilityId,
     });
+
+    // Create notification for patient about cancelled appointment
+    try {
+      await Notification.createNotification({
+        userId: result.patientId || result.patient,
+        type: 'appointment_cancelled',
+        title: 'Appointment Cancelled',
+        message: `Your appointment has been cancelled${reason ? `. Reason: ${reason}` : '.'}`,
+        link: '/appointments',
+        metadata: {
+          appointmentId,
+          reason,
+          cancelledBy: req.user.id,
+        },
+      });
+    } catch (notifError) {
+      logger?.warn?.(`Failed to create cancellation notification: ${notifError.message}`);
+    }
 
     res.json({
       success: true,

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 
+import logoImage from '../assets/logos/jeevacare-logo.png';
 import iconLight from '../assets/logos/jeevacare-icon.svg';
 import iconDark from '../assets/logos/jeevacare-icon-dark.svg';
 import iconMonochrome from '../assets/logos/jeevacare-icon-monochrome.svg';
@@ -13,17 +14,17 @@ import iconMonochrome from '../assets/logos/jeevacare-icon-monochrome.svg';
  * 
  * @component
  * @param {Object} props
- * @param {string} [props.variant='light'] - Logo variant: 'light', 'dark', 'monochrome', 'icon'
+ * @param {string} [props.variant='full'] - Logo variant: 'full', 'light', 'dark', 'monochrome', 'icon'
  * @param {string} [props.size='md'] - Logo size: 'sm', 'md', 'lg', 'xl'
  * @param {string} [props.href] - Optional link path (if provided, wraps in Link)
  * @param {string} [props.className] - Additional CSS classes
- * @param {boolean} [props.showText=true] - Show "JeevaCare" text next to logo (full logo only)
+ * @param {boolean} [props.showText=true] - Show "JeevaCare" text next to logo (icon variants only)
  * @param {string} [props.text] - Custom text to display with logo
  * @param {boolean} [props.autoDetectTheme=false] - Auto-detect dark mode from system preference
  * @returns {React.ReactElement}
  */
 export default function Logo({
-  variant = 'light',
+  variant = 'full',
   size = 'md',
   href = null,
   className = '',
@@ -40,10 +41,10 @@ export default function Logo({
 
   // Size configurations (in rem/pixels)
   const sizes = {
-    sm: { icon: 24, container: 'w-6 h-6', text: 'text-sm' },
-    md: { icon: 32, container: 'w-8 h-8', text: 'text-base' },
-    lg: { icon: 48, container: 'w-12 h-12', text: 'text-lg' },
-    xl: { icon: 64, container: 'w-16 h-16', text: 'text-xl' },
+    sm: { full: 'h-8', icon: 24, container: 'w-6 h-6', text: 'text-sm' },
+    md: { full: 'h-10', icon: 32, container: 'w-8 h-8', text: 'text-base' },
+    lg: { full: 'h-14', icon: 48, container: 'w-12 h-12', text: 'text-lg' },
+    xl: { full: 'h-20', icon: 64, container: 'w-16 h-16', text: 'text-xl' },
   };
 
   const sizeConfig = sizes[size] || sizes.md;
@@ -51,6 +52,8 @@ export default function Logo({
   // Map variant to icon asset
   const getLogoPath = () => {
     switch (finalVariant) {
+      case 'full':
+        return logoImage;
       case 'dark':
         return iconDark || '/assets/logos/jeevacare-icon-dark.svg';
       case 'monochrome':
@@ -64,24 +67,36 @@ export default function Logo({
 
   const logoContent = (
     <div className={`flex items-center gap-2 ${className}`}>
-      {/* Icon */}
-      <img
-        src={getLogoPath()}
-        alt={text}
-        className={`${sizeConfig.container} flex-shrink-0`}
-        loading="lazy"
-      />
-      
-      {/* Text (only for non-icon variants) */}
-      {showText && variant !== 'icon' && (
-        <div className="flex flex-col">
-          <span className={`${sizeConfig.text} font-bold text-jeevacare-blue`}>
-            {text}
-          </span>
-          <span className="text-xs text-gray-600 leading-none">
-            One Life. One Health Journey.
-          </span>
-        </div>
+      {/* Full Logo or Icon */}
+      {finalVariant === 'full' ? (
+        <img
+          src={getLogoPath()}
+          alt={text}
+          className={`${sizeConfig.full} object-contain flex-shrink-0`}
+          loading="lazy"
+        />
+      ) : (
+        <>
+          {/* Icon */}
+          <img
+            src={getLogoPath()}
+            alt={text}
+            className={`${sizeConfig.container} flex-shrink-0`}
+            loading="lazy"
+          />
+          
+          {/* Text (only for icon variants) */}
+          {showText && variant !== 'icon' && (
+            <div className="flex flex-col">
+              <span className={`${sizeConfig.text} font-bold text-jeevacare-blue`}>
+                {text}
+              </span>
+              <span className="text-xs text-gray-600 leading-none">
+                One Life. One Health Journey.
+              </span>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

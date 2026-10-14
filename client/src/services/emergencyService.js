@@ -76,4 +76,104 @@ export const emergencyService = {
     const response = await api.get(`/emergency/validate/${patientId}`);
     return response;
   },
+
+  // ==================== EMERGENCY PROFILE MANAGEMENT ====================
+
+  /**
+   * Get emergency profile for a patient
+   */
+  getEmergencyProfile: async (patientId) => {
+    const response = await api.get(`/emergency/profile/${patientId}`);
+    return response;
+  },
+
+  /**
+   * Add allergy to emergency profile
+   */
+  addAllergy: async (patientId, allergyData) => {
+    const response = await api.post(`/emergency/profile/${patientId}/allergies`, allergyData);
+    return response;
+  },
+
+  /**
+   * Add critical condition to emergency profile
+   */
+  addCondition: async (patientId, conditionData) => {
+    const response = await api.post(`/emergency/profile/${patientId}/conditions`, conditionData);
+    return response;
+  },
+
+  /**
+   * Add medication to emergency profile
+   */
+  addMedication: async (patientId, medicationData) => {
+    const response = await api.post(`/emergency/profile/${patientId}/medications`, medicationData);
+    return response;
+  },
+
+  /**
+   * Update blood group
+   */
+  updateBloodGroup: async (patientId, bloodGroupData) => {
+    const response = await api.put(`/emergency/profile/${patientId}/blood-group`, bloodGroupData);
+    return response;
+  },
+
+  /**
+   * Get emergency contacts
+   */
+  getEmergencyContacts: async (patientId) => {
+    const response = await api.get(`/emergency/contacts/${patientId}`);
+    return response;
+  },
+
+  /**
+   * Add emergency contact
+   */
+  addEmergencyContact: async (patientId, contactData) => {
+    const response = await api.post(`/emergency/contacts/${patientId}`, contactData);
+    return response;
+  },
+
+  // ==================== EMERGENCY TOKEN & QR CODE ====================
+
+  /**
+   * Generate emergency access token
+   */
+  generateEmergencyToken: async (patientId) => {
+    const response = await api.post(`/emergency/token/${patientId}/generate`);
+    return response;
+  },
+
+  /**
+   * Get QR code for emergency access
+   */
+  getQrCode: async (patientId) => {
+    const response = await api.get(`/emergency/token/${patientId}/qr-code`);
+    return response;
+  },
+
+  /**
+   * Validate emergency token from QR scan
+   */
+  validateEmergencyToken: async (token) => {
+    const response = await api.post('/emergency/token/validate', { token });
+    return response;
+  },
+
+  /**
+   * Revoke emergency token
+   */
+  revokeEmergencyToken: async (patientId, reason = '') => {
+    const response = await api.post(`/emergency/token/${patientId}/revoke`, { reason });
+    return response;
+  },
+
+  /**
+   * Get token status
+   */
+  getTokenStatus: async (patientId) => {
+    const response = await api.get(`/emergency/token/${patientId}/status`);
+    return response;
+  },
 };

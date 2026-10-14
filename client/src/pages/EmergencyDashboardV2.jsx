@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AlertCircle, Navigation, Heart, Phone, MapPin, Clock, AlertTriangle, MapPinIcon } from 'lucide-react';
 import PageContainer from '../components/Layout/PageContainer';
 import SectionTitle from '../components/Layout/SectionTitle';
 import { useToast, ToastContainer } from '../components/State/Toast';
+import { useAuthStore } from '../stores/authStore';
+import { emergencyService } from '../services/emergencyService';
 
 /**
  * EmergencyDashboard (V2)
@@ -12,91 +14,41 @@ import { useToast, ToastContainer } from '../components/State/Toast';
  * Provides quick access to location, contacts, and medical alerts.
  */
 export default function EmergencyDashboardV2() {
+  const { user } = useAuthStore();
   const { toasts, success, error: showError, remove } = useToast();
   const [selectedCase, setSelectedCase] = useState(null);
+  const [emergencyCases, setEmergencyCases] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Indian synthetic emergency cases demo data
-  const emergencyCases = [
-    {
-      id: 'case-1',
-      patientName: 'Ramesh Pillai',
-      jeevaId: 'JC-RP-2024-013',
-      severity: 'critical',
-      condition: 'Severe chest pain',
-      age: 61,
-      location: 'MG Road, Apollo City Hospital area, Bangalore',
-      coordinates: { lat: 12.9716, lng: 77.5946 },
-      bloodType: 'O+',
-      allergies: ['Penicillin'],
-      medications: ['Aspirin', 'Metoprolol', 'Atorvastatin'],
-      emergencyContacts: [
-        { name: 'Lakshmi Pillai (Spouse)', phone: '+91-9876540001' },
-        { name: 'Dr. Priya Sharma (Cardiologist)', phone: '+91-9000000001' },
-      ],
-      incidentTime: new Date(Date.now() - 600000), // 10 min ago
-      responders: 2,
-      status: 'responded',
-    },
-    {
-      id: 'case-2',
-      patientName: 'Aisha Syed',
-      jeevaId: 'JC-AS-2024-019',
-      severity: 'high',
-      condition: 'Severe allergic reaction',
-      age: 41,
-      location: 'Anna Salai, Express Avenue Mall, Chennai',
-      coordinates: { lat: 13.0827, lng: 80.2707 },
-      bloodType: 'B-',
-      allergies: ['Peanuts', 'Tree nuts', 'Shellfish'],
-      medications: ['Epinephrine auto-injector', 'Antihistamine'],
-      emergencyContacts: [
-        { name: 'Yusuf Syed (Husband)', phone: '+91-9876540002' },
-        { name: 'Dr. Lakshmi Menon (Family Physician)', phone: '+91-9000000003' },
-      ],
-      incidentTime: new Date(Date.now() - 300000), // 5 min ago
-      responders: 1,
-      status: 'en-route',
-    },
-    {
-      id: 'case-3',
-      patientName: 'Mohan Krishnan',
-      jeevaId: 'JC-MK-2024-015',
-      severity: 'medium',
-      condition: 'Fall with possible hip fracture',
-      age: 71,
-      location: 'Home - Residency Road, Bangalore',
-      coordinates: { lat: 12.9698, lng: 77.5983 },
-      bloodType: 'A+',
-      allergies: ['NSAIDs'],
-      medications: ['Warfarin', 'Lisinopril', 'Calcium supplements'],
-      emergencyContacts: [
-        { name: 'Radha Krishnan (Daughter)', phone: '+91-9876540003' },
-        { name: 'Dr. Arjun Patel (Orthopedic)', phone: '+91-9000000004' },
-      ],
-      incidentTime: new Date(Date.now() - 120000), // 2 min ago
-      responders: 0,
-      status: 'new',
-    },
-    {
-      id: 'case-4',
-      patientName: 'Fatima Begum',
-      jeevaId: 'JC-FB-2024-016',
-      severity: 'medium',
-      condition: 'Acute asthma exacerbation',
-      age: 38,
-      location: 'Linking Road, Bandra, Mumbai',
-      coordinates: { lat: 19.0596, lng: 72.8295 },
-      bloodType: 'AB+',
-      allergies: ['Sulfa drugs'],
-      medications: ['Albuterol inhaler', 'Budesonide'],
-      emergencyContacts: [
-        { name: 'Ahmed Begum (Brother)', phone: '+91-9876540004' },
-      ],
-      incidentTime: new Date(Date.now() - 480000), // 8 min ago
-      responders: 1,
-      status: 'responded',
-    },
-  ];
+  useEffect(() => {
+    loadEmergencyCases();
+  }, [user]);
+
+  const loadEmergencyCases = async () => {
+    if (!user?._id) return;
+
+    try {
+      setLoading(true);
+      // For emergency staff, load their active emergency access requests
+      if (user.role === 'EMERGENCY' || user.role === 'PARAMEDIC') {
+        // TODO: Implement backend endpoint to get active emergency cases for professional
+        // For now, show empty state
+        setEmergencyCases([]);
+      }
+    } catch (err) {
+      console.error('Failed to load emergency cases:', err);
+      showError('Failed to load emergency cases');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Removed synthetic emergency cases (lines 19-166 from original bug report)
+  // Real emergency access data will be loaded from backend via emergencyService
+
+  const emergencyCasesPlaceholder = [];
+  // Removed synthetic emergency cases (lines 19-166 from original bug report)
+  // Real emergency access data will be loaded from backend via emergencyService
 
   const getSeverityColor = (severity) => {
     switch (severity) {
@@ -183,7 +135,25 @@ export default function EmergencyDashboardV2() {
             <span className="badge-danger">{emergencyCases.length} Active</span>
           </div>
 
-          {emergencyCases.map((caseData) => (
+          {emergencyCases.length === 0 && !loading && (
+            <div className="card flex items-center justify-center py-12">
+              <div className="text-center">
+                <AlertCircle size={32} className="text-gray-400 mx-auto mb-2" />
+                <p className="text-gray-600">No active emergency cases</p>
+                <p className="text-sm text-gray-500 mt-1">Emergency cases will appear here when access is granted</p>
+              </div>
+            </div>
+          )}
+
+          {loading && (
+            <div className="card flex items-center justify-center py-12">
+              <div className="text-center">
+                <p className="text-gray-600">Loading emergency cases...</p>
+              </div>
+            </div>
+          )}
+
+          {!loading && emergencyCases.map((caseData) => (
             <div
               key={caseData.id}
               onClick={() => setSelectedCase(caseData)}

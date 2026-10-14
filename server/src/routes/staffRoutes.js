@@ -16,6 +16,7 @@ import StaffService from '../services/StaffService.js';
 import HospitalStaff from '../models/HospitalStaff.js';
 import User from '../models/User.js';
 import Hospital from '../models/Hospital.js';
+import Notification from '../models/Notification.js';
 import AuditService from '../services/AuditService.js';
 import logger from '../utils/logger.js';
 
@@ -131,6 +132,21 @@ router.post(
         },
       });
 
+      // Create notification for invited user
+      await Notification.createNotification({
+        userId,
+        type: 'staff_invitation',
+        title: 'Staff Invitation Received',
+        message: `You have been invited to join ${hospital.name} as ${role.replace(/_/g, ' ')}. Your invitation is pending approval.`,
+        link: '/hospital/staff',
+        metadata: {
+          staffId: staff._id,
+          hospitalId: hospital._id,
+          hospitalName: hospital.name,
+          role,
+        },
+      });
+
       res.status(201).json({
         success: true,
         message: 'Staff invitation created',
@@ -219,6 +235,22 @@ router.post(
         },
       });
 
+      // Create notification for approved user
+      const hospital = await Hospital.findById(staff.hospitalId);
+      await Notification.createNotification({
+        userId: staff.userId,
+        type: 'staff_approval',
+        title: 'Staff Invitation Approved',
+        message: `Your invitation to join ${hospital?.name || 'the facility'} as ${staff.role.replace(/_/g, ' ')} has been approved. You can now access staff features.`,
+        link: '/provider',
+        metadata: {
+          staffId: staff._id,
+          hospitalId: staff.hospitalId,
+          hospitalName: hospital?.name,
+          role: staff.role,
+        },
+      });
+
       res.json({
         success: true,
         message: 'Staff association approved',
@@ -289,6 +321,23 @@ router.post(
         req.body,
         req.user._id
       );
+
+      // Create notification for rejected user
+      const hospital = await Hospital.findById(staff.hospitalId);
+      await Notification.createNotification({
+        userId: staff.userId,
+        type: 'staff_rejection',
+        title: 'Staff Invitation Not Approved',
+        message: `Your invitation to join ${hospital?.name || 'the facility'} has not been approved. Reason: ${req.body.reason}`,
+        link: '/dashboard',
+        metadata: {
+          staffId: staff._id,
+          hospitalId: staff.hospitalId,
+          hospitalName: hospital?.name,
+          role: staff.role,
+          reason: req.body.reason,
+        },
+      });
 
       res.json({
         success: true,
@@ -686,15 +735,40 @@ router.get(
 
 /**
  * GET /api/v1/staff/pending-associations
- * Get pending staff associations (ADMIN ONLY)
+ * Get pending staff associations
+ * SYSTEM_ADMIN: All pending
+ * HOSPITAL_ADMIN: Only their facility's pending
  */
 router.get(
   '/pending-associations',
   authMiddleware,
-  requireRole('SYSTEM_ADMIN'),
+  requireRole('SYSTEM_ADMIN', 'HOSPITAL_ADMIN'),
   async (req, res) => {
     try {
-      const pending = await StaffService.getPendingAssociations();
+      let pending;
+
+      if (req.user.role === 'SYSTEM_ADMIN') {
+        // Get all pending associations
+        pending = await StaffService.getPendingAssociations();
+      } else {
+        // Get user's facilities where they are admin
+        const adminRecords = await HospitalStaff.find({
+          userId: req.user._id,
+          role: 'hospital_admin',
+          associationStatus: 'active',
+        }).select('hospitalId');
+
+        const facilityIds = adminRecords.map(r => r.hospitalId);
+
+        // Get pending staff for these facilities
+        pending = await HospitalStaff.find({
+          hospitalId: { $in: facilityIds },
+          associationStatus: 'pending',
+        })
+          .populate('userId', 'email profile')
+          .populate('hospitalId', 'name facilityId')
+          .sort({ createdAt: -1 });
+      }
 
       res.json({
         success: true,
@@ -702,10 +776,14 @@ router.get(
         data: pending.map((s) => ({
           staffId: s._id,
           userId: s.userId?._id,
-          userName: s.userId?.name,
+          userEmail: s.userId?.email,
+          userName: `${s.userId?.profile?.firstName || ''} ${s.userId?.profile?.lastName || ''}`.trim(),
           facilityId: s.hospitalId?._id,
           facilityName: s.hospitalId?.name,
           role: s.role,
+          department: s.department?.name,
+          employmentStatus: s.employmentStatus,
+          startDate: s.startDate,
           createdAt: s.createdAt,
         })),
       });
@@ -714,6 +792,139 @@ router.get(
       res.status(500).json({
         success: false,
         message: 'Failed to fetch pending associations',
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/v1/staff/search-users
+ * Search registered users for staff invitation
+ * HOSPITAL_ADMIN and SYSTEM_ADMIN only
+ */
+router.get(
+  '/search-users',
+  authMiddleware,
+  requireRole('SYSTEM_ADMIN', 'HOSPITAL_ADMIN'),
+  [
+    query('q').optional().trim(),
+    query('role').optional().isIn([
+      'DOCTOR',
+      'NURSE',
+      'LAB_TECHNICIAN',
+      'RADIOLOGY_TECHNICIAN',
+      'PHARMACIST',
+      'PARAMEDIC',
+      'RECEPTION_STAFF',
+    ]),
+  ],
+  async (req, res) => {
+    try {
+      const { q, role } = req.query;
+      const limit = Math.min(parseInt(req.query.limit) || 20, 50);
+
+      const searchQuery = { status: 'active' };
+
+      // Search by email, firstName, or lastName
+      if (q) {
+        searchQuery.$or = [
+          { email: { $regex: q, $options: 'i' } },
+          { 'profile.firstName': { $regex: q, $options: 'i' } },
+          { 'profile.lastName': { $regex: q, $options: 'i' } },
+        ];
+      }
+
+      // Filter by role if specified
+      if (role) {
+        searchQuery.role = role.toUpperCase();
+      }
+
+      const users = await User.find(searchQuery)
+        .select('_id email role profile jeevaId')
+        .limit(limit)
+        .sort({ 'profile.firstName': 1 });
+
+      res.json({
+        success: true,
+        count: users.length,
+        data: users.map(u => ({
+          userId: u._id,
+          email: u.email,
+          name: `${u.profile?.firstName || ''} ${u.profile?.lastName || ''}`.trim(),
+          role: u.role,
+          jeevaId: u.jeevaId,
+        })),
+      });
+    } catch (error) {
+      logger.error(`User search failed: ${error.message}`);
+      res.status(500).json({
+        success: false,
+        message: 'User search failed',
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/v1/staff/search-facilities
+ * Search facilities for staff invitation
+ * HOSPITAL_ADMIN sees only their facilities, SYSTEM_ADMIN sees all
+ */
+router.get(
+  '/search-facilities',
+  authMiddleware,
+  requireRole('SYSTEM_ADMIN', 'HOSPITAL_ADMIN'),
+  async (req, res) => {
+    try {
+      const { q } = req.query;
+      const limit = Math.min(parseInt(req.query.limit) || 20, 50);
+
+      let facilityIds = [];
+
+      if (req.user.role === 'HOSPITAL_ADMIN') {
+        // Get facilities where user is admin
+        const adminRecords = await HospitalStaff.find({
+          userId: req.user._id,
+          role: 'hospital_admin',
+          associationStatus: 'active',
+        }).select('hospitalId');
+
+        facilityIds = adminRecords.map(r => r.hospitalId);
+      }
+
+      const searchQuery = {};
+
+      if (facilityIds.length > 0) {
+        searchQuery._id = { $in: facilityIds };
+      }
+
+      if (q) {
+        searchQuery.$or = [
+          { name: { $regex: q, $options: 'i' } },
+          { facilityId: { $regex: q, $options: 'i' } },
+        ];
+      }
+
+      const facilities = await Hospital.find(searchQuery)
+        .select('_id name facilityId address')
+        .limit(limit)
+        .sort({ name: 1 });
+
+      res.json({
+        success: true,
+        count: facilities.length,
+        data: facilities.map(f => ({
+          hospitalId: f._id,
+          name: f.name,
+          facilityId: f.facilityId,
+          address: f.address?.city || '',
+        })),
+      });
+    } catch (error) {
+      logger.error(`Facility search failed: ${error.message}`);
+      res.status(500).json({
+        success: false,
+        message: 'Facility search failed',
       });
     }
   }

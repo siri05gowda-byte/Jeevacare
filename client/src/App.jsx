@@ -19,10 +19,12 @@ import DocumentsPage from './pages/DocumentsPage';
 import AppointmentBookingPage from './pages/AppointmentBookingPage';
 import ProviderEncounterPage from './pages/ProviderEncounterPage';
 import EmergencyAccessPage from './pages/EmergencyAccessPage';
+import PatientEmergencyProfilePage from './pages/PatientEmergencyProfilePage';
 import DocumentUploadPage from './pages/DocumentUploadPage';
 import StaffDocumentUpload from './pages/StaffDocumentUpload';
 import RadiologyPage from './pages/RadiologyPage';
 import SettingsPage from './pages/SettingsPage';
+import NotificationCenterPage from './pages/NotificationCenterPage';
 
 // Protected route component
 function ProtectedRoute({ children }) {
@@ -80,10 +82,12 @@ function App() {
             <Route path="appointments/book" element={<AppointmentBookingPage />} />
             <Route path="encounter" element={<ProviderEncounterPage />} />
             <Route path="emergency-access" element={<EmergencyAccessPage />} />
+            <Route path="emergency-profile" element={<PatientEmergencyProfilePage />} />
             <Route path="upload-documents" element={<DocumentUploadPage />} />
             <Route path="staff/upload-documents" element={<StaffDocumentUpload />} />
             <Route path="integrated-dashboard" element={<IntegratedDashboardPage />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="notifications" element={<NotificationCenterPage />} />
             
             {/* Hospital/Doctor routes */}
             <Route path="hospital/staff" element={<HospitalStaffPage />} />

@@ -1,14 +1,15 @@
+import User from '../models/User.js';
 import Patient from '../models/Patient.js';
 
 const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'; // Base32 without I, L, O, U
 const ALPHABET_SIZE = ALPHABET.length;
 
 /**
- * Generates a unique JeevaId for a patient
+ * Generates a unique JeevaId for a user
  * Format: JJYY-XXXXX (where JJYY is JeevaCare year prefix and XXXXX is random Base32)
  * Example: JJ25-H7K2M
  */
-export const generateJeevaId = async () => {
+export const generateJeevaId = async (model = User) => {
   let jeevaId;
   let isUnique = false;
   let attempts = 0;
@@ -26,9 +27,12 @@ export const generateJeevaId = async () => {
 
     jeevaId = `JJ${year}-${randomPart}`;
 
-    // Check if this ID already exists
+    // Check if this ID already exists in User collection
+    const existingUser = await User.findOne({ jeevaId });
+    // Also check Patient collection for backward compatibility
     const existingPatient = await Patient.findOne({ jeevaId });
-    if (!existingPatient) {
+    
+    if (!existingUser && !existingPatient) {
       isUnique = true;
     }
 

@@ -298,6 +298,27 @@ const emergencyProfileSchema = new mongoose.Schema(
         },
       ],
     },
+
+    // Emergency Access Token for QR Code
+    emergencyAccessToken: {
+      token: {
+        type: String,
+        index: true,
+      },
+      generatedAt: Date,
+      expiresAt: Date,
+      isActive: {
+        type: Boolean,
+        default: false,
+      },
+      revocationHistory: [
+        {
+          token: String,
+          revokedAt: Date,
+          reason: String,
+        },
+      ],
+    },
   },
   {
     timestamps: true,

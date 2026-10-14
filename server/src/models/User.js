@@ -12,6 +12,13 @@ const userSchema = new mongoose.Schema(
       match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,})+$/, 'Please provide a valid email'],
     },
 
+    jeevaId: {
+      type: String,
+      unique: true,
+      sparse: true, // Allow null/undefined for existing users
+      index: true,
+    },
+
     passwordHash: {
       type: String,
       required: true,
@@ -42,6 +49,19 @@ const userSchema = new mongoose.Schema(
       hospitalId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Hospital',
+      },
+      aadhaarNumber: {
+        type: String,
+        sparse: true,
+        select: false, // Don't return by default for security
+        validate: {
+          validator: function(v) {
+            // Allow empty/null or exactly 12 digits
+            if (!v) return true;
+            return /^\d{12}$/.test(v);
+          },
+          message: 'Aadhaar number must be exactly 12 digits'
+        }
       },
     },
 
@@ -148,6 +168,13 @@ userSchema.methods.toJSON = function () {
   const userObject = this.toObject();
   delete userObject.passwordHash;
   delete userObject.twoFactorSecret;
+  
+  // Mask Aadhaar number if present (show last 4 digits only)
+  if (userObject.profile?.aadhaarNumber) {
+    const aadhaar = userObject.profile.aadhaarNumber;
+    userObject.profile.aadhaarNumber = `XXXX XXXX ${aadhaar.slice(-4)}`;
+  }
+  
   return userObject;
 };
 
