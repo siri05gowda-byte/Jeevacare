@@ -12,7 +12,6 @@ import EmergencyTokenService from '../services/EmergencyTokenService.js';
 import PatientService from '../services/PatientService.js';
 import AuditService from '../services/AuditService.js';
 import logger from '../utils/logger.js';
-import QRCode from 'qrcode';
 
 const router = express.Router();
 
@@ -622,11 +621,11 @@ router.get(
   }
 );
 
-// ==================== EMERGENCY TOKEN & QR CODE ENDPOINTS ====================
+// ==================== EMERGENCY TOKEN ENDPOINTS ====================
 
 /**
  * POST /api/v1/emergency/token/:patientId/generate
- * Generate emergency access token and QR code
+ * Generate emergency access token
  * Accessible by: Patient only
  */
 router.post(
@@ -664,86 +663,8 @@ router.post(
 );
 
 /**
- * GET /api/v1/emergency/token/:patientId/qr-code
- * Get QR code image for emergency access
- * Accessible by: Patient only
- */
-router.get(
-  '/token/:patientId/qr-code',
-  [param('patientId').isMongoId().withMessage('Invalid patient ID')],
-  handleValidationErrors,
-  authMiddleware,
-  async (req, res) => {
-    try {
-      const { patientId } = req.params;
-
-      // Verify user owns this patient record
-      if (req.user._id.toString() !== patientId && req.user.role !== 'SYSTEM_ADMIN') {
-        return res.status(403).json({
-          success: false,
-          message: 'Unauthorized',
-        });
-      }
-
-      const status = await EmergencyTokenService.getTokenStatus(patientId);
-
-      if (!status.hasToken || !status.isActive) {
-        return res.status(404).json({
-          success: false,
-          message: 'No active emergency token found. Please generate a new token.',
-        });
-      }
-
-      // Get the profile with token
-      const profile = await EmergencyProfileService.getEmergencyProfile(
-        patientId,
-        req.user._id,
-        req.user.role
-      );
-
-      if (!profile.emergencyAccessToken?.token) {
-        return res.status(404).json({
-          success: false,
-          message: 'Token not found',
-        });
-      }
-
-      // Generate QR code URL pointing to emergency validation endpoint
-      const qrData = JSON.stringify({
-        type: 'jeevacare_emergency',
-        token: profile.emergencyAccessToken.token,
-        jeevaId: profile.jeevaId,
-      });
-
-      const qrCodeDataURL = await QRCode.toDataURL(qrData, {
-        width: 400,
-        margin: 2,
-        color: {
-          dark: '#1e40af',
-          light: '#ffffff',
-        },
-      });
-
-      res.json({
-        success: true,
-        data: {
-          qrCode: qrCodeDataURL,
-          expiresAt: profile.emergencyAccessToken.expiresAt,
-        },
-      });
-    } catch (error) {
-      logger.error(`Failed to generate QR code: ${error.message}`);
-      res.status(400).json({
-        success: false,
-        message: error.message,
-      });
-    }
-  }
-);
-
-/**
  * POST /api/v1/emergency/token/validate
- * Validate emergency token from QR scan
+ * Validate emergency token
  * Accessible by: Healthcare professionals
  */
 router.post(

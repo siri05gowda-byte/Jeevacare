@@ -2,10 +2,27 @@ import express from 'express';
 import { query, param, validationResult } from 'express-validator';
 import Notification from '../models/Notification.js';
 import { authMiddleware } from '../middleware/authentication.js';
-import { handleValidationErrors } from '../middleware/validation.js';
 import { ValidationError, NotFoundError } from '../utils/errors.js';
 
 const router = express.Router();
+
+/**
+ * Middleware for validation error handling
+ */
+const handleValidationErrors = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        message: 'Validation failed',
+        code: 'VALIDATION_ERROR',
+        details: errors.array(),
+      },
+    });
+  }
+  next();
+};
 
 // All notification routes require authentication
 router.use(authMiddleware);

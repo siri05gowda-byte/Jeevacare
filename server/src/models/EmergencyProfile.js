@@ -299,7 +299,7 @@ const emergencyProfileSchema = new mongoose.Schema(
       ],
     },
 
-    // Emergency Access Token for QR Code
+    // Emergency Access Token
     emergencyAccessToken: {
       token: {
         type: String,

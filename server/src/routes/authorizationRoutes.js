@@ -345,7 +345,7 @@ router.post(
         actor: req.user._id,
         resource: 'Authorization',
         details: {
-          hospitai dId: hospitalId,
+          hospitalId: hospitalId,
           patientId: patientId,
         },
       });

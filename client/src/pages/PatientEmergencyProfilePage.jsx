@@ -1,20 +1,18 @@
 /**
  * Patient Emergency Profile Page
- * Allows patients to manage their emergency profile, contacts, and access QR code
+ * Allows patients to manage their emergency profile, contacts, and emergency access
  */
 
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { emergencyService } from '../services/emergencyService';
 import {
-  QrCode,
   Plus,
   AlertTriangle,
   Heart,
   Pill,
   Droplet,
   Phone,
-  Download,
   RefreshCw,
   Trash2,
   X,
@@ -31,7 +29,6 @@ const PatientEmergencyProfilePage = () => {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState(null);
   const [contacts, setContacts] = useState([]);
-  const [qrCode, setQrCode] = useState(null);
   const [tokenStatus, setTokenStatus] = useState(null);
 
   // Dialog states
@@ -39,7 +36,6 @@ const PatientEmergencyProfilePage = () => {
   const [conditionDialog, setConditionDialog] = useState(false);
   const [medicationDialog, setMedicationDialog] = useState(false);
   const [contactDialog, setContactDialog] = useState(false);
-  const [qrDialog, setQrDialog] = useState(false);
 
   // Form states
   const [allergyForm, setAllergyForm] = useState({ allergen: '', severity: 'moderate', reaction: '' });
@@ -156,9 +152,8 @@ const PatientEmergencyProfilePage = () => {
   const handleGenerateToken = async () => {
     try {
       await emergencyService.generateEmergencyToken(user._id);
-      showSuccess('Emergency QR code generated successfully');
+      showSuccess('Emergency token generated successfully');
       loadTokenStatus();
-      loadQrCode();
     } catch (err) {
       showError('Failed to generate emergency token');
       console.error(err);
@@ -168,32 +163,11 @@ const PatientEmergencyProfilePage = () => {
   const handleRevokeToken = async () => {
     try {
       await emergencyService.revokeEmergencyToken(user._id, 'User requested revocation');
-      showSuccess('Emergency QR code revoked successfully');
-      setQrCode(null);
+      showSuccess('Emergency token revoked successfully');
       loadTokenStatus();
     } catch (err) {
       showError('Failed to revoke token');
       console.error(err);
-    }
-  };
-
-  const loadQrCode = async () => {
-    try {
-      const response = await emergencyService.getQrCode(user._id);
-      setQrCode(response.data);
-      setQrDialog(true);
-    } catch (err) {
-      showError('Failed to load QR code');
-      console.error(err);
-    }
-  };
-
-  const downloadQrCode = () => {
-    if (qrCode?.qrCode) {
-      const link = document.createElement('a');
-      link.href = qrCode.qrCode;
-      link.download = `jeevacare-emergency-${user.jeevaId || 'qr'}.png`;
-      link.click();
     }
   };
 
@@ -210,44 +184,38 @@ const PatientEmergencyProfilePage = () => {
       {/* Header */}
       <SectionTitle
         title="Emergency Profile"
-        description="Manage your emergency medical information and access QR code"
+        description="Manage your emergency medical information and access token"
         icon={<AlertTriangle size={32} />}
       />
 
       <ToastContainer toasts={toasts} onRemove={remove} />
 
-      {/* Emergency QR Code Card */}
+      {/* Emergency Access Token Card */}
       <div className="card mb-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">Emergency Access QR Code</h3>
+          <h3 className="text-lg font-semibold">Emergency Access Token</h3>
           {tokenStatus?.isActive ? (
-            <div className="flex gap-2">
-              <button onClick={loadQrCode} className="btn btn-primary btn-sm">
-                <QrCode size={16} className="mr-1" />
-                View QR Code
-              </button>
-              <button onClick={handleRevokeToken} className="btn btn-secondary btn-sm">
-                <Trash2 size={16} className="mr-1" />
-                Revoke
-              </button>
-            </div>
+            <button onClick={handleRevokeToken} className="btn btn-secondary btn-sm">
+              <Trash2 size={16} className="mr-1" />
+              Revoke
+            </button>
           ) : (
             <button onClick={handleGenerateToken} className="btn btn-primary btn-sm">
               <RefreshCw size={16} className="mr-1" />
-              Generate QR Code
+              Generate Token
             </button>
           )}
         </div>
         {tokenStatus?.isActive ? (
           <div className="alert-success">
-            <p className="font-medium">✓ Active emergency QR code available</p>
+            <p className="font-medium">✓ Active emergency token available</p>
             <p className="text-sm mt-1">
               Expires: {new Date(tokenStatus.expiresAt).toLocaleString()}
             </p>
           </div>
         ) : (
           <div className="alert-info">
-            Generate a QR code that emergency responders can scan to access your critical medical
+            Generate a token that emergency responders can use to access your critical medical
             information when you're unable to communicate.
           </div>
         )}
@@ -575,35 +543,6 @@ const PatientEmergencyProfilePage = () => {
               </button>
               <button onClick={handleAddContact} className="btn btn-primary">
                 Add
-              </button>
-            </div>
-          </div>
-        </Dialog>
-      )}
-
-      {/* QR Code Dialog */}
-      {qrDialog && qrCode && (
-        <Dialog onClose={() => setQrDialog(false)} title="Emergency Access QR Code">
-          <div className="text-center py-4">
-            <img
-              src={qrCode.qrCode}
-              alt="Emergency QR Code"
-              className="w-full max-w-sm mx-auto"
-            />
-            <p className="text-sm text-gray-600 mt-4">
-              Print this QR code or save it to your phone. Emergency responders can scan it to
-              access your critical medical information.
-            </p>
-            <p className="text-xs text-gray-500 mt-2">
-              Expires: {qrCode?.expiresAt ? new Date(qrCode.expiresAt).toLocaleString() : 'N/A'}
-            </p>
-            <div className="flex gap-2 justify-center mt-4">
-              <button onClick={() => setQrDialog(false)} className="btn btn-secondary">
-                Close
-              </button>
-              <button onClick={downloadQrCode} className="btn btn-primary">
-                <Download size={16} className="mr-1" />
-                Download
               </button>
             </div>
           </div>

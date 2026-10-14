@@ -135,7 +135,7 @@ export const emergencyService = {
     return response;
   },
 
-  // ==================== EMERGENCY TOKEN & QR CODE ====================
+  // ==================== EMERGENCY TOKEN ENDPOINTS ====================
 
   /**
    * Generate emergency access token
@@ -146,15 +146,7 @@ export const emergencyService = {
   },
 
   /**
-   * Get QR code for emergency access
-   */
-  getQrCode: async (patientId) => {
-    const response = await api.get(`/emergency/token/${patientId}/qr-code`);
-    return response;
-  },
-
-  /**
-   * Validate emergency token from QR scan
+   * Validate emergency token
    */
   validateEmergencyToken: async (token) => {
     const response = await api.post('/emergency/token/validate', { token });

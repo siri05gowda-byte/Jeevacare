@@ -36,9 +36,6 @@ describe('EmergencyTokenService', () => {
       expect(result).toBeDefined();
       expect(result.token).toMatch(/^EAT-[a-f0-9]{12}-\d+-[a-f0-9]{32}$/);
       expect(result.expiresAt).toBeInstanceOf(Date);
-      expect(result.qrCodeData).toBeDefined();
-      expect(result.qrCodeData.type).toBe('jeevacare_emergency');
-      expect(result.qrCodeData.token).toBe(result.token);
     });
 
     it('should reject token generation for non-existent patient', async () => {
@@ -47,43 +44,6 @@ describe('EmergencyTokenService', () => {
       await expect(
         EmergencyTokenService.generateEmergencyToken('507f1f77bcf86cd799439011')
       ).rejects.toThrow('Patient not found');
-    });
-
-    it('should NOT include sensitive patient data in QR code', async () => {
-      const mockPatient = {
-        _id: '507f1f77bcf86cd799439011',
-        jeevaId: 'JC-TEST-001',
-        personalIdentity: {
-          firstName: 'John',
-          lastName: 'Doe',
-          phone: '+919876543210',
-          aadhaar: '123456789012',
-        },
-      };
-
-      vi.spyOn(Patient, 'findById').mockResolvedValue(mockPatient);
-
-      const mockProfile = {
-        patientId: mockPatient._id,
-        emergencyAccessToken: null,
-        save: vi.fn().mockResolvedValue(true),
-      };
-
-      vi.spyOn(EmergencyProfile, 'findOne').mockResolvedValue(null);
-
-      const result = await EmergencyTokenService.generateEmergencyToken(mockPatient._id);
-
-      // QR code should ONLY contain token and jeevaId
-      expect(result.qrCodeData).toHaveProperty('token');
-      expect(result.qrCodeData).toHaveProperty('jeevaId');
-      expect(result.qrCodeData).toHaveProperty('type');
-
-      // Should NOT contain sensitive data
-      expect(result.qrCodeData).not.toHaveProperty('firstName');
-      expect(result.qrCodeData).not.toHaveProperty('lastName');
-      expect(result.qrCodeData).not.toHaveProperty('phone');
-      expect(result.qrCodeData).not.toHaveProperty('aadhaar');
-      expect(result.qrCodeData).not.toHaveProperty('personalIdentity');
     });
 
     it('should revoke old token when generating new one', async () => {

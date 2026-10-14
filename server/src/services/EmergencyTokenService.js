@@ -1,6 +1,6 @@
 /**
  * Emergency Token Service
- * Generates and validates secure, revocable emergency access tokens for QR codes
+ * Generates and validates secure, revocable emergency access tokens
  */
 
 import crypto from 'crypto';
@@ -82,26 +82,11 @@ class EmergencyTokenService {
       return {
         token,
         expiresAt: profile.emergencyAccessToken.expiresAt,
-        qrCodeData: this.generateQRCodeData(token, patient),
       };
     } catch (error) {
       logger.error(`Failed to generate emergency token: ${error.message}`);
       throw error;
     }
-  }
-
-  /**
-   * Generate QR code data (URL-safe, no sensitive data embedded)
-   */
-  static generateQRCodeData(token, patient) {
-    // Only include token and minimal identifier
-    // Full data retrieved via backend API after token validation
-    return {
-      type: 'jeevacare_emergency',
-      token,
-      jeevaId: patient.jeevaId,
-      // Do NOT include: name, phone, medical data, Aadhaar
-    };
   }
 
   /**
