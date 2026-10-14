@@ -251,7 +251,7 @@ export default function DocumentsPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="text-base font-semibold text-gray-900 truncate">
-                        {doc.name}
+                        {doc.fileName || doc.name}
                       </h3>
                       <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 mt-1">
                         <span className="px-2 py-1 bg-gray-100 rounded text-xs font-medium">

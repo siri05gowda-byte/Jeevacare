@@ -155,25 +155,25 @@ export function ToastContainer({ toasts = [], onRemove, position = 'bottom-right
 export function useToast() {
   const [toasts, setToasts] = useState([]);
 
-  const show = (message, type = 'info', duration = 3000) => {
+  const show = React.useCallback((message, type = 'info', duration = 3000) => {
     const id = Date.now().toString();
     const newToast = { id, message, type, duration };
     setToasts((prev) => [...prev, newToast]);
     return id;
-  };
+  }, []);
 
-  const success = (message, duration = 3000) => show(message, 'success', duration);
-  const error = (message, duration = 5000) => show(message, 'error', duration);
-  const warning = (message, duration = 4000) => show(message, 'warning', duration);
-  const info = (message, duration = 3000) => show(message, 'info', duration);
+  const success = React.useCallback((message, duration = 3000) => show(message, 'success', duration), [show]);
+  const error = React.useCallback((message, duration = 5000) => show(message, 'error', duration), [show]);
+  const warning = React.useCallback((message, duration = 4000) => show(message, 'warning', duration), [show]);
+  const info = React.useCallback((message, duration = 3000) => show(message, 'info', duration), [show]);
 
-  const remove = (id) => {
+  const remove = React.useCallback((id) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
-  };
+  }, []);
 
-  const clear = () => {
+  const clear = React.useCallback(() => {
     setToasts([]);
-  };
+  }, []);
 
   return {
     toasts,

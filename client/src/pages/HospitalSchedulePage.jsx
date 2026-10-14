@@ -39,8 +39,14 @@ export default function HospitalSchedulePage() {
       const professionalId = user.professionalId || user._id;
       const filters = {};
       
+      // facilityId is required by the backend
       if (user.facilityId) {
         filters.facilityId = user.facilityId;
+      } else {
+        // If no facilityId, try to get it from user profile or default
+        setError('No facility associated with your account. Please contact your administrator.');
+        setIsLoading(false);
+        return;
       }
 
       const response = await appointmentService.getDoctorAppointments(professionalId, filters);
