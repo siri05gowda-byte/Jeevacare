@@ -146,13 +146,13 @@ class AppointmentService {
         query.status = filters.status;
       }
 
-      if (filters.dateFrom || filters.dateTo) {
+      if (filters.startDate || filters.endDate) {
         query.appointmentDate = {};
-        if (filters.dateFrom) {
-          query.appointmentDate.$gte = new Date(filters.dateFrom);
+        if (filters.startDate) {
+          query.appointmentDate.$gte = new Date(filters.startDate);
         }
-        if (filters.dateTo) {
-          query.appointmentDate.$lte = new Date(filters.dateTo);
+        if (filters.endDate) {
+          query.appointmentDate.$lte = new Date(filters.endDate);
         }
       }
 

@@ -95,6 +95,7 @@ export default function RadiologyPage() {
       const patientId = await resolvePatientId(token);
       if (!patientId) {
         setError('Unable to resolve patient identity. Please try logging in again.');
+        setRadiologyRecords([]);
         return;
       }
 

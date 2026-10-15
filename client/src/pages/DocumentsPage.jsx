@@ -59,6 +59,8 @@ export default function DocumentsPage() {
       
       if (!patientId) {
         showError('Unable to identify patient');
+        setDocuments([]);
+        setIsLoading(false);
         return;
       }
 

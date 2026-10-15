@@ -15,7 +15,6 @@ export const appointmentService = {
   getPatientAppointments: async (patientId, filters = {}) => {
     const params = new URLSearchParams();
     if (filters.status) params.append('status', filters.status);
-    if (filters.facilityId) params.append('facilityId', filters.facilityId);
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
 

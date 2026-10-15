@@ -93,16 +93,20 @@ export default function HospitalStaffPage() {
     try {
       // For SYSTEM_ADMIN, get all pending associations
       if (user?.role === 'SYSTEM_ADMIN') {
-        const pending = await staffService.getPendingAssociations();
-        setPendingStaff(pending.data || []);
+        const response = await staffService.getPendingAssociations();
+        // Handle response unwrapping from api interceptor
+        const pending = response?.data || response || [];
+        setPendingStaff(Array.isArray(pending) ? pending : []);
       }
       // For HOSPITAL_ADMIN, get facility staff (would need to know which facility)
       // This requires getting user's active staff records first to find their facility
       
-      setLoading(false);
     } catch (err) {
       console.error('Failed to load staff data:', err);
-      setError(err.response?.data?.message || err.message || 'Failed to load staff data');
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to load staff data';
+      setError(errorMessage);
+      setPendingStaff([]);
+    } finally {
       setLoading(false);
     }
   };
