@@ -21,8 +21,8 @@ export default function NotificationCenterPage() {
       if (typeFilter) params.type = typeFilter;
 
       const response = await notificationService.getNotifications(params);
-      setNotifications(response.data || []);
-      setUnreadCount(response.meta?.unreadCount || 0);
+      setNotifications(response.data || response || []);
+      setUnreadCount(response.meta?.unreadCount || response.unreadCount || 0);
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
     } finally {

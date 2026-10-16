@@ -1,42 +1,65 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Bell, Check, Trash2, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../stores/authStore';
 import notificationService from '../services/notificationService';
 
 export default function NotificationBell() {
   const navigate = useNavigate();
+  const { user, token } = useAuthStore();
   const [showDropdown, setShowDropdown] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
 
   const fetchUnreadCount = useCallback(async () => {
+    // Don't fetch if not authenticated
+    if (!user || !token) {
+      return;
+    }
+
     try {
       const response = await notificationService.getUnreadCount();
-      setUnreadCount(response.data.count);
+      setUnreadCount(response.data?.count || 0);
     } catch (error) {
+      // Silently fail if unauthorized (user logged out)
+      if (error.response?.status === 401) {
+        setUnreadCount(0);
+        return;
+      }
       console.error('Failed to fetch unread count:', error);
     }
-  }, []);
+  }, [user, token]);
 
   const fetchNotifications = useCallback(async () => {
+    if (!user || !token) {
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await notificationService.getNotifications({ limit: 10 });
       setNotifications(response.data || []);
     } catch (error) {
+      // Silently fail if unauthorized
+      if (error.response?.status === 401) {
+        setNotifications([]);
+        return;
+      }
       console.error('Failed to fetch notifications:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user, token]);
 
   useEffect(() => {
-    fetchUnreadCount();
-    // Poll for new notifications every 30 seconds
-    const interval = setInterval(fetchUnreadCount, 30000);
-    return () => clearInterval(interval);
-  }, [fetchUnreadCount]);
+    // Only start polling if user is authenticated
+    if (user && token) {
+      fetchUnreadCount();
+      const interval = setInterval(fetchUnreadCount, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [fetchUnreadCount, user, token]);
 
   useEffect(() => {
     if (showDropdown) {
