@@ -25,27 +25,41 @@ export default function DocumentsPage() {
 
   // Get patient ID from user
   const getPatientId = async () => {
+    // Check if user object already has patientId
     if (user?.patientId) {
       return user.patientId;
     }
     
-    // For PATIENT role, fetch from profile
-    if (user?.role === 'PATIENT') {
-      try {
-        const token = localStorage.getItem('token');
-        const response = await fetch('/api/v1/patients/profile', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          return data.data?._id || data._id;
-        }
-      } catch (err) {
-        console.error('Failed to get patient ID:', err);
+    // Fetch patient profile from API
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/v1/patients/profile', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch patient profile: HTTP ${response.status}`);
       }
+      
+      const data = await response.json();
+      
+      if (!data.success || !data.data) {
+        throw new Error('Invalid response format from patient profile API');
+      }
+      
+      const patientId = data.data._id;
+      
+      if (!patientId) {
+        throw new Error('Patient ID not found in profile response');
+      }
+      
+      return patientId;
+    } catch (err) {
+      console.error('Failed to get patient ID:', err);
+      throw new Error(
+        'Unable to load your patient profile. Please refresh the page and try again.'
+      );
     }
-    
-    return user?._id;
   };
 
   useEffect(() => {

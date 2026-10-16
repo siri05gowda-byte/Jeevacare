@@ -27,28 +27,42 @@ export default function PatientAppointmentsPage() {
 
   // Get patient ID from user
   const getPatientId = async () => {
-    // For PATIENT role, we need to get their patient profile ID
-    // This might be in user.patientId or we need to fetch it
+    // Check if user object already has patientId
     if (user?.patientId) {
       return user.patientId;
     }
     
-    // Try to get from patient profile endpoint
+    // Fetch patient profile from API
     try {
       const response = await fetch('/api/v1/patients/profile', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
       });
-      if (response.ok) {
-        const data = await response.json();
-        return data.data?._id || data._id;
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch patient profile: HTTP ${response.status}`);
       }
+      
+      const data = await response.json();
+      
+      if (!data.success || !data.data) {
+        throw new Error('Invalid response format from patient profile API');
+      }
+      
+      const patientId = data.data._id;
+      
+      if (!patientId) {
+        throw new Error('Patient ID not found in profile response');
+      }
+      
+      return patientId;
     } catch (err) {
       console.error('Failed to get patient ID:', err);
+      throw new Error(
+        'Unable to load your patient profile. Please refresh the page and try again.'
+      );
     }
-    
-    return user?._id; // Fallback to user ID
   };
 
   useEffect(() => {
@@ -76,9 +90,10 @@ export default function PatientAppointmentsPage() {
       } else {
         setAppointments([]);
       }
-    } catch (error) {
-      console.error('Error loading appointments:', error);
-      setError(error.message || 'Failed to load appointments');
+    } catch (err) {
+      console.error('Error loading appointments:', err);
+      const errorMessage = err.message || 'Failed to load appointments';
+      setError(errorMessage);
       setAppointments([]);
     } finally {
       setIsLoading(false);
