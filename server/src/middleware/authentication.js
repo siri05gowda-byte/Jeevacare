@@ -38,6 +38,26 @@ export const authMiddleware = async (req, res, next) => {
       return next(new AuthenticationError(`User account is ${user.status}`));
     }
 
+    // For healthcare professionals (doctors, nurses, etc.), resolve their facility association
+    if (['DOCTOR', 'NURSE', 'LAB_TECHNICIAN', 'RADIOLOGY_TECHNICIAN', 'PHARMACIST'].includes(user.role)) {
+      try {
+        const HospitalStaff = (await import('../models/HospitalStaff.js')).default;
+        const staffAssociation = await HospitalStaff.findOne({
+          userId: user._id,
+          associationStatus: 'active',
+          employmentStatus: 'active'
+        }).sort({ startDate: -1 }); // Most recent active association
+
+        if (staffAssociation) {
+          user.facilityId = staffAssociation.hospitalId;
+          user.staffId = staffAssociation._id;
+        }
+      } catch (facilityError) {
+        logger.warn(`Failed to resolve facility for user ${user._id}: ${facilityError.message}`);
+        // Don't fail the auth, just log the warning
+      }
+    }
+
     // Attach user and token to request
     req.user = user;
     req.token = token;

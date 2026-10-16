@@ -59,9 +59,10 @@ router.post('/book', authMiddleware, async (req, res) => {
     };
 
     const appointment = await AppointmentService.bookAppointment(appointmentData, {
-      id: req.user.id,
+      _id: req.user._id,
+      id: req.user._id,
       role: req.user.role,
-      facilityId: req.user.facilityId,
+      facilityId: req.user.facilityId || facilityId,
     });
 
     // Create notification for patient about new appointment
@@ -116,7 +117,8 @@ router.get('/patient/:patientId', authMiddleware, async (req, res) => {
     if (endDate) filters.endDate = new Date(endDate);
 
     const appointments = await AppointmentService.getPatientAppointments(patientId, {
-      id: req.user.id,
+      _id: req.user._id,
+      id: req.user._id,
       role: req.user.role,
       facilityId: req.user.facilityId,
     }, filters);
@@ -149,23 +151,29 @@ router.get('/doctor/:doctorId', authMiddleware, authorize(['DOCTOR', 'ADMIN']), 
     const { doctorId } = req.params;
     const { facilityId, status, startDate, endDate } = req.query;
 
-    if (!facilityId) {
+    // Get facilityId from query or resolve from user's staff association
+    let targetFacilityId = facilityId || req.user.facilityId;
+
+    if (!targetFacilityId) {
       return res.status(400).json({
-        error: 'facilityId query parameter is required',
+        error: 'No facility associated with your account. Please contact your administrator.',
+        code: 'NO_FACILITY_ASSOCIATION',
+        action: 'contact_admin'
       });
     }
 
     const filters = {
-      facilityId,
+      facilityId: targetFacilityId,
     };
     if (status) filters.status = status;
     if (startDate) filters.startDate = new Date(startDate);
     if (endDate) filters.endDate = new Date(endDate);
 
     const appointments = await AppointmentService.getDoctorAppointments(doctorId, {
-      id: req.user.id,
+      _id: req.user._id,
+      id: req.user._id,
       role: req.user.role,
-      facilityId: req.user.facilityId,
+      facilityId: targetFacilityId,
     }, filters);
 
     res.json({
@@ -189,7 +197,8 @@ router.get('/:appointmentId', authMiddleware, async (req, res) => {
     const { appointmentId } = req.params;
 
     const appointment = await AppointmentService.getAppointmentDetails(appointmentId, {
-      id: req.user.id,
+      _id: req.user._id,
+      id: req.user._id,
       role: req.user.role,
       facilityId: req.user.facilityId,
     });
@@ -232,7 +241,8 @@ router.patch('/:appointmentId/reschedule', authMiddleware, async (req, res) => {
         reason: reason || '',
       },
       {
-        id: req.user.id,
+        _id: req.user._id,
+        id: req.user._id,
         role: req.user.role,
         facilityId: req.user.facilityId,
       }
@@ -282,9 +292,10 @@ router.delete('/:appointmentId', authMiddleware, async (req, res) => {
 
     const result = await AppointmentService.cancelAppointment(appointmentId, {
       reason: reason || '',
-      cancelledBy: req.user.id,
+      cancelledBy: req.user._id,
     }, {
-      id: req.user.id,
+      _id: req.user._id,
+      id: req.user._id,
       role: req.user.role,
       facilityId: req.user.facilityId,
     });
@@ -300,7 +311,7 @@ router.delete('/:appointmentId', authMiddleware, async (req, res) => {
         metadata: {
           appointmentId,
           reason,
-          cancelledBy: req.user.id,
+          cancelledBy: req.user._id,
         },
       });
     } catch (notifError) {
@@ -343,7 +354,8 @@ router.patch('/:appointmentId/status', authMiddleware, async (req, res) => {
       appointmentId,
       status,
       {
-        id: req.user.id,
+        _id: req.user._id,
+        id: req.user._id,
         role: req.user.role,
         facilityId: req.user.facilityId,
       }
