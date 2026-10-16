@@ -475,15 +475,6 @@ All AI features (summaries, explanations, accessibility) are:
 
 All external services have demo/fallback modes to prevent production failures.
 
-## Documentation
-
-- **[Build_spec.md](Build_spec.md)** - Complete technical specification
-- **[objective.md](objective.md)** - Feature verification checklist
-- **[docs/STAGING_READINESS_REPORT.md](docs/STAGING_READINESS_REPORT.md)** - Pre-deployment verification report
-- **[docs/STAGING_BACKEND_CONFIG.md](docs/STAGING_BACKEND_CONFIG.md)** - Backend staging setup
-- **[docs/STAGING_FRONTEND_CONFIG.md](docs/STAGING_FRONTEND_CONFIG.md)** - Frontend staging setup
-- **[docs/STAGING_SMOKE_TESTS.md](docs/STAGING_SMOKE_TESTS.md)** - Post-deployment test checklist
-
 ## Development Status
 
 ### Phase 1: Foundation Complete
