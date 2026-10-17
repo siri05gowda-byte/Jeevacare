@@ -171,7 +171,9 @@ router.get('/doctor/:doctorId', authMiddleware, authorize('DOCTOR', 'HOSPITAL_AD
 
     if (!targetFacilityId) {
       return res.status(400).json({
+        success: false,
         error: 'No facility associated with your account. Please contact your administrator.',
+        message: 'No active hospital facility association found for your doctor account. Please contact your hospital administrator for onboarding approval.',
         code: 'NO_FACILITY_ASSOCIATION',
         action: 'contact_admin'
       });

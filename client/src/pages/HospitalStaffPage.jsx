@@ -91,8 +91,8 @@ export default function HospitalStaffPage() {
     setLoading(true);
     setError(null);
     try {
-      // For SYSTEM_ADMIN, get all pending associations
-      if (user?.role === 'SYSTEM_ADMIN') {
+      // For SYSTEM_ADMIN and HOSPITAL_ADMIN, get pending associations
+      if (['SYSTEM_ADMIN', 'HOSPITAL_ADMIN', 'ADMIN'].includes(user?.role)) {
         const response = await staffService.getPendingAssociations();
         // Handle response unwrapping from api interceptor
         const pending = response?.data || response || [];
@@ -127,8 +127,8 @@ export default function HospitalStaffPage() {
 
     try {
       await staffService.inviteStaff({
-        userId: selectedUser._id,
-        hospitalId: selectedFacility._id,
+        userId: selectedUser._id || selectedUser.userId,
+        hospitalId: selectedFacility._id || selectedFacility.hospitalId,
         role: inviteForm.role,
         department: inviteForm.department,
         employmentStatus: inviteForm.employmentStatus,
@@ -251,7 +251,7 @@ export default function HospitalStaffPage() {
                 </div>
                 <input
                   type="text"
-                  value={selectedUser ? `${selectedUser.firstName} ${selectedUser.lastName} (${selectedUser.email})` : userSearchQuery}
+                  value={selectedUser ? `${selectedUser.name || `${selectedUser.firstName || ''} ${selectedUser.lastName || ''}`.trim()} (${selectedUser.email})` : userSearchQuery}
                   onChange={(e) => {
                     setUserSearchQuery(e.target.value);
                     setSelectedUser(null);
@@ -267,7 +267,7 @@ export default function HospitalStaffPage() {
                 <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                   {userSearchResults.map((user) => (
                     <button
-                      key={user._id}
+                      key={user._id || user.userId}
                       type="button"
                       onClick={() => {
                         setSelectedUser(user);
@@ -277,7 +277,7 @@ export default function HospitalStaffPage() {
                       className="w-full text-left px-4 py-2 hover:bg-blue-50 transition"
                     >
                       <div className="font-medium text-gray-900">
-                        {user.firstName} {user.lastName}
+                        {user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim()}
                       </div>
                       <div className="text-sm text-gray-600">{user.email}</div>
                       <div className="text-xs text-gray-500">Role: {user.role}</div>
@@ -290,7 +290,7 @@ export default function HospitalStaffPage() {
                   <div className="flex justify-between items-start">
                     <div>
                       <div className="font-medium text-green-900">
-                        {selectedUser.firstName} {selectedUser.lastName}
+                        {selectedUser.name || `${selectedUser.firstName || ''} ${selectedUser.lastName || ''}`.trim()}
                       </div>
                       <div className="text-sm text-green-700">{selectedUser.email}</div>
                     </div>

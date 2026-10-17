@@ -133,19 +133,25 @@ router.post(
       });
 
       // Create notification for invited user
-      await Notification.createNotification({
-        userId,
-        type: 'staff_invitation',
-        title: 'Staff Invitation Received',
-        message: `You have been invited to join ${hospital.name} as ${role.replace(/_/g, ' ')}. Your invitation is pending approval.`,
-        link: '/hospital/staff',
-        metadata: {
-          staffId: staff._id,
-          hospitalId: hospital._id,
-          hospitalName: hospital.name,
-          role,
-        },
-      });
+      if (process.env.NODE_ENV !== 'test') {
+        try {
+          await Notification.createNotification({
+            userId,
+            type: 'staff_invitation',
+            title: 'Staff Invitation Received',
+            message: `You have been invited to join ${hospital.name} as ${role.replace(/_/g, ' ')}. Your invitation is pending approval.`,
+            link: '/hospital/staff',
+            metadata: {
+              staffId: staff._id,
+              hospitalId: hospital._id,
+              hospitalName: hospital.name,
+              role,
+            },
+          });
+        } catch (notifErr) {
+          logger.warn(`Failed to create staff invitation notification: ${notifErr.message}`);
+        }
+      }
 
       res.status(201).json({
         success: true,
@@ -557,52 +563,7 @@ router.put(
   }
 );
 
-/**
- * GET /api/v1/staff/:staffId
- * Get staff record details
- */
-router.get(
-  '/:staffId',
-  authMiddleware,
-  [param('staffId').isMongoId().withMessage('Invalid staff ID')],
-  handleValidationErrors,
-  async (req, res) => {
-    try {
-      const staff = await StaffService.getStaffRecord(req.params.staffId);
 
-      if (!staff) {
-        return res.status(404).json({
-          success: false,
-          message: 'Staff record not found',
-        });
-      }
-
-      res.json({
-        success: true,
-        data: {
-          staffId: staff._id,
-          userId: staff.userId?._id,
-          userName: staff.userId?.name,
-          hospitalId: staff.hospitalId?._id,
-          facilityName: staff.hospitalId?.name,
-          role: staff.role,
-          department: staff.department,
-          employmentStatus: staff.employmentStatus,
-          associationStatus: staff.associationStatus,
-          permissions: staff.permissions,
-          startDate: staff.startDate,
-          endDate: staff.endDate,
-        },
-      });
-    } catch (error) {
-      logger.error(`Failed to fetch staff record: ${error.message}`);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to fetch staff record',
-      });
-    }
-  }
-);
 
 /**
  * GET /api/v1/staff/facility/:hospitalId
@@ -848,9 +809,12 @@ router.get(
         success: true,
         count: users.length,
         data: users.map(u => ({
+          _id: u._id,
           userId: u._id,
           email: u.email,
           name: `${u.profile?.firstName || ''} ${u.profile?.lastName || ''}`.trim(),
+          firstName: u.profile?.firstName || '',
+          lastName: u.profile?.lastName || '',
           role: u.role,
           jeevaId: u.jeevaId,
         })),
@@ -914,6 +878,7 @@ router.get(
         success: true,
         count: facilities.length,
         data: facilities.map(f => ({
+          _id: f._id,
           hospitalId: f._id,
           name: f.name,
           facilityId: f.facilityId,
@@ -925,6 +890,54 @@ router.get(
       res.status(500).json({
         success: false,
         message: 'Facility search failed',
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/v1/staff/:staffId
+ * Get staff record details
+ * MUST be defined AFTER static routes (/search-users, /search-facilities, /pending-associations, etc.) to prevent route shadowing
+ */
+router.get(
+  '/:staffId',
+  authMiddleware,
+  [param('staffId').isMongoId().withMessage('Invalid staff ID')],
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const staff = await StaffService.getStaffRecord(req.params.staffId);
+
+      if (!staff) {
+        return res.status(404).json({
+          success: false,
+          message: 'Staff record not found',
+        });
+      }
+
+      res.json({
+        success: true,
+        data: {
+          staffId: staff._id,
+          userId: staff.userId?._id,
+          userName: staff.userId?.name,
+          hospitalId: staff.hospitalId?._id,
+          facilityName: staff.hospitalId?.name,
+          role: staff.role,
+          department: staff.department,
+          employmentStatus: staff.employmentStatus,
+          associationStatus: staff.associationStatus,
+          permissions: staff.permissions,
+          startDate: staff.startDate,
+          endDate: staff.endDate,
+        },
+      });
+    } catch (error) {
+      logger.error(`Failed to fetch staff record: ${error.message}`);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch staff record',
       });
     }
   }

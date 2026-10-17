@@ -406,6 +406,11 @@ export const requireHospitalAdmin = async (req, res, next) => {
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
+    // SYSTEM_ADMIN has system-wide administrative authority
+    if (req.user.role === 'SYSTEM_ADMIN') {
+      return next();
+    }
+
     // Check for facilityId or hospitalId (both used in different endpoints)
     const facilityId = req.params.facilityId || req.body.facilityId || req.body.hospitalId;
 
@@ -422,6 +427,14 @@ export const requireHospitalAdmin = async (req, res, next) => {
     );
 
     if (!isAdmin) {
+      // Also check if HOSPITAL_ADMIN has matching hospitalId in user profile
+      if (req.user.role === 'HOSPITAL_ADMIN' && (
+        req.user.facilityId?.toString() === facilityId?.toString() ||
+        req.user.profile?.hospitalId?.toString() === facilityId?.toString()
+      )) {
+        return next();
+      }
+
       return res.status(403).json({
         error: 'Hospital administrator role is required',
       });

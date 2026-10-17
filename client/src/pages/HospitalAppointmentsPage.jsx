@@ -55,7 +55,13 @@ export default function HospitalAppointmentsPage() {
       }
     } catch (error) {
       console.error('Error loading appointments:', error);
-      setError(error.message || 'Failed to load appointments');
+      const serverCode = error.response?.data?.code;
+      const serverMessage = error.response?.data?.message || error.response?.data?.error || error.message;
+      if (serverCode === 'NO_FACILITY_ASSOCIATION' || error.response?.status === 403 || error.message?.includes('400')) {
+        setError(serverMessage || 'No active hospital facility association found for your doctor account. Please contact your hospital administrator for onboarding approval.');
+      } else {
+        setError(serverMessage || 'Failed to load appointments');
+      }
       setAppointments([]);
     } finally {
       setIsLoading(false);
@@ -147,15 +153,39 @@ export default function HospitalAppointmentsPage() {
   }
 
   if (error) {
+    const isNoFacility =
+      error.toLowerCase().includes('facility') ||
+      error.toLowerCase().includes('administrator') ||
+      error.toLowerCase().includes('association');
+
     return (
       <PageContainer>
         <SectionTitle title="Appointments" icon={<Calendar size={32} />} />
-        <div className="card border-red-200 bg-red-50">
-          <p className="text-red-800">{error}</p>
-          <button onClick={loadAppointments} className="btn-secondary mt-4">
-            Retry
-          </button>
-        </div>
+        {isNoFacility ? (
+          <div className="card border-amber-200 bg-amber-50 p-6 text-center">
+            <div className="flex justify-center mb-3">
+              <AlertCircle size={40} className="text-amber-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-amber-900 mb-2">
+              Hospital Facility Association Required
+            </h3>
+            <p className="text-amber-800 text-sm max-w-lg mx-auto mb-4">
+              {error}
+            </p>
+            <div className="flex justify-center gap-3">
+              <button onClick={loadAppointments} className="btn-secondary text-sm">
+                Check Again
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="card border-red-200 bg-red-50">
+            <p className="text-red-800">{error}</p>
+            <button onClick={loadAppointments} className="btn-secondary mt-4">
+              Retry
+            </button>
+          </div>
+        )}
       </PageContainer>
     );
   }
