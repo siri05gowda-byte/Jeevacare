@@ -168,6 +168,10 @@ router.get(
       // Enforce facility association for doctors and nurses
       if (['DOCTOR', 'NURSE'].includes(req.user.role)) {
         if (!req.user.facilityId) {
+          const { ensureStaffAssociation } = await import('../utils/staffHelper.js');
+          await ensureStaffAssociation(req.user);
+        }
+        if (!req.user.facilityId) {
           return res.status(400).json({
             success: false,
             code: 'NO_FACILITY_ASSOCIATION',

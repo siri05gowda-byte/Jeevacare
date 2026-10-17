@@ -24,7 +24,7 @@ export default function SectionTitle({
       <div className="flex items-start gap-3">
         {icon && (
           <div className="flex-shrink-0 text-jeevacare-blue">
-            {icon}
+            {React.isValidElement(icon) ? icon : React.createElement(icon, { size: 32 })}
           </div>
         )}
         <div>

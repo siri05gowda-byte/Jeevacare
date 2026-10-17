@@ -338,14 +338,10 @@ router.post(
       }
 
       // If user is a healthcare professional, resolve staff association and professional profile
-      if (['DOCTOR', 'NURSE', 'LAB_TECHNICIAN', 'RADIOLOGY_TECHNICIAN', 'PHARMACIST'].includes(user.role)) {
+      if (['DOCTOR', 'NURSE', 'LAB_TECHNICIAN', 'RADIOLOGY_TECHNICIAN', 'PHARMACIST', 'HOSPITAL_ADMIN'].includes(user.role)) {
         try {
-          const HospitalStaff = (await import('../models/HospitalStaff.js')).default;
-          const staffAssociation = await HospitalStaff.findOne({
-            userId: user._id,
-            associationStatus: 'active',
-            employmentStatus: 'active',
-          }).sort({ startDate: -1 });
+          const { ensureStaffAssociation } = await import('../utils/staffHelper.js');
+          const staffAssociation = await ensureStaffAssociation(user);
 
           if (staffAssociation) {
             userResponse.facilityId = staffAssociation.hospitalId;
@@ -728,14 +724,10 @@ router.get('/current-user', authMiddleware, async (req, res) => {
     }
 
     // If user is a healthcare professional, resolve staff association and professional profile
-    if (['DOCTOR', 'NURSE', 'LAB_TECHNICIAN', 'RADIOLOGY_TECHNICIAN', 'PHARMACIST'].includes(user.role)) {
+    if (['DOCTOR', 'NURSE', 'LAB_TECHNICIAN', 'RADIOLOGY_TECHNICIAN', 'PHARMACIST', 'HOSPITAL_ADMIN'].includes(user.role)) {
       try {
-        const HospitalStaff = (await import('../models/HospitalStaff.js')).default;
-        const staffAssociation = await HospitalStaff.findOne({
-          userId: user._id,
-          associationStatus: 'active',
-          employmentStatus: 'active',
-        }).sort({ startDate: -1 });
+        const { ensureStaffAssociation } = await import('../utils/staffHelper.js');
+        const staffAssociation = await ensureStaffAssociation(user);
 
         if (staffAssociation) {
           user.facilityId = staffAssociation.hospitalId;

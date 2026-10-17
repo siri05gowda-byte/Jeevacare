@@ -181,15 +181,15 @@ export default function StaffDocumentUpload() {
    * Format patient display name with identity info
    */
   const formatPatientDisplay = (patient) => {
-    const name = `${patient.personalIdentity.firstName} ${patient.personalIdentity.lastName}`;
-    const dob = patient.personalIdentity.dateOfBirth
+    const name = `${patient?.personalIdentity?.firstName || patient?.name || ''} ${patient?.personalIdentity?.lastName || ''}`.trim() || 'Unnamed Patient';
+    const dob = patient?.personalIdentity?.dateOfBirth
       ? new Date(patient.personalIdentity.dateOfBirth).toLocaleDateString('en-IN', {
           year: 'numeric',
           month: '2-digit',
           day: '2-digit',
         })
       : 'N/A';
-    const jeevaId = patient.jeevaId || 'N/A';
+    const jeevaId = patient?.jeevaId || 'N/A';
     return `${name} (DOB: ${dob}) | JeevaId: ${jeevaId}`;
   };
 
