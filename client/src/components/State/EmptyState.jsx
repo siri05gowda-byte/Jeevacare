@@ -52,22 +52,27 @@ export default function EmptyState({
   };
 
   const config = presets[type] || presets['default'];
-  const Icon = icon || config.icon;
   const finalTitle = title || config.title;
   const finalDescription = description || config.description;
 
-  return (
-    <div className="empty-state py-12 sm:py-16">
-      <div className="flex justify-center mb-4">
-        <div className="empty-state-icon">
-          <Icon size={48} className="text-gray-400" />
-        </div>
-      </div>
+  const renderIcon = () => {
+    if (React.isValidElement(icon)) {
+      return icon;
+    }
+    const IconComponent = icon || config.icon;
+    if (IconComponent) {
+      return <IconComponent size={48} className="text-gray-400" />;
+    }
+    return null;
+  };
 
-      <h3 className="empty-state-title">{finalTitle}</h3>
-      <p className="empty-state-description">{finalDescription}</p>
-
-      {action && (
+  const renderAction = () => {
+    if (!action) return null;
+    if (React.isValidElement(action)) {
+      return <div className="mt-6 flex justify-center">{action}</div>;
+    }
+    if (action.label) {
+      return (
         <div className="mt-6">
           <button
             onClick={action.onClick}
@@ -76,7 +81,23 @@ export default function EmptyState({
             {action.label}
           </button>
         </div>
-      )}
+      );
+    }
+    return null;
+  };
+
+  return (
+    <div className="empty-state py-12 sm:py-16 text-center">
+      <div className="flex justify-center mb-4">
+        <div className="empty-state-icon">
+          {renderIcon()}
+        </div>
+      </div>
+
+      <h3 className="empty-state-title text-lg font-semibold text-gray-900 mb-1">{finalTitle}</h3>
+      <p className="empty-state-description text-sm text-gray-500 max-w-sm mx-auto">{finalDescription}</p>
+
+      {renderAction()}
     </div>
   );
 }
