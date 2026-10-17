@@ -3,6 +3,8 @@ import { useAuthStore } from '../stores/authStore';
 import { Upload, FileText, AlertCircle, CheckCircle, Loader } from 'lucide-react';
 import PageContainer from '../components/Layout/PageContainer';
 import SectionTitle from '../components/Layout/SectionTitle';
+import api from '../services/api';
+import { documentService } from '../services/documentService';
 
 export default function DocumentUploadPage() {
   const { user } = useAuthStore();
@@ -12,8 +14,17 @@ export default function DocumentUploadPage() {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
 
-  const token = user?.token || localStorage.getItem('token');
-  const patientId = user?._id || user?.id;
+  const getPatientId = async () => {
+    if (user?.patientId) return user.patientId;
+    try {
+      const response = await api.get('/patients/profile');
+      const patient = response?.data || response;
+      return patient?._id || patient?.id;
+    } catch (e) {
+      console.error('Failed to resolve patient ID:', e);
+      return null;
+    }
+  };
 
   const handleUpload = async (e) => {
     e.preventDefault();
@@ -25,26 +36,28 @@ export default function DocumentUploadPage() {
     try {
       setIsLoading(true);
       setError(null);
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('patientId', patientId);
-      formData.append('documentType', docType);
 
-      const response = await fetch('/api/v1/documents/upload', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: formData,
+      const patientId = await getPatientId();
+      if (!patientId) {
+        throw new Error('Unable to resolve patient profile. Please reload and try again.');
+      }
+
+      await documentService.uploadDocument(file, {
+        patientId,
+        type: docType,
       });
 
-      if (response.ok) {
-        setSuccess('Document uploaded successfully');
-        setFile(null);
-      } else {
-        const err = await response.json();
-        setError(err.error || 'Upload failed');
-      }
+      setSuccess('Document uploaded successfully');
+      setFile(null);
     } catch (err) {
-      setError(err.message);
+      console.error('Upload failed:', err);
+      const serverCode = err.response?.data?.code;
+      const serverMessage = err.response?.data?.error || err.response?.data?.message;
+      if (serverCode === 'STORAGE_NOT_CONFIGURED' || err.response?.status === 503) {
+        setError(serverMessage || 'Document storage is currently unavailable. Cloudinary storage is not configured on the server. Please contact system administrator.');
+      } else {
+        setError(serverMessage || err.message || 'Upload failed');
+      }
     } finally {
       setIsLoading(false);
     }

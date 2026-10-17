@@ -93,7 +93,33 @@ router.get(
       const userId = req.user._id;
 
       // Get patient for this user
-      const patient = await PatientService.getPatientByUserId(userId);
+      let patient;
+      try {
+        patient = await PatientService.getPatientByUserId(userId);
+      } catch (notFoundError) {
+        // Auto-create patient profile for authenticated PATIENT user if it does not exist yet
+        const Patient = (await import('../models/Patient.js')).default;
+        const User = (await import('../models/User.js')).default;
+        const user = await User.findById(userId);
+        if (user && user.role === 'PATIENT') {
+          const newPatient = new Patient({
+            userId: user._id,
+            personalIdentity: {
+              firstName: user.profile?.firstName || 'Patient',
+              lastName: user.profile?.lastName || 'User',
+              dateOfBirth: new Date('1990-01-01'),
+              sex: 'Prefer not to say',
+              phone: user.profile?.phone,
+              email: user.email,
+            },
+            status: 'active',
+            createdBy: user._id,
+          });
+          patient = await newPatient.save();
+        } else {
+          throw notFoundError;
+        }
+      }
 
       // Log audit event
       await AuditService.logPatientAccess({
@@ -112,6 +138,72 @@ router.get(
     } catch (error) {
       logger.error(`Failed to get patient profile: ${error.message}`);
       res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/v1/patients/search
+ * Search patients by name, JeevaId, phone, or email
+ * Accessible by: DOCTOR, HOSPITAL_ADMIN, NURSE
+ * MUST be defined before /:patientId to avoid route shadowing
+ */
+router.get(
+  '/search',
+  [
+    query('q').trim().notEmpty().withMessage('Search query required'),
+    query('page').optional().isInt({ min: 1 }).withMessage('Valid page number required'),
+    query('limit').optional().isInt({ min: 1, max: 50 }).withMessage('Limit must be between 1 and 50'),
+  ],
+  handleValidationErrors,
+  authMiddleware,
+  requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'NURSE'),
+  async (req, res) => {
+    try {
+      const { q, page, limit } = req.query;
+
+      // Enforce facility association for doctors and nurses
+      if (['DOCTOR', 'NURSE'].includes(req.user.role)) {
+        if (!req.user.facilityId) {
+          return res.status(400).json({
+            success: false,
+            code: 'NO_FACILITY_ASSOCIATION',
+            message: 'No facility associated with your account. Please contact your hospital administrator.',
+            action: 'contact_admin',
+          });
+        }
+      }
+
+      const results = await PatientService.searchPatients(q, {
+        page: parseInt(page) || 1,
+        limit: parseInt(limit) || 10,
+        facilityId: ['DOCTOR', 'NURSE'].includes(req.user.role) ? req.user.facilityId : null,
+      });
+
+      // Log audit event
+      await AuditService.logEvent({
+        actor: req.user._id,
+        actorRole: req.user.role,
+        action: 'patient_record_accessed',
+        details: {
+          query: q,
+          resultCount: results.patients.length,
+          facilityId: req.user.facilityId || null,
+        },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent'),
+      });
+
+      res.json({
+        success: true,
+        data: results,
+      });
+    } catch (error) {
+      logger.error(`Failed to search patients: ${error.message}`);
+      res.status(400).json({
         success: false,
         message: error.message,
       });
@@ -263,56 +355,7 @@ router.put(
   }
 );
 
-/**
- * GET /api/v1/patients/search
- * Search patients by name, JeevaId, phone, or email
- * Accessible by: DOCTOR, HOSPITAL_ADMIN
- */
-router.get(
-  '/search',
-  [
-    query('q').trim().notEmpty().withMessage('Search query required'),
-    query('page').optional().isInt({ min: 1 }).withMessage('Valid page number required'),
-    query('limit').optional().isInt({ min: 1, max: 50 }).withMessage('Limit must be between 1 and 50'),
-  ],
-  handleValidationErrors,
-  authMiddleware,
-  requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'NURSE'),
-  async (req, res) => {
-    try {
-      const { q, page, limit } = req.query;
 
-      const results = await PatientService.searchPatients(q, {
-        page: parseInt(page) || 1,
-        limit: parseInt(limit) || 10,
-      });
-
-      // Log audit event
-      await AuditService.logEvent({
-        actor: req.user._id,
-        actorRole: req.user.role,
-        action: 'patient_search',
-        details: {
-          query: q,
-          resultCount: results.patients.length,
-        },
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent'),
-      });
-
-      res.json({
-        success: true,
-        data: results,
-      });
-    } catch (error) {
-      logger.error(`Failed to search patients: ${error.message}`);
-      res.status(400).json({
-        success: false,
-        message: error.message,
-      });
-    }
-  }
-);
 
 /**
  * POST /api/v1/patients/:patientId/detect-duplicates

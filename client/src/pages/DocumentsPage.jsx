@@ -8,6 +8,7 @@ import LoadingSkeleton from '../components/State/LoadingSkeleton';
 import EmptyState from '../components/State/EmptyState';
 import { useToast, ToastContainer } from '../components/State/Toast';
 import { documentService } from '../services/documentService';
+import api from '../services/api';
 
 /**
  * DocumentsPage
@@ -30,24 +31,11 @@ export default function DocumentsPage() {
       return user.patientId;
     }
     
-    // Fetch patient profile from API
+    // Fetch patient profile from API using centralized authenticated api client
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/v1/patients/profile', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch patient profile: HTTP ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (!data.success || !data.data) {
-        throw new Error('Invalid response format from patient profile API');
-      }
-      
-      const patientId = data.data._id;
+      const response = await api.get('/patients/profile');
+      const patient = response?.data || response;
+      const patientId = patient?._id || patient?.id;
       
       if (!patientId) {
         throw new Error('Patient ID not found in profile response');

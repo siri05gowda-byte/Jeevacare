@@ -3,6 +3,8 @@ import { useAuthStore } from '../stores/authStore';
 import { Upload, FileText, AlertCircle, CheckCircle, Loader, Search, X } from 'lucide-react';
 import PageContainer from '../components/Layout/PageContainer';
 import SectionTitle from '../components/Layout/SectionTitle';
+import api from '../services/api';
+import { documentService } from '../services/documentService';
 
 export default function StaffDocumentUpload() {
   const { user } = useAuthStore();
@@ -23,8 +25,6 @@ export default function StaffDocumentUpload() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
-
-  const token = user?.token || localStorage.getItem('token');
 
   /**
    * Document type options based on user role
@@ -78,29 +78,21 @@ export default function StaffDocumentUpload() {
       setIsSearching(true);
       setSearchError(null);
 
-      const response = await fetch(
-        `/api/v1/patients/search?q=${encodeURIComponent(query)}&limit=10`,
-        {
-          headers: { 'Authorization': `Bearer ${token}` },
-        }
-      );
-
-      if (response.ok) {
-        const result = await response.json();
-        setSearchResults(result.data?.patients || []);
-      } else if (response.status === 401) {
-        setSearchError('Session expired. Please log in again.');
-      } else if (response.status === 403) {
-        setSearchError('You do not have permission to search patients.');
-      } else {
-        setSearchError('Failed to search patients.');
-      }
+      const response = await api.get(`/patients/search?q=${encodeURIComponent(query)}&limit=10`);
+      const patients = response?.data?.patients || response?.patients || [];
+      setSearchResults(patients);
     } catch (err) {
-      setSearchError(err.message);
+      if (err.response?.status === 401) {
+        setSearchError('Session expired. Please log in again.');
+      } else if (err.response?.status === 403) {
+        setSearchError(err.response?.data?.message || 'You do not have permission to search patients.');
+      } else {
+        setSearchError(err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to search patients.');
+      }
     } finally {
       setIsSearching(false);
     }
-  }, [token]);
+  }, []);
 
   /**
    * Select a patient from search results
@@ -150,42 +142,36 @@ export default function StaffDocumentUpload() {
       setError(null);
       setSuccess(null);
 
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('patientId', selectedPatient._id);
-      formData.append('documentType', documentType);
-      formData.append('documentDate', documentDate);
-      if (documentTitle) formData.append('title', documentTitle);
-      if (documentDescription) formData.append('description', documentDescription);
-
-      const response = await fetch('/api/v1/documents/upload', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: formData,
+      await documentService.uploadDocument(file, {
+        patientId: selectedPatient._id,
+        type: documentType,
+        documentDate,
+        title: documentTitle,
+        description: documentDescription,
       });
 
-      if (response.ok) {
-        setSuccess(`Document uploaded successfully for ${selectedPatient.personalIdentity.firstName} ${selectedPatient.personalIdentity.lastName}`);
-        // Reset form
-        setFile(null);
-        setDocumentType('');
-        setDocumentTitle('');
-        setDocumentDescription('');
-        setSelectedPatient(null);
-      } else {
-        const result = await response.json();
-        if (response.status === 401) {
-          setError('Session expired. Please log in again.');
-        } else if (response.status === 403) {
-          setError('You do not have permission to upload documents for this patient.');
-        } else if (response.status === 400) {
-          setError(result.error || 'Upload failed. Please try again.');
-        } else {
-          setError(result.error || 'Upload failed');
-        }
-      }
+      const patientName = `${selectedPatient.personalIdentity?.firstName || ''} ${selectedPatient.personalIdentity?.lastName || ''}`.trim() || 'patient';
+      setSuccess(`Document uploaded successfully for ${patientName}`);
+      // Reset form
+      setFile(null);
+      setDocumentType('');
+      setDocumentTitle('');
+      setDocumentDescription('');
+      setSelectedPatient(null);
     } catch (err) {
-      setError(err.message);
+      console.error('Upload failed:', err);
+      const serverCode = err.response?.data?.code;
+      const serverMessage = err.response?.data?.error || err.response?.data?.message;
+
+      if (serverCode === 'STORAGE_NOT_CONFIGURED' || err.response?.status === 503) {
+        setError(serverMessage || 'Document storage is currently unavailable. Cloudinary storage is not configured on the server. Please contact system administrator.');
+      } else if (err.response?.status === 401) {
+        setError('Session expired. Please log in again.');
+      } else if (err.response?.status === 403) {
+        setError(serverMessage || 'You do not have permission to upload documents for this patient.');
+      } else {
+        setError(serverMessage || err.message || 'Upload failed');
+      }
     } finally {
       setIsLoading(false);
     }

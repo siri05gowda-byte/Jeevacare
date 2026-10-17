@@ -53,11 +53,11 @@ export default function PatientDashboard() {
           
           {isNoPatientRecord && (
             <div className="mt-4 p-4 bg-white rounded border border-yellow-300">
-              <h3 className="font-semibold text-gray-900 mb-2">How to create your patient profile:</h3>
+              <h3 className="font-semibold text-gray-900 mb-2">Patient Profile Setup:</h3>
               <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
-                <li>Contact your healthcare provider or hospital administrator</li>
-                <li>They will create your patient record and link it to your account</li>
-                <li>Once created, return here to view your health dashboard</li>
+                <li>Click retry below to initialize your patient record</li>
+                <li>Or refresh your session by logging out and logging back in</li>
+                <li>Your health profile is automatically activated with your account</li>
               </ol>
             </div>
           )}
@@ -78,16 +78,15 @@ export default function PatientDashboard() {
     return (
       <div className="p-8">
         <div className="p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <h2 className="text-lg font-semibold text-yellow-900">No Patient Profile Found</h2>
+          <h2 className="text-lg font-semibold text-yellow-900">Setting Up Your Patient Profile</h2>
           <p className="text-yellow-800 mt-2">
-            Your account does not have an associated patient profile yet.
+            Your patient profile is being activated.
           </p>
           <div className="mt-4 p-4 bg-white rounded border border-yellow-300">
-            <h3 className="font-semibold text-gray-900 mb-2">How to create your patient profile:</h3>
+            <h3 className="font-semibold text-gray-900 mb-2">Next steps:</h3>
             <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
-              <li>Contact your healthcare provider or hospital administrator</li>
-              <li>They will create your patient record and link it to your account</li>
-              <li>Once created, return here to view your health dashboard</li>
+              <li>Click retry below to load your health profile</li>
+              <li>Or refresh your browser to begin exploring your records</li>
             </ol>
           </div>
           <button

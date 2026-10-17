@@ -6,43 +6,56 @@ import notificationService from '../services/notificationService';
 
 export default function NotificationBell() {
   const navigate = useNavigate();
-  const { user, token } = useAuthStore();
+  const { user, token, isInitialized } = useAuthStore();
   const [showDropdown, setShowDropdown] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  // Reset sessionExpired if user and token become valid again (e.g. re-login)
+  useEffect(() => {
+    if (user && token) {
+      setSessionExpired(false);
+    } else {
+      setUnreadCount(0);
+      setNotifications([]);
+    }
+  }, [user, token]);
 
   const fetchUnreadCount = useCallback(async () => {
-    // Don't fetch if not authenticated
-    if (!user || !token) {
+    // Don't fetch if not initialized, unauthenticated, or session has expired
+    if (!isInitialized || !user || !token || sessionExpired) {
       return;
     }
 
     try {
       const response = await notificationService.getUnreadCount();
-      setUnreadCount(response.data?.count || 0);
+      setUnreadCount(response?.data?.count ?? response?.count ?? 0);
     } catch (error) {
-      // Silently fail if unauthorized (user logged out)
+      // If unauthorized (session expired or invalid token), stop further polling
       if (error.response?.status === 401) {
+        setSessionExpired(true);
         setUnreadCount(0);
         return;
       }
       console.error('Failed to fetch unread count:', error);
     }
-  }, [user, token]);
+  }, [isInitialized, user, token, sessionExpired]);
 
   const fetchNotifications = useCallback(async () => {
-    if (!user || !token) {
+    if (!isInitialized || !user || !token || sessionExpired) {
       return;
     }
 
     setLoading(true);
     try {
       const response = await notificationService.getNotifications({ limit: 10 });
-      setNotifications(response.data || []);
+      setNotifications(response?.data || response?.notifications || []);
     } catch (error) {
-      // Silently fail if unauthorized
+      // If unauthorized, stop further requests
       if (error.response?.status === 401) {
+        setSessionExpired(true);
         setNotifications([]);
         return;
       }
@@ -50,16 +63,28 @@ export default function NotificationBell() {
     } finally {
       setLoading(false);
     }
-  }, [user, token]);
+  }, [isInitialized, user, token, sessionExpired]);
 
   useEffect(() => {
-    // Only start polling if user is authenticated
-    if (user && token) {
-      fetchUnreadCount();
-      const interval = setInterval(fetchUnreadCount, 30000);
-      return () => clearInterval(interval);
+    // Only start polling if auth initialized, authenticated, and session not expired
+    if (!isInitialized || !user || !token || sessionExpired) {
+      return;
     }
-  }, [fetchUnreadCount, user, token]);
+
+    let isMounted = true;
+    fetchUnreadCount();
+
+    const interval = setInterval(() => {
+      if (isMounted) {
+        fetchUnreadCount();
+      }
+    }, 30000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [isInitialized, user, token, sessionExpired, fetchUnreadCount]);
 
   useEffect(() => {
     if (showDropdown) {

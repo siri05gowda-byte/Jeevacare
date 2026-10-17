@@ -51,8 +51,14 @@ class CloudinaryAdapter {
   async uploadFile(fileBuffer, options = {}) {
     try {
       if (!this.isConfigured) {
-        logger.warn('[DEMO MODE] Cloudinary upload would require real credentials');
-        return this.mockUploadResponse(fileBuffer, options);
+        if (process.env.NODE_ENV === 'test' && options.allowTestMock) {
+          logger.warn('[TEST MODE] Cloudinary mock upload enabled for test');
+          return this.mockUploadResponse(fileBuffer, options);
+        }
+        logger.error('Document upload failed: Cloudinary storage is not configured');
+        throw new ExternalServiceError(
+          'Persistent document storage is not configured. Please configure Cloudinary storage credentials.'
+        );
       }
 
       // Validate input

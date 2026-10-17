@@ -3,6 +3,7 @@ import express from 'express';
 import request from 'supertest';
 import appointmentRoutes from './appointmentRoutes.js';
 import AppointmentService from '../services/AppointmentService.js';
+import HospitalStaff from '../models/HospitalStaff.js';
 import { authMiddleware } from '../middleware/authentication.js';
 
 describe('Appointment Routes - Production Fixes', () => {
@@ -29,7 +30,11 @@ describe('Appointment Routes - Production Fixes', () => {
     
     // Mock auth middleware
     app.use((req, res, next) => {
-      req.user = req.headers['x-test-role'] === 'DOCTOR' ? mockDoctor : mockUser;
+      if (req.headers['x-test-no-facility']) {
+        req.user = { ...mockDoctor, facilityId: null };
+      } else {
+        req.user = req.headers['x-test-role'] === 'DOCTOR' ? mockDoctor : mockUser;
+      }
       next();
     });
     
@@ -100,14 +105,12 @@ describe('Appointment Routes - Production Fixes', () => {
     });
 
     it('should return helpful error when no facility associated', async () => {
-      const doctorWithoutFacility = {
-        ...mockDoctor,
-        facilityId: null,
-      };
+      vi.spyOn(HospitalStaff, 'findOne').mockResolvedValue(null);
 
       const response = await request(app)
         .get('/appointments/doctor/507f1f77bcf86cd799439012')
         .set('x-test-role', 'DOCTOR')
+        .set('x-test-no-facility', 'true')
         .send();
 
       expect(response.status).toBe(400);

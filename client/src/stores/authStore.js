@@ -27,6 +27,7 @@ export const useAuthStore = create((set, get) => ({
   token: getStoredItem('token') || null,
   refreshToken: getStoredItem('refreshToken') || null,
   isLoading: false,
+  isInitialized: false,
   error: null,
 
   // Initialize auth state from storage
@@ -35,12 +36,14 @@ export const useAuthStore = create((set, get) => ({
     if (token) {
       try {
         const user = await authService.getCurrentUser();
-        set({ user, token, error: null });
+        set({ user, token, isInitialized: true, error: null });
       } catch (error) {
-        set({ user: null, token: null, refreshToken: null, error: error.message });
+        set({ user: null, token: null, refreshToken: null, isInitialized: true, error: error.message });
         removeStoredItem('token');
         removeStoredItem('refreshToken');
       }
+    } else {
+      set({ user: null, token: null, refreshToken: null, isInitialized: true, error: null });
     }
   },
 
@@ -54,6 +57,7 @@ export const useAuthStore = create((set, get) => ({
         token: response.tokens.token,
         refreshToken: response.tokens.refreshToken,
         isLoading: false,
+        isInitialized: true,
         error: null,
       });
       return response;
@@ -78,6 +82,7 @@ export const useAuthStore = create((set, get) => ({
         token: response.tokens.token,
         refreshToken: response.tokens.refreshToken,
         isLoading: false,
+        isInitialized: true,
         error: null,
       });
       return response;
@@ -112,9 +117,9 @@ export const useAuthStore = create((set, get) => ({
     set({ isLoading: true });
     try {
       await authService.logout();
-      set({ user: null, token: null, refreshToken: null, isLoading: false, error: null });
+      set({ user: null, token: null, refreshToken: null, isLoading: false, isInitialized: true, error: null });
     } catch (error) {
-      set({ isLoading: false, error: error.message });
+      set({ isLoading: false, isInitialized: true, error: error.message });
     }
   },
 

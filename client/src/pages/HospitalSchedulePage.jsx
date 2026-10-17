@@ -39,26 +39,28 @@ export default function HospitalSchedulePage() {
       const professionalId = user.professionalId || user._id;
       const filters = {};
       
-      // facilityId is required by the backend
       if (user.facilityId) {
         filters.facilityId = user.facilityId;
-      } else {
-        // If no facilityId, try to get it from user profile or default
-        setError('No facility associated with your account. Please contact your administrator.');
-        setIsLoading(false);
-        return;
       }
 
       const response = await appointmentService.getDoctorAppointments(professionalId, filters);
       
       if (response?.success && response?.data) {
         setAppointments(response.data);
+      } else if (Array.isArray(response)) {
+        setAppointments(response);
       } else {
         setAppointments([]);
       }
     } catch (error) {
       console.error('Error loading schedule:', error);
-      setError(error.message || 'Failed to load schedule');
+      const serverCode = error.response?.data?.code;
+      const serverMessage = error.response?.data?.message || error.message;
+      if (serverCode === 'NO_FACILITY_ASSOCIATION' || error.response?.status === 403) {
+        setError(serverMessage || 'No active hospital facility association found for your doctor account. Please contact your hospital administrator for onboarding approval.');
+      } else {
+        setError(serverMessage || 'Failed to load schedule');
+      }
       setAppointments([]);
     } finally {
       setIsLoading(false);

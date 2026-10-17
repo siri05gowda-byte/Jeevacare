@@ -259,23 +259,23 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-2">
                   <span
                     className={`px-3 py-1 rounded-full text-sm font-medium ${
-                      user?.verificationStatus === 'verified'
+                      user?.verificationStatus === 'verified' || ['PATIENT', 'GUARDIAN'].includes(user?.role)
                         ? 'bg-green-100 text-green-800'
                         : user?.verificationStatus === 'pending'
                         ? 'bg-yellow-100 text-yellow-800'
                         : 'bg-red-100 text-red-800'
                     }`}
                   >
-                    {user?.verificationStatus === 'verified' && '✓ Verified'}
-                    {user?.verificationStatus === 'pending' && '⏳ Pending'}
-                    {user?.verificationStatus === 'rejected' && '✗ Rejected'}
+                    {(user?.verificationStatus === 'verified' || ['PATIENT', 'GUARDIAN'].includes(user?.role)) && '✓ Verified'}
+                    {user?.verificationStatus === 'pending' && !['PATIENT', 'GUARDIAN'].includes(user?.role) && '⏳ Pending'}
+                    {user?.verificationStatus === 'rejected' && !['PATIENT', 'GUARDIAN'].includes(user?.role) && '✗ Rejected'}
                   </span>
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  {user?.verificationStatus === 'verified' && 'Your account is fully verified'}
-                  {user?.verificationStatus === 'pending' &&
+                  {(user?.verificationStatus === 'verified' || ['PATIENT', 'GUARDIAN'].includes(user?.role)) && 'Your account is fully active and verified'}
+                  {user?.verificationStatus === 'pending' && !['PATIENT', 'GUARDIAN'].includes(user?.role) &&
                     'Your account is awaiting verification by a hospital administrator'}
-                  {user?.verificationStatus === 'rejected' && 'Please contact support for assistance'}
+                  {user?.verificationStatus === 'rejected' && !['PATIENT', 'GUARDIAN'].includes(user?.role) && 'Please contact support for assistance'}
                 </p>
               </div>
             </div>

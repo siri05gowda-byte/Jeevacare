@@ -38,6 +38,23 @@ class TextToSpeechService {
         };
       }
 
+      // Validate text length
+      if (!explanationText || typeof explanationText !== 'string' || explanationText.trim().length === 0) {
+        return {
+          success: false,
+          error: 'Explanation text cannot be empty',
+          code: 'INVALID_INPUT',
+        };
+      }
+
+      if (explanationText.length > 5000) {
+        return {
+          success: false,
+          error: 'Explanation text too long (max 5000 characters)',
+          code: 'TEXT_TOO_LONG',
+        };
+      }
+
       // Check if TTS is configured
       if (!TTSAdapter.isConfigured) {
         logger.warn('TTS adapter not configured - using demo mode');
@@ -54,23 +71,6 @@ class TextToSpeechService {
             generatedAt: new Date(),
             disclaimer: 'Demo audio - not real TTS generation',
           },
-        };
-      }
-
-      // Validate text length
-      if (!explanationText || explanationText.length === 0) {
-        return {
-          success: false,
-          error: 'Explanation text cannot be empty',
-          code: 'INVALID_INPUT',
-        };
-      }
-
-      if (explanationText.length > 5000) {
-        return {
-          success: false,
-          error: 'Explanation text too long (max 5000 characters)',
-          code: 'TEXT_TOO_LONG',
         };
       }
 

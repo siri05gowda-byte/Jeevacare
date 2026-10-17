@@ -69,8 +69,8 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ['pending', 'verified', 'rejected'],
       default: function() {
-        // Patients don't need hospital-admin approval to use their account
-        return this.role === 'PATIENT' ? 'verified' : 'pending';
+        // Patients and guardians don't need hospital-admin approval to use their account
+        return (this.role === 'PATIENT' || this.role === 'GUARDIAN') ? 'verified' : 'pending';
       },
     },
 

@@ -146,13 +146,31 @@ router.get('/patient/:patientId', authMiddleware, async (req, res) => {
  * - startDate: optional ISO8601
  * - endDate: optional ISO8601
  */
-router.get('/doctor/:doctorId', authMiddleware, authorize(['DOCTOR', 'ADMIN']), async (req, res) => {
+router.get('/doctor/:doctorId', authMiddleware, authorize('DOCTOR', 'HOSPITAL_ADMIN', 'SYSTEM_ADMIN', 'ADMIN'), async (req, res) => {
   try {
     const { doctorId } = req.params;
-    const { facilityId, status, startDate, endDate } = req.query;
+    const { facilityId, status, startDate, endDate, date } = req.query;
 
     // Get facilityId from query or resolve from user's staff association
     let targetFacilityId = facilityId || req.user.facilityId;
+
+    if (!targetFacilityId && req.user.role === 'DOCTOR') {
+      try {
+        const HospitalStaff = (await import('../models/HospitalStaff.js')).default;
+        const query = HospitalStaff.findOne({
+          userId: req.user._id,
+          associationStatus: 'active',
+          employmentStatus: 'active',
+        });
+        const staff = typeof query?.sort === 'function' ? await query.sort({ startDate: -1 }) : await query;
+        if (staff) {
+          targetFacilityId = staff.hospitalId;
+          req.user.facilityId = staff.hospitalId;
+        }
+      } catch (staffErr) {
+        logger?.warn?.(`Failed to look up doctor staff association: ${staffErr.message}`);
+      }
+    }
 
     if (!targetFacilityId) {
       return res.status(400).json({
@@ -166,12 +184,13 @@ router.get('/doctor/:doctorId', authMiddleware, authorize(['DOCTOR', 'ADMIN']), 
       facilityId: targetFacilityId,
     };
     if (status) filters.status = status;
+    if (date) filters.date = date;
     if (startDate) filters.startDate = new Date(startDate);
     if (endDate) filters.endDate = new Date(endDate);
 
     const appointments = await AppointmentService.getDoctorAppointments(doctorId, {
       _id: req.user._id,
-      id: req.user._id,
+      id: req.user._id?.toString(),
       role: req.user.role,
       facilityId: targetFacilityId,
     }, filters);

@@ -59,9 +59,17 @@ class DocumentService {
           fileName: fileMetadata.originalName,
         });
       } catch (uploadError) {
-        logger.error(`Document upload to Cloudinary failed: ${uploadError.message}`);
-        throw uploadError;
+        logger.error(`Document upload to storage failed: ${uploadError.message}`);
+        return {
+          success: false,
+          error: uploadError.message || 'Document storage service failed',
+          code: uploadError.name === 'ExternalServiceError' ? 'STORAGE_NOT_CONFIGURED' : 'UPLOAD_FAILED',
+        };
       }
+
+      // Determine verification status based on uploader role
+      const isStaffUploader = authResult.user?.role && authResult.user.role !== 'PATIENT';
+      const initialVerificationStatus = isStaffUploader ? 'verified' : 'patient_uploaded';
 
       // ===== CREATE DOCUMENT RECORD =====
       const document = new Document({
@@ -77,11 +85,13 @@ class DocumentService {
           fileSize: fileMetadata.fileSize || 0,
           uploadedAt: new Date(),
         },
-        verificationStatus: 'patient_uploaded',
+        verificationStatus: initialVerificationStatus,
+        verifiedBy: isStaffUploader ? requesterId : undefined,
+        verifiedAt: isStaffUploader ? new Date() : undefined,
         metadata: {
           documentDate,
           issuingFacility: documentData.issuingFacility || null,
-          issuingProvider: documentData.issuingProvider || null,
+          issuingProvider: documentData.issuingProvider || (isStaffUploader ? requesterId : null),
         },
         createdBy: requesterId,
       });

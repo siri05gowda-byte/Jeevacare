@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Bell, Check, CheckCheck, Trash2, Filter } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../stores/authStore';
 import notificationService from '../services/notificationService';
 import LoadingState from '../components/LoadingState';
 
 export default function NotificationCenterPage() {
   const navigate = useNavigate();
+  const { user, token, isInitialized } = useAuthStore();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // all, unread, read
@@ -13,6 +15,14 @@ export default function NotificationCenterPage() {
   const [unreadCount, setUnreadCount] = useState(0);
 
   const fetchNotifications = useCallback(async () => {
+    if (!isInitialized) return;
+    if (!user || !token) {
+      setNotifications([]);
+      setUnreadCount(0);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       const params = { limit: 100 };
@@ -24,15 +34,25 @@ export default function NotificationCenterPage() {
       setNotifications(response.data || response || []);
       setUnreadCount(response.meta?.unreadCount || response.unreadCount || 0);
     } catch (error) {
-      console.error('Failed to fetch notifications:', error);
+      if (error.response?.status === 401) {
+        setNotifications([]);
+        setUnreadCount(0);
+      } else {
+        console.error('Failed to fetch notifications:', error);
+      }
     } finally {
       setLoading(false);
     }
-  }, [filter, typeFilter]);
+  }, [isInitialized, user, token, filter, typeFilter]);
 
   useEffect(() => {
+    if (!isInitialized) return;
+    if (!user || !token) {
+      navigate('/login');
+      return;
+    }
     fetchNotifications();
-  }, [fetchNotifications]);
+  }, [isInitialized, user, token, fetchNotifications, navigate]);
 
   const handleMarkAsRead = async (notificationId) => {
     try {

@@ -455,6 +455,11 @@ class PatientService {
       // Only return active patients
       filter.status = 'active';
 
+      // Enforce facility isolation if facilityId is provided
+      if (options.facilityId) {
+        filter['facilities.facilityId'] = options.facilityId;
+      }
+
       const patients = await Patient.find(filter)
         .select('jeevaId personalIdentity identityVerification status createdAt')
         .skip(skip)

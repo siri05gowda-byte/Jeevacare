@@ -39,19 +39,8 @@ export const documentService = {
    */
   getDownloadUrl: async (documentId) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/v1/documents/${documentId}/download`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to get download URL');
-      }
-
-      return await response.json();
+      const response = await api.get(`/documents/${documentId}/download`);
+      return response;
     } catch (error) {
       console.error('Error getting download URL:', error);
       throw error;
@@ -61,30 +50,23 @@ export const documentService = {
   /**
    * Upload a document
    */
-  uploadDocument: async (file, metadata) => {
+  uploadDocument: async (file, metadata = {}) => {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('type', metadata.type || 'other');
+    formData.append('type', metadata.type || metadata.documentType || 'other');
     if (metadata.patientId) formData.append('patientId', metadata.patientId);
     if (metadata.facilityId) formData.append('facilityId', metadata.facilityId);
     if (metadata.description) formData.append('description', metadata.description);
+    if (metadata.title) formData.append('title', metadata.title);
+    if (metadata.documentDate) formData.append('documentDate', metadata.documentDate);
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/v1/documents/upload', {
-        method: 'POST',
+      const response = await api.post('/documents/upload', formData, {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data',
         },
-        body: formData,
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Upload failed');
-      }
-
-      return await response.json();
+      return response;
     } catch (error) {
       console.error('Error uploading document:', error);
       throw error;

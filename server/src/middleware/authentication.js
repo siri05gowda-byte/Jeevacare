@@ -11,6 +11,9 @@ import EmergencyAccess from '../models/EmergencyAccess.js';
  */
 export const authMiddleware = async (req, res, next) => {
   try {
+    if (req.user) {
+      return next();
+    }
     const authHeader = req.headers.authorization;
     const token = extractTokenFromHeader(authHeader);
 
@@ -58,6 +61,23 @@ export const authMiddleware = async (req, res, next) => {
       }
     }
 
+    // For patients, resolve patient profile ID directly
+    if (user.role === 'PATIENT') {
+      try {
+        const userPatient = await Patient.findOne({ userId: user._id }).select('_id jeevaId');
+        if (userPatient) {
+          user.patientId = userPatient._id;
+        }
+      } catch (patientErr) {
+        logger.warn(`Failed to resolve patientId for user ${user._id}: ${patientErr.message}`);
+      }
+    }
+
+    // Ensure id is always accessible alongside _id
+    if (!user.id && user._id) {
+      user.id = user._id.toString();
+    }
+
     // Attach user and token to request
     req.user = user;
     req.token = token;
@@ -71,20 +91,28 @@ export const authMiddleware = async (req, res, next) => {
 
 /**
  * Middleware to check if user has required role(s)
+ * Supports both requireRole('ROLE_A', 'ROLE_B') and requireRole(['ROLE_A', 'ROLE_B'])
  */
 export const requireRole = (...allowedRoles) => {
+  const normalizedAllowedRoles = allowedRoles
+    .flat(Infinity)
+    .filter(Boolean)
+    .map((r) => String(r).toUpperCase());
+
   return async (req, res, next) => {
     try {
       if (!req.user) {
         return next(new AuthenticationError('User not authenticated'));
       }
 
-      if (!allowedRoles.includes(req.user.role)) {
+      const userRole = String(req.user.role || '').toUpperCase();
+
+      if (!normalizedAllowedRoles.includes(userRole)) {
         logger.warn(
           `Unauthorized access attempt: ${req.user.email} (${req.user.role}) tried to access ${req.method} ${req.path}`
         );
         return next(
-          new AuthorizationError(`This action requires one of the following roles: ${allowedRoles.join(', ')}`)
+          new AuthorizationError(`This action requires one of the following roles: ${normalizedAllowedRoles.join(', ')}`)
         );
       }
 

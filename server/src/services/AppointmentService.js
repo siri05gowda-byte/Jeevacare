@@ -127,20 +127,25 @@ class AppointmentService {
    */
   static async getPatientAppointments(patientId, requestingUser, filters = {}) {
     try {
-      const patient = await Patient.findById(patientId);
+      let patient = await Patient.findById(patientId);
+      if (!patient) {
+        // Fallback: check if the identifier provided was the user's User ID
+        patient = await Patient.findOne({ userId: patientId });
+      }
       if (!patient) {
         throw new Error(`Patient not found: ${patientId}`);
       }
 
       // Patient can only view their own appointments
+      const requestingUserId = (requestingUser?._id || requestingUser?.id)?.toString();
       if (
         requestingUser.role === 'PATIENT' &&
-        requestingUser._id.toString() !== patient.userId.toString()
+        requestingUserId !== patient.userId?.toString()
       ) {
         throw new Error('Patient can only view their own appointments');
       }
 
-      const query = { patientId };
+      const query = { patientId: patient._id };
 
       if (filters.status) {
         query.status = filters.status;
@@ -197,13 +202,15 @@ class AppointmentService {
 
       // Verify requesting user has access to this facility
       if (requestingUser.role === 'DOCTOR') {
-        const { authorized } =
-          await ClinicalAuthorizationBoundary.canCreateOfficialClinicalRecord(
-            requestingUser.id,
-            facility._id,
-            null
-          );
-        if (!authorized) {
+        const HospitalStaff = (await import('../models/HospitalStaff.js')).default;
+        const requestingDoctorUserId = requestingUser._id || requestingUser.id;
+        const staff = await HospitalStaff.findOne({
+          userId: requestingDoctorUserId,
+          hospitalId: facility._id,
+          associationStatus: 'active',
+          employmentStatus: 'active',
+        });
+        if (!staff) {
           throw new Error('Not authorized to access this facility');
         }
       }

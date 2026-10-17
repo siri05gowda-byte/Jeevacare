@@ -170,14 +170,14 @@ router.post(
       await user.save();
 
       // If registering as patient, create patient profile
-      if (role === 'PATIENT' && req.body.dateOfBirth && req.body.sex) {
+      if (role === 'PATIENT') {
         const patient = new Patient({
           userId: user._id,
           personalIdentity: {
             firstName,
             lastName,
-            dateOfBirth: req.body.dateOfBirth,
-            sex: req.body.sex,
+            dateOfBirth: req.body.dateOfBirth ? new Date(req.body.dateOfBirth) : new Date('1990-01-01'),
+            sex: req.body.sex || 'Prefer not to say',
             phone,
           },
           createdBy: user._id,
@@ -309,6 +309,11 @@ router.post(
       user.auditMetadata.lastLoginIp = req.ip;
       user.auditMetadata.lockedUntil = null;
 
+      // Auto-verify patient and guardian accounts on login if they were pending
+      if (['PATIENT', 'GUARDIAN'].includes(user.role) && user.verificationStatus === 'pending') {
+        user.verificationStatus = 'verified';
+      }
+
       await user.save();
 
       // Log successful login
@@ -332,8 +337,30 @@ router.post(
         userResponse.facilityId = userResponse.profile.hospitalId;
       }
 
-      // If user is a healthcare professional, fetch their professional profile
+      // If user is a healthcare professional, resolve staff association and professional profile
       if (['DOCTOR', 'NURSE', 'LAB_TECHNICIAN', 'RADIOLOGY_TECHNICIAN', 'PHARMACIST'].includes(user.role)) {
+        try {
+          const HospitalStaff = (await import('../models/HospitalStaff.js')).default;
+          const staffAssociation = await HospitalStaff.findOne({
+            userId: user._id,
+            associationStatus: 'active',
+            employmentStatus: 'active',
+          }).sort({ startDate: -1 });
+
+          if (staffAssociation) {
+            userResponse.facilityId = staffAssociation.hospitalId;
+            userResponse.staffId = staffAssociation._id;
+
+            const Hospital = (await import('../models/Hospital.js')).default;
+            const hospital = await Hospital.findById(staffAssociation.hospitalId).select('name');
+            if (hospital) {
+              userResponse.facilityName = hospital.name;
+            }
+          }
+        } catch (staffErr) {
+          logger.warn(`Failed to resolve staff association on login: ${staffErr.message}`);
+        }
+
         const HealthcareProfessional = (await import('../models/HealthcareProfessional.js')).default;
         const professional = await HealthcareProfessional.findOne({ userId: user._id })
           .select('_id professionalId professionalType specialization verificationStatus')
@@ -345,14 +372,36 @@ router.post(
         }
       }
 
-      // If user is a patient, fetch their patient profile
+      // If user is a patient, fetch/ensure their patient profile
       if (user.role === 'PATIENT') {
-        const patient = await Patient.findOne({ userId: user._id })
-          .select('_id jeevaId')
+        let patient = await Patient.findOne({ userId: user._id })
+          .select('_id jeevaId personalIdentity')
           .lean();
         
+        if (!patient) {
+          try {
+            const newPatient = new Patient({
+              userId: user._id,
+              personalIdentity: {
+                firstName: user.profile?.firstName || 'Patient',
+                lastName: user.profile?.lastName || 'User',
+                dateOfBirth: new Date('1990-01-01'),
+                sex: 'Prefer not to say',
+                phone: user.profile?.phone,
+              },
+              status: 'active',
+              createdBy: user._id,
+            });
+            const savedPatient = await newPatient.save();
+            patient = savedPatient.toObject();
+          } catch (createErr) {
+            logger.warn(`Failed to auto-create patient record on login: ${createErr.message}`);
+          }
+        }
+
         if (patient) {
           userResponse.patient = patient;
+          userResponse.patientId = patient._id;
         }
       }
 
@@ -662,6 +711,12 @@ router.get('/current-user', authMiddleware, async (req, res) => {
     delete user.passwordHash;
     delete user.twoFactorSecret;
 
+    // Auto-verify patient and guardian accounts if pending
+    if (['PATIENT', 'GUARDIAN'].includes(user.role) && user.verificationStatus === 'pending') {
+      user.verificationStatus = 'verified';
+      await User.updateOne({ _id: user._id }, { $set: { verificationStatus: 'verified' } });
+    }
+
     // Add facilityId at top level for convenience
     if (user.profile?.hospitalId) {
       if (typeof user.profile.hospitalId === 'object') {
@@ -672,8 +727,30 @@ router.get('/current-user', authMiddleware, async (req, res) => {
       }
     }
 
-    // If user is a healthcare professional, fetch their professional profile
+    // If user is a healthcare professional, resolve staff association and professional profile
     if (['DOCTOR', 'NURSE', 'LAB_TECHNICIAN', 'RADIOLOGY_TECHNICIAN', 'PHARMACIST'].includes(user.role)) {
+      try {
+        const HospitalStaff = (await import('../models/HospitalStaff.js')).default;
+        const staffAssociation = await HospitalStaff.findOne({
+          userId: user._id,
+          associationStatus: 'active',
+          employmentStatus: 'active',
+        }).sort({ startDate: -1 });
+
+        if (staffAssociation) {
+          user.facilityId = staffAssociation.hospitalId;
+          user.staffId = staffAssociation._id;
+
+          const Hospital = (await import('../models/Hospital.js')).default;
+          const hospital = await Hospital.findById(staffAssociation.hospitalId).select('name');
+          if (hospital) {
+            user.facilityName = hospital.name;
+          }
+        }
+      } catch (staffErr) {
+        logger.warn(`Failed to resolve staff association in /current-user: ${staffErr.message}`);
+      }
+
       const HealthcareProfessional = (await import('../models/HealthcareProfessional.js')).default;
       const professional = await HealthcareProfessional.findOne({ userId: user._id })
         .select('_id professionalId professionalType specialization verificationStatus facilityAssociations')
@@ -685,14 +762,36 @@ router.get('/current-user', authMiddleware, async (req, res) => {
       }
     }
 
-    // If user is a patient, fetch their patient profile
+    // If user is a patient, fetch/ensure their patient profile
     if (user.role === 'PATIENT') {
-      const patient = await Patient.findOne({ userId: user._id })
+      let patient = await Patient.findOne({ userId: user._id })
         .select('_id jeevaId personalIdentity')
         .lean();
       
+      if (!patient) {
+        try {
+          const newPatient = new Patient({
+            userId: user._id,
+            personalIdentity: {
+              firstName: user.profile?.firstName || 'Patient',
+              lastName: user.profile?.lastName || 'User',
+              dateOfBirth: new Date('1990-01-01'),
+              sex: 'Prefer not to say',
+              phone: user.profile?.phone,
+            },
+            status: 'active',
+            createdBy: user._id,
+          });
+          const savedPatient = await newPatient.save();
+          patient = savedPatient.toObject();
+        } catch (createErr) {
+          logger.warn(`Failed to auto-create patient record in /current-user: ${createErr.message}`);
+        }
+      }
+
       if (patient) {
         user.patient = patient;
+        user.patientId = patient._id;
       }
     }
 

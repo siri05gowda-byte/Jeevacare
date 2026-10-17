@@ -50,7 +50,7 @@ const upload = multer({
 router.post(
   '/upload',
   authMiddleware,
-  requireRole('DOCTOR', 'LAB_TECHNICIAN', 'RADIOLOGY_TECHNICIAN', 'NURSE', 'HOSPITAL_ADMIN'),
+  requireRole('DOCTOR', 'LAB_TECHNICIAN', 'RADIOLOGY_TECHNICIAN', 'NURSE', 'HOSPITAL_ADMIN', 'PATIENT'),
   upload.single('file'),
   [
     body('patientId')
@@ -109,13 +109,15 @@ router.post(
         `Uploading document for patient ${patientId}: ${req.file.originalname} (${req.file.size} bytes)`
       );
 
+      const resolvedFacility = issuingFacility || req.user.facilityName || req.user.facilityId || (req.user.role === 'PATIENT' ? 'Patient Upload' : null);
+
       // Upload document
       const result = await DocumentService.uploadDocument(
         {
           patientId,
           documentType,
           category,
-          issuingFacility,
+          issuingFacility: resolvedFacility,
           documentDate: documentDate ? new Date(documentDate) : new Date(),
         },
         requesterId,
@@ -128,7 +130,8 @@ router.post(
       );
 
       if (!result.success) {
-        return res.status(400).json({
+        const statusCode = result.code === 'STORAGE_NOT_CONFIGURED' ? 503 : (result.code === 'UNAUTHORIZED' ? 403 : 400);
+        return res.status(statusCode).json({
           success: false,
           error: result.error,
           code: result.code,
@@ -137,17 +140,21 @@ router.post(
 
       // Create notification for patient about new document
       try {
+        const Patient = (await import('../models/Patient.js')).default;
+        const patientRecord = await Patient.findById(result.document.patientId);
+        const targetUserId = patientRecord?.userId || result.document.patientId;
+
         await Notification.createNotification({
-          userId: result.document.patient,
+          userId: targetUserId,
           type: 'document_uploaded',
           title: 'New Document Uploaded',
-          message: `A new ${documentType.replace(/_/g, ' ')} has been uploaded to your medical records${issuingFacility ? ` by ${issuingFacility}` : ''}.`,
+          message: `A new ${documentType.replace(/_/g, ' ')} has been uploaded to your medical records${resolvedFacility ? ` by ${resolvedFacility}` : ''}.`,
           link: '/documents',
           metadata: {
             documentId: result.document._id,
             documentType,
             uploadedBy: requesterId,
-            issuingFacility,
+            issuingFacility: resolvedFacility,
           },
         });
       } catch (notifError) {
@@ -161,6 +168,13 @@ router.post(
       });
     } catch (error) {
       logger.error(`Document upload error: ${error.message}`);
+      if (error.code === 'STORAGE_NOT_CONFIGURED' || error.message?.includes('Cloudinary not configured') || error.message?.includes('storage not configured')) {
+        return res.status(503).json({
+          success: false,
+          error: error.message || 'Document storage is currently unavailable',
+          code: 'STORAGE_NOT_CONFIGURED',
+        });
+      }
       res.status(500).json({
         success: false,
         error: 'Failed to upload document',
