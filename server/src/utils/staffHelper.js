@@ -97,10 +97,15 @@ export async function ensureStaffAssociation(user) {
           professional = new HealthcareProfessional({
             userId: user._id,
             professionalId: `DOC-${user._id.toString().slice(-6).toUpperCase()}`,
-            professionalType: 'DOCTOR',
-            specialization: 'General Practitioner',
+            firstName: user.profile?.firstName || 'Dr.',
+            lastName: user.profile?.lastName || user.email?.split('@')[0] || 'Healthcare Professional',
+            email: user.email,
+            phone: user.profile?.phone,
+            professionalType: 'doctor',
+            specialization: ['General Practitioner'],
             verificationStatus: 'verified',
-            facilityAssociations: staff?.hospitalId ? [staff.hospitalId] : [],
+            accountStatus: 'active',
+            facilityAssociations: staff?._id ? [staff._id] : [],
           });
           await professional.save();
           logger.info(`Auto-created HealthcareProfessional profile for doctor ${user.email || user._id}`);
