@@ -20,6 +20,12 @@ server/.env.local
 *.pfx
 *.jks
 
+# Demo Credentials (Generated, not committed)
+DEMO_CREDENTIALS.json
+JeevaCare_Demo_Credentials_and_Test_Guide.pdf
+*.credentials.json
+*.creds.json
+
 # Build outputs
 dist/
 build/

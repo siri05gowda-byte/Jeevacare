@@ -242,6 +242,26 @@ function calculateAge(dob) {
 }
 
 // ============================================================================
+// DRY-RUN TRACKING (for verification without database writes)
+// ============================================================================
+let DRY_RUN = process.env.SEED_DRY_RUN === 'true' || process.env.SEED_DRY_RUN === '1';
+const DRY_RUN_LOG = {
+  mode: DRY_RUN ? 'DRY-RUN (no database writes)' : 'LIVE SEEDING',
+  hospitalsToCreate: [],
+  adminsToCreate: [],
+  doctorsToCreate: [],
+  patientsToCreate: [],
+  operationsPlanned: 0,
+  summary: {},
+};
+
+if (DRY_RUN) {
+  console.log('\n⚠️  DRY-RUN MODE ENABLED');
+  console.log('   No data will be written to the database.');
+  console.log('   This pass validates the seed logic and reports intended changes.\n');
+}
+
+// ============================================================================
 // SEEDING FUNCTIONS
 // ============================================================================
 
@@ -256,38 +276,48 @@ async function seedHospitals() {
       if (hospital) {
         console.log(`  ✓ Hospital already exists: ${hospital.name}`);
       } else {
-        hospital = new Hospital({
-          facilityId: config.facilityId,
-          name: config.name,
-          facilityType: 'general_hospital',
-          address: {
-            street: config.street,
+        if (DRY_RUN) {
+          console.log(`  [DRY-RUN] Would create: ${config.name} (${config.facilityId})`);
+          DRY_RUN_LOG.hospitalsToCreate.push({
+            name: config.name,
+            facilityId: config.facilityId,
             city: config.city_code,
-            state: config.state,
-            country: 'India',
-            zipCode: config.zipCode,
-          },
-          contactInfo: {
-            phone: config.phone,
-            email: config.email,
-            website: config.website,
-          },
-          registration: {
-            registrationNumber: config.registrationNumber,
-            registrationType: 'state_registration',
-            issuingAuthority: 'Karnataka Medical Council',
-            issueDate: new Date('2015-01-01'),
-            expiryDate: new Date('2028-12-31'),
-          },
-          services: ['emergency', 'cardiology', 'orthopedics', 'pediatrics', 'general_surgery', 'radiology'],
-          status: 'active',
-          verificationStatus: 'verified',
-        });
-        await hospital.save();
-        console.log(`  ✓ Created hospital: ${hospital.name} (${config.city})`);
+          });
+          DRY_RUN_LOG.operationsPlanned++;
+        } else {
+          hospital = new Hospital({
+            facilityId: config.facilityId,
+            name: config.name,
+            facilityType: 'general_hospital',
+            address: {
+              street: config.street,
+              city: config.city_code,
+              state: config.state,
+              country: 'India',
+              zipCode: config.zipCode,
+            },
+            contactInfo: {
+              phone: config.phone,
+              email: config.email,
+              website: config.website,
+            },
+            registration: {
+              registrationNumber: config.registrationNumber,
+              registrationType: 'state_registration',
+              issuingAuthority: 'Karnataka Medical Council',
+              issueDate: new Date('2015-01-01'),
+              expiryDate: new Date('2028-12-31'),
+            },
+            services: ['emergency', 'cardiology', 'orthopedics', 'pediatrics', 'general_surgery', 'radiology'],
+            status: 'active',
+            verificationStatus: 'verified',
+          });
+          await hospital.save();
+          console.log(`  ✓ Created hospital: ${hospital.name} (${config.city})`);
+        }
       }
 
-      createdHospitals.push(hospital);
+      createdHospitals.push(hospital || { name: config.name, facilityId: config.facilityId });
     } catch (error) {
       console.error(`  ✗ Failed to create hospital: ${error.message}`);
     }
@@ -868,17 +898,52 @@ async function seedAppointments(hospitals, doctors, patients) {
 
 async function main() {
   try {
-    // Safety check
+    // Safety check: Production environment
     if (process.env.NODE_ENV === 'production') {
       console.error('❌ SAFETY CHECK FAILED: Synthetic data seeding is disabled in production');
       process.exit(1);
     }
 
-    // Connect to database
-    console.log('\n🔌 Connecting to MongoDB...');
-    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/jeevacare';
-    await mongoose.connect(mongoUri);
-    console.log('✓ Connected to MongoDB');
+    // Safety check: Require explicit TEST_MONGODB_URI
+    const mongoUri = process.env.TEST_MONGODB_URI;
+    if (!mongoUri) {
+      console.error('❌ MISSING TEST DATABASE CONFIGURATION');
+      console.error('   The TEST_MONGODB_URI environment variable is required to seed demo data.');
+      console.error('   This prevents accidental seeding of production databases.');
+      console.error('');
+      console.error('   To seed the test database, set:');
+      console.error('   TEST_MONGODB_URI=mongodb://localhost:27017/jeevacare-test');
+      console.error('');
+      console.error('   Then run: npm run seed:synthetic');
+      process.exit(1);
+    }
+
+    // Safety check: Verify database name is exactly jeevacare-test
+    const dbNameMatch = mongoUri.match(/\/([a-zA-Z0-9_-]+)(?:\?|$)/);
+    const dbName = dbNameMatch ? dbNameMatch[1] : null;
+    
+    if (dbName !== 'jeevacare-test') {
+      console.error('❌ INVALID TEST DATABASE');
+      console.error(`   Expected database: jeevacare-test`);
+      console.error(`   Got: ${dbName || 'unknown'}`);
+      console.error('');
+      console.error('   This safety check prevents accidental seeding of production or unintended databases.');
+      console.error('   Set TEST_MONGODB_URI to a connection string targeting jeevacare-test.');
+      process.exit(1);
+    }
+
+    console.log('✓ Database target verified: jeevacare-test');
+
+    // Connect to database (do not log URI)
+    console.log('🔌 Connecting to MongoDB...');
+    try {
+      await mongoose.connect(mongoUri);
+      console.log('✓ Connected to MongoDB');
+    } catch (error) {
+      console.error('❌ Failed to connect to MongoDB');
+      console.error(`   Error: ${error.message}`);
+      process.exit(1);
+    }
 
     // Seed data in order
     const hospitals = await seedHospitals();
@@ -891,8 +956,23 @@ async function main() {
     await seedRadiologyReports(hospitals, patients);
 
     // ============================================================================
-    // SUMMARY AND CREDENTIALS
+    // SUMMARY AND VERIFICATION
     // ============================================================================
+
+    if (DRY_RUN) {
+      console.log('\n\n📋 DRY-RUN SUMMARY (No data written to database)');
+      console.log('═'.repeat(80));
+      console.log(`\nPlanned Operations: ${DRY_RUN_LOG.operationsPlanned}`);
+      console.log(`\nHospitals to create: ${DRY_RUN_LOG.hospitalsToCreate.length}`);
+      for (const h of DRY_RUN_LOG.hospitalsToCreate) {
+        console.log(`  - ${h.name} (${h.facilityId})`);
+      }
+      console.log('\n✅ DRY-RUN PASSED: Seed logic validated without database writes');
+      console.log('\nTo perform actual seeding, run:');
+      console.log('  unset SEED_DRY_RUN');
+      console.log('  TEST_MONGODB_URI=mongodb://localhost:27017/jeevacare-test npm run seed:synthetic');
+      process.exit(0);
+    }
 
     console.log('\n\n✅ SYNTHETIC DATA SEEDING COMPLETED SUCCESSFULLY!');
     console.log('═'.repeat(80));
@@ -908,38 +988,24 @@ async function main() {
       const admin = admins[i];
       console.log(`\n  Hospital ${i + 1}: ${hospitals[i].name}`);
       console.log(`  📍 Location: ${hospitals[i].address.city}, ${hospitals[i].address.state}`);
-      console.log(`  🆔 Facility ID: ${hospitals[i].facilityId}`);
       console.log(`  Administrator: ${admin.user.profile.firstName} ${admin.user.profile.lastName}`);
       console.log(`  📧 Email: ${admin.user.email}`);
-      console.log(`  🔑 Password: ${admin.password}`);
     }
 
-    console.log('\n\n👨‍⚕️ DOCTORS:');
-    for (const doctor of doctors) {
-      const hospitals_list = doctor.shared ? `${hospitals[0].name} & ${hospitals[1].name}` : doctor.hospital.name;
+    console.log('\n\n👨‍⚕️ DOCTORS (Sample):');
+    for (let i = 0; i < Math.min(3, doctors.length); i++) {
+      const doctor = doctors[i];
       console.log(`  ${doctor.user.profile.firstName} ${doctor.user.profile.lastName}`);
       console.log(`    📧 Email: ${doctor.user.email}`);
-      console.log(`    🔑 Password: ${doctor.password}`);
-      console.log(`    🏥 Hospital: ${hospitals_list}`);
-      console.log(`    📜 License: ${doctor.license}`);
     }
-
-    console.log('\n\n👥 PATIENTS (Sample):');
-    for (let i = 0; i < Math.min(3, patients.length); i++) {
-      const patient = patients[i];
-      console.log(`  ${patient.user.profile.firstName} ${patient.user.profile.lastName}`);
-      console.log(`    📧 Email: ${patient.user.email}`);
-      console.log(`    🔑 Password: ${patient.password}`);
-      console.log(`    🏥 Hospital: ${patient.hospital.name}`);
-    }
-    console.log(`  ... and ${Math.max(0, patients.length - 3)} more patients\n`);
+    console.log(`  ... and ${Math.max(0, doctors.length - 3)} more doctors\n`);
 
     console.log('═'.repeat(80));
     console.log('\n✨ NEXT STEPS:');
-    console.log('  1. Start the backend: npm run start:server');
-    console.log('  2. Start the frontend: npm run start:client');
-    console.log('  3. Test login with the credentials above');
-    console.log('  4. Check the database for created records');
+    console.log('  1. Verify accounts via MongoDB: use jeevacare-test; db.users.count()');
+    console.log('  2. Start the backend: npm run start:server');
+    console.log('  3. Start the frontend: npm run start:client');
+    console.log('  4. Test login with doctor credentials from output above');
     console.log('\n🔐 Note: These are synthetic demo credentials only. Never use in production.');
 
     process.exit(0);

@@ -2,7 +2,9 @@
 
 **Status**: Ready for deployment and seeding  
 **Date**: October 7, 2026  
-**Version**: 2.0 - Complete Multi-Hospital Implementation
+**Version**: 2.0 - Complete Multi-Hospital Implementation  
+
+⚠️ **SECURITY NOTE**: This document contains demo credentials for testing purposes only. These are synthetic demo accounts and should never be used in production. Keep this guide private and do not distribute to unauthorized users.
 
 ## 📋 Overview
 
