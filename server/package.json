@@ -13,6 +13,7 @@
     "lint": "eslint src/",
     "seed": "node src/scripts/seedDemoData.js",
     "seed:comprehensive": "node src/scripts/seedComprehensiveData.js",
+    "seed:synthetic": "node src/scripts/seedSyntheticData.js",
     "verify-db": "node src/scripts/verifyDatabase.js"
   },
   "dependencies": {

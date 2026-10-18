@@ -103,6 +103,7 @@ app.use('/api/v1/emergency', (await import('./routes/emergencyRoutes.js')).defau
 
 // Phase 4 Staff Management Routes
 app.use('/api/v1/staff', (await import('./routes/staffRoutes.js')).default);
+app.use('/api/v1/staff-registration', (await import('./routes/staffRegistrationRoutes.js')).default);
 
 // Notification Routes
 app.use('/api/v1/notifications', (await import('./routes/notificationRoutes.js')).default);

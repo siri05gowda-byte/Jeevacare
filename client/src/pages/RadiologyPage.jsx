@@ -229,10 +229,11 @@ export default function RadiologyPage() {
         throw new Error('Unable to resolve patient identity');
       }
 
-      // Get hospital ID from user profile
-      const hospitalId = user?.profile?.hospitalId || user?.hospitalId || user?.facilityId;
+      // Get hospital ID from user (resolved during authentication)
+      // Priority: facilityId (set by ensureStaffAssociation) > profile.hospitalId (patient-specific) > hospitalId
+      const hospitalId = user?.facilityId || user?.profile?.hospitalId || user?.hospitalId;
       if (!hospitalId) {
-        throw new Error('Hospital ID not found in user profile');
+        throw new Error('No hospital affiliation found. Please contact your administrator.');
       }
 
       await radiologyService.uploadRadiologyReport({
