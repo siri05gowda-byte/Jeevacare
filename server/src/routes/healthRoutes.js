@@ -3,6 +3,7 @@ import cloudinaryAdapter from '../adapters/CloudinaryAdapter.js';
 import aiServiceAdapter from '../adapters/AIServiceAdapter.js';
 import ocrAdapter from '../adapters/OCRAdapter.js';
 import ttsAdapter from '../adapters/TTSAdapter.js';
+import config from '../config/index.js';
 
 const router = express.Router();
 
@@ -45,16 +46,20 @@ router.get('/services', (req, res) => {
 /**
  * GET /api/v1/health/config
  * Get configuration summary (non-sensitive)
+ * Returns runtime configuration including supported languages
  */
 router.get('/config', (req, res) => {
   try {
     res.json({
       success: true,
       config: {
-        environment: process.env.NODE_ENV || 'development',
-        port: process.env.PORT || 5000,
-        supportedLanguages: ['en', 'hi', 'kn', 'te', 'ta', 'ml'],
-        cors: process.env.CORS_ORIGIN || 'http://localhost:5173',
+        environment: config.environment,
+        port: config.port,
+        supportedLanguages: config.supportedLanguages,
+        piperTtsSupported: config.piperTTS?.supportedLanguages || [],
+        corsOrigins: Array.isArray(config.cors.origin) 
+          ? config.cors.origin 
+          : [config.cors.origin],
       },
       timestamp: new Date(),
     });

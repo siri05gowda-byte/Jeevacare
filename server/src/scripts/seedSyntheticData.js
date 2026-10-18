@@ -78,7 +78,7 @@ const HOSPITAL_ADMINS_CONFIG = [
     password: 'PrakashRao@123',
   },
   {
-    name: 'Revathi',
+    name: 'Revathi Kumar',
     firstName: 'Revathi',
     lastName: 'Kumar',
     email: 'revathi.kumar@aarogya.in',
