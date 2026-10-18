@@ -801,3 +801,121 @@ router.get('/current-user', authMiddleware, async (req, res) => {
 });
 
 export default router;
+
+
+/**
+ * POST /api/v1/auth/provision-system-admin
+ * Provision a system administrator (bootstrap endpoint)
+ * 
+ * Security: Requires JEEVACARE_ADMIN_SECRET environment variable
+ * This prevents unauthorized admin creation
+ */
+router.post(
+  '/provision-system-admin',
+  [
+    body('email')
+      .isEmail()
+      .normalizeEmail()
+      .withMessage('Valid email required'),
+    body('password')
+      .isLength({ min: 8 })
+      .withMessage('Password must be at least 8 characters'),
+    body('firstName')
+      .trim()
+      .notEmpty()
+      .withMessage('First name required'),
+    body('lastName')
+      .trim()
+      .notEmpty()
+      .withMessage('Last name required'),
+    body('secret')
+      .trim()
+      .notEmpty()
+      .withMessage('Admin secret required'),
+  ],
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return next(new ValidationError('Validation failed', errors.array()));
+      }
+
+      // Verify secret matches environment variable
+      const adminSecret = process.env.JEEVACARE_ADMIN_SECRET;
+      if (!adminSecret) {
+        return next(
+          new InvalidOperationError(
+            'System administrator provisioning is not enabled. Set JEEVACARE_ADMIN_SECRET environment variable.'
+          )
+        );
+      }
+
+      if (req.body.secret !== adminSecret) {
+        logger.warn(`Failed admin provisioning attempt with invalid secret from ${req.ip}`);
+        return next(new AuthorizationError('Invalid admin secret'));
+      }
+
+      const { email, password, firstName, lastName } = req.body;
+
+      // Check if email already exists
+      const existingUser = await User.findOne({ email });
+      if (existingUser) {
+        return next(new ConflictError('User with this email already exists'));
+      }
+
+      // Check if there are any system admins (for first-time bootstrap)
+      const adminCount = await User.countDocuments({ role: 'SYSTEM_ADMIN' });
+      const isFirstAdmin = adminCount === 0;
+
+      // Create system administrator
+      const admin = new User({
+        email,
+        passwordHash: password,
+        role: 'SYSTEM_ADMIN',
+        jeevaId: `JC-SYSADM-${Date.now()}`,
+        verificationStatus: 'verified',
+        profile: {
+          firstName,
+          lastName,
+        },
+      });
+
+      await admin.save();
+
+      // Audit log
+      await AuditService.logAuthenticationEvent({
+        actor: admin._id,
+        action: 'system_admin_provisioned',
+        status: 'success',
+        details: {
+          isFirstAdmin,
+        },
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
+
+      logger.info(
+        `System administrator provisioned: ${email}${isFirstAdmin ? ' (FIRST ADMIN)' : ''}`
+      );
+
+      // Generate tokens
+      const token = generateToken(admin._id, admin.role);
+      const refreshToken = generateRefreshToken(admin._id);
+
+      res.status(201).json({
+        success: true,
+        message: `System administrator created successfully${isFirstAdmin ? ' (First admin)' : ''}`,
+        user: admin.toJSON(),
+        tokens: {
+          token,
+          refreshToken,
+        },
+      });
+    } catch (error) {
+      logger.error(`System admin provisioning error: ${error.message}`);
+      next(error);
+    }
+  }
+);
+
+export default router;
