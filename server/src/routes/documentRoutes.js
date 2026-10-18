@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { param, body, query, validationResult } from 'express-validator';
 import multer from 'multer';
 import DocumentService from '../services/DocumentService.js';
+import MedicalReportAnalysisService from '../services/MedicalReportAnalysisService.js';
 import Notification from '../models/Notification.js';
 import { authMiddleware, requireRole } from '../middleware/authentication.js';
 import logger from '../utils/logger.js';
@@ -480,6 +481,144 @@ router.post(
         success: false,
         error: 'Failed to verify document',
         details: error.message,
+      });
+    }
+  }
+);
+
+/**
+ * Analyze medical document with multi-modal support
+ * POST /api/v1/documents/:documentId/analyze-medical-report
+ * 
+ * Accepts: laboratory reports, radiology images, text-based medical documents
+ * Returns: structured analysis, detected modality, extracted values, AI findings (if supported)
+ * Honest capability labeling: shows real results or clear "unsupported" messages
+ */
+router.post(
+  '/:documentId/analyze-medical-report',
+  authMiddleware,
+  [
+    param('documentId').isMongoId().withMessage('Invalid document ID'),
+    body('options')
+      .optional()
+      .isObject()
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { documentId } = req.params;
+      const { options = {} } = req.body;
+      const requesterId = req.user._id;
+
+      logger.info(`[API] Analyzing medical report: ${documentId}`);
+
+      // Call analysis service
+      const result = await MedicalReportAnalysisService.analyzeDocument(
+        documentId,
+        req.user,
+        options
+      );
+
+      if (!result.success) {
+        const statusCode = result.code === 'UNAUTHORIZED' ? 403 : 400;
+        return res.status(statusCode).json({
+          success: false,
+          error: result.error,
+          code: result.code,
+        });
+      }
+
+      // Log audit trail
+      try {
+        const AuditService = (await import('../services/AuditService.js')).default;
+        await AuditService.logEvent({
+          actor: requesterId,
+          action: 'medical_report_analyzed',
+          resource: documentId,
+          resourceType: 'document',
+          patient: result.document,
+          status: 'success',
+          details: {
+            analysisType: result.analysisType,
+            classification: result.classification,
+            modality: result.modality,
+            isMockData: result.isMockData
+          },
+          sensitivityLevel: 'high'
+        });
+      } catch (auditError) {
+        logger.warn(`Failed to log analysis audit: ${auditError.message}`);
+      }
+
+      res.json({
+        success: true,
+        document: result.document,
+        analysisType: result.analysisType,
+        classification: result.classification,
+        modality: result.modality,
+        result: result.result,
+        isMockData: result.isMockData || false,
+        message: 'Medical report analysis completed'
+      });
+
+    } catch (error) {
+      logger.error(`[API] Medical report analysis error: ${error.message}`);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to analyze medical report',
+        code: 'ANALYSIS_FAILED',
+        details: error.message
+      });
+    }
+  }
+);
+
+/**
+ * Get analysis status for a document
+ * GET /api/v1/documents/:documentId/analysis-status
+ */
+router.get(
+  '/:documentId/analysis-status',
+  authMiddleware,
+  [param('documentId').isMongoId().withMessage('Invalid document ID')],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { documentId } = req.params;
+
+      const result = await MedicalReportAnalysisService.getAnalysisStatus(
+        documentId,
+        req.user
+      );
+
+      if (!result.success) {
+        const statusCode = result.code === 'UNAUTHORIZED' ? 403 : 404;
+        return res.status(statusCode).json({
+          success: false,
+          error: result.error,
+          code: result.code
+        });
+      }
+
+      res.json({
+        success: true,
+        ...result
+      });
+
+    } catch (error) {
+      logger.error(`Failed to get analysis status: ${error.message}`);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to retrieve analysis status',
+        details: error.message
       });
     }
   }

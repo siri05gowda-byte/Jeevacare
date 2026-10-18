@@ -158,6 +158,37 @@ export const explainRadiologyReport = async (radiologyId, language = 'en') => {
   return response.data;
 };
 
+/**
+ * Analyze radiology image with AI (chest X-rays only initially)
+ * @param {string} radiologyId - Radiology record ID
+ * @param {Object} options - Analysis options
+ * @param {string} options.language - Target language (en, hi, kn, te, ta, ml)
+ * @returns {Promise<Object>} AI analysis results
+ */
+export const analyzeRadiologyImage = async (radiologyId, options = {}) => {
+  const response = await api.post(`/radiology/${radiologyId}/analyze-image`, options);
+  return response.data;
+};
+
+/**
+ * Get AI analysis status for a radiology record
+ * @param {string} radiologyId - Radiology record ID
+ * @returns {Promise<Object>} Analysis status
+ */
+export const getRadiologyAIStatus = async (radiologyId) => {
+  const response = await api.get(`/radiology/${radiologyId}/ai-status`);
+  return response.data;
+};
+
+/**
+ * Get radiology AI service status
+ * @returns {Promise<Object>} Service status and capabilities
+ */
+export const getRadiologyAIServiceStatus = async () => {
+  const response = await api.get('/radiology/ai-service-status');
+  return response.data;
+};
+
 export default {
   getPatientRadiologyRecords,
   getRadiologyRecord,
@@ -169,4 +200,7 @@ export default {
   flagRadiologyAsCritical,
   extractRadiologyText,
   explainRadiologyReport,
+  analyzeRadiologyImage,
+  getRadiologyAIStatus,
+  getRadiologyAIServiceStatus,
 };

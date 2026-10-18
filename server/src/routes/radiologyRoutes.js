@@ -328,6 +328,138 @@ router.get('/patient/:patientId', authMiddleware, async (req, res) => {
 });
 
 /**
+ * POST /api/radiology/:radiologyId/analyze-image
+ * Run AI analysis on medical image
+ * New endpoint for medical image AI analysis using pretrained models
+ */
+router.post('/:radiologyId/analyze-image', authMiddleware, async (req, res) => {
+  try {
+    const { radiologyId } = req.params;
+    const { language = 'en' } = req.body;
+
+    // Import RadiologyAIService
+    const RadiologyAIService = (await import('../services/RadiologyAIService.js')).default;
+
+    // Get radiology record first for authorization
+    const radiologyRecord = await RadiologyService.getRadiologyRecord(radiologyId, {
+      _id: req.user.id,
+      role: req.user.role,
+      facilityId: req.user.facilityId,
+    });
+
+    // Check if it's an image (not just a text report)
+    if (!radiologyRecord.imageReference?.cloudinaryUrl) {
+      return res.status(400).json({
+        success: false,
+        error: 'No image attached to this radiology record. Only medical images can be analyzed.',
+        code: 'NO_IMAGE_AVAILABLE',
+      });
+    }
+
+    logger.info(`Starting image analysis for radiology ${radiologyId} in ${language}`);
+
+    // Run AI analysis
+    const analysisResult = await RadiologyAIService.analyzeRadiologyImage(
+      radiologyId,
+      {
+        _id: req.user.id,
+        role: req.user.role,
+        facilityId: req.user.facilityId,
+      },
+      { language }
+    );
+
+    res.json({
+      success: analysisResult.success,
+      data: {
+        radiologyId,
+        status: analysisResult.analysis.status,
+        modality: analysisResult.analysis.detectedModality,
+        findings: analysisResult.analysis.findings,
+        summary: analysisResult.analysis.summary,
+        explanation: analysisResult.analysis.explanation,
+        confidence: analysisResult.analysis.confidence,
+        isMockData: analysisResult.analysis.isMockData,
+        cached: analysisResult.cached,
+        limitations: analysisResult.analysis.limitations,
+        disclaimers: analysisResult.disclaimers,
+        analyzedAt: analysisResult.analysis.analyzedAt,
+        language,
+        metadata: {
+          model: analysisResult.analysis.model,
+          modalityType: radiologyRecord.modalityType,
+          bodyPart: radiologyRecord.bodyPart,
+          studyDate: radiologyRecord.studyDate,
+        },
+      },
+      message: analysisResult.message,
+    });
+  } catch (error) {
+    logger.error('Error analyzing medical image:', error);
+    res.status(error.message.includes('not found') ? 404 : error.message.includes('Not authorized') ? 403 : 500).json({
+      success: false,
+      error: error.message || 'Failed to analyze medical image',
+    });
+  }
+});
+
+/**
+ * GET /api/radiology/:radiologyId/ai-status
+ * Get AI analysis status for a radiology record
+ */
+router.get('/:radiologyId/ai-status', authMiddleware, async (req, res) => {
+  try {
+    const { radiologyId } = req.params;
+
+    // Check authorization
+    await RadiologyService.getRadiologyRecord(radiologyId, {
+      _id: req.user.id,
+      role: req.user.role,
+      facilityId: req.user.facilityId,
+    });
+
+    // Import RadiologyAIService
+    const RadiologyAIService = (await import('../services/RadiologyAIService.js')).default;
+
+    // Get analysis status
+    const status = await RadiologyAIService.getAnalysisStatus(radiologyId);
+
+    res.json({
+      success: true,
+      data: status,
+    });
+  } catch (error) {
+    logger.error('Error getting AI analysis status:', error);
+    res.status(error.message.includes('not found') ? 404 : error.message.includes('Not authorized') ? 403 : 500).json({
+      success: false,
+      error: error.message || 'Failed to get analysis status',
+    });
+  }
+});
+
+/**
+ * GET /api/radiology/ai-service-status
+ * Get overall AI service status and capabilities
+ */
+router.get('/ai-service-status', authMiddleware, async (req, res) => {
+  try {
+    const RadiologyAIService = (await import('../services/RadiologyAIService.js')).default;
+    const status = RadiologyAIService.getServiceStatus();
+
+    res.json({
+      success: true,
+      data: status,
+    });
+  } catch (error) {
+    logger.error('Error getting AI service status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get AI service status',
+    });
+  }
+});
+
+/**
  * POST /api/radiology/:radiologyId/extract-text
  * Extract text from radiology report using OCR
  */

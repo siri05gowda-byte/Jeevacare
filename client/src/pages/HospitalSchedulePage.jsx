@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Clock, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
 import PageContainer from '../components/Layout/PageContainer';
 import SectionTitle from '../components/Layout/SectionTitle';
 import LoadingSkeleton from '../components/State/LoadingSkeleton';

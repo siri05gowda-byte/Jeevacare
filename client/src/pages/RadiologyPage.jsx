@@ -22,6 +22,7 @@ import DocumentCard from '../components/DocumentCard';
 import LoadingState from '../components/LoadingState';
 import EmptyState from '../components/EmptyState';
 import HealthExplainer from '../components/AI/HealthExplainer';
+import RadiologyAIAnalyzer from '../components/RadiologyAIAnalyzer';
 import aiService from '../services/aiService';
 import ttsService from '../services/ttsService';
 import radiologyService from '../services/radiologyService';
@@ -595,6 +596,27 @@ export default function RadiologyPage() {
                   </div>
                 )}
               </div>
+
+              {/* Medical Image AI Analysis Section */}
+              {selectedRecord.imageReference && (
+                <div className="pt-4 border-t border-gray-200">
+                  <RadiologyAIAnalyzer
+                    radiologyId={selectedRecord._id}
+                    radiologyRecord={selectedRecord}
+                    selectedLanguage={selectedLanguage}
+                    onAnalysisComplete={(analysis) => {
+                      // Update selected record with latest analysis
+                      setSelectedRecord(prev => ({
+                        ...prev,
+                        aiAnalysis: {
+                          ...analysis,
+                          isMockData: analysis.isMockData
+                        }
+                      }));
+                    }}
+                  />
+                </div>
+              )}
 
               {/* Radiology Explainer AI Section */}
               <div className="pt-4 border-t border-gray-200 space-y-4">

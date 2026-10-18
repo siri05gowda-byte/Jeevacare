@@ -40,6 +40,7 @@ JeevaCare creates a **single, verified, auditable health record** that follows t
 - **Emergency Profile** - Declare critical information (allergies, conditions, medications)
 - **Document Upload** - Add personal medical documents
 - **AI Summaries** - AI-generated summaries of medical history (demo/mock mode)
+- **Radiology AI Analysis** - AI-powered analysis of chest X-ray images (mock mode by default, supports real inference with manual model setup)
 - **Multilingual Interface** - 6 languages: English, Hindi, Kannada, Telugu, Tamil, Malayalam
 - **Audio Explanations** - Text-to-speech for medical explanations (demo/mock mode)
 
@@ -136,7 +137,8 @@ JeevaCare/
 │   ├── STAGING_BACKEND_CONFIG.md    # Staging environment setup
 │   ├── STAGING_FRONTEND_CONFIG.md   # Staging frontend config
 │   ├── STAGING_READINESS_REPORT.md  # Pre-deployment verification
-│   └── STAGING_SMOKE_TESTS.md       # 15-point post-deployment checklist
+│   ├── STAGING_SMOKE_TESTS.md       # 15-point post-deployment checklist
+│   └── MEDICAL_IMAGE_AI_SETUP.md    # Radiology AI setup guide
 │
 ├── render.yaml                      # Render deployment config
 ├── vercel.json                      # Vercel deployment config
@@ -229,6 +231,11 @@ CORS_ORIGIN=http://localhost:5173
 GROQ_API_KEY=                          # Leave empty for demo mode
 GROQ_MODEL=mixtral-8x7b-32768
 
+# Medical Image AI (optional - mock mode by default)
+MEDICAL_IMAGE_AI_ENABLED=false         # Set to true for real inference
+MEDICAL_IMAGE_AI_MODEL_PATH=           # Path to inference script (e.g., ./models/chest-xray/infer.py)
+MEDICAL_IMAGE_AI_DEVICE=cpu            # 'cpu' or 'cuda'
+
 # File Storage
 CLOUDINARY_CLOUD_NAME=
 CLOUDINARY_API_KEY=
@@ -308,6 +315,9 @@ Backend tests include AI service integration, authentication, and authorization 
 
 ### AI Features (Demo/Mock Mode)
 - `POST /api/v1/patients/:id/ai-summary` - Generate medical summary (returns mock data if Groq unconfigured)
+- `POST /api/v1/radiology/:radiologyId/analyze-image` - Analyze radiology image with AI (chest X-rays supported, mock mode by default)
+- `GET /api/v1/radiology/:radiologyId/ai-status` - Check AI analysis status
+- `GET /api/v1/radiology/ai-service-status` - Check AI service capabilities
 - `GET /api/v1/health/services` - Check service status
 
 ## Security
@@ -360,6 +370,15 @@ All sensitive operations logged:
 - Available in 6 supported languages
 - Source-linked to patient records
 - Clearly marked as "AI-generated"
+
+**Radiology Image Analysis**
+- AI-powered analysis of medical images (chest X-rays currently supported)
+- Mock mode by default (no additional cost, clearly labeled as mock data)
+- Real inference mode available with manual pretrained model setup
+- Detects unsupported modalities (CT, MRI, ultrasound) and provides clear messaging
+- Multilingual support for findings and explanations
+- Zero-cost constraint maintained (no paid APIs, subscriptions, or GPU rentals)
+- See `docs/MEDICAL_IMAGE_AI_SETUP.md` for setup instructions
 
 **Text-to-Speech Accessibility**
 - Piper TTS available for English, Hindi, and Malayalam (real audio)
@@ -469,7 +488,8 @@ All AI features (summaries, explanations, accessibility) are:
 ### External Integrations
 
 - **DigiLocker**: Optional government document integration (demo mode by default)
-- **Groq AI**: Optional AI provider (demo/mock mode if unconfigured)
+- **Groq AI**: Optional AI provider for text summaries (demo/mock mode if unconfigured)
+- **Medical Image AI**: Optional pretrained model for radiology analysis (mock mode by default, requires manual setup for real inference)
 - **Piper TTS**: Optional text-to-speech (demo/mock mode if unconfigured)
 - **Cloudinary**: Optional file storage (not required for basic operation)
 
@@ -513,9 +533,12 @@ Core features implemented and tested:
 |---|---|---|
 | Full Integration Tests | Configurable | User must provide TEST_MONGODB_URI |
 | Production AI (Groq) | Optional | Demo/mock mode if unconfigured |
+| Radiology Image AI | Optional | Mock mode by default; real inference requires manual model setup and 2-4GB RAM |
 | Production TTS (Piper) | Optional | Demo/mock mode if unconfigured; 3 languages supported |
 | DigiLocker Integration | Optional | Demo mode by default |
 | File Upload (Cloudinary) | Optional | Not required for core functionality |
+
+**Radiology AI Deployment Note**: Render free tier (512MB RAM) is insufficient for ML model inference. Keep in mock mode for free tier, or upgrade to a paid plan with 2GB+ RAM for real inference. See `docs/MEDICAL_IMAGE_AI_SETUP.md` for details.
 
 ### Upcoming
 

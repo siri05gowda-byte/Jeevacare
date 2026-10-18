@@ -120,6 +120,34 @@ const radiologyRecordSchema = new mongoose.Schema(
       extractedAt: Date,
     },
 
+    // AI analysis data (medical image analysis)
+    aiAnalysis: {
+      status: {
+        type: String,
+        enum: ['not_analyzed', 'analyzing', 'completed', 'failed', 'unsupported_modality'],
+        default: 'not_analyzed',
+      },
+      model: String,              // e.g., "chexnet-v1.0" or "mock-chexnet-v1.0"
+      detectedModality: String,   // e.g., "chest_xray", "ct_scan", etc.
+      findings: [String],         // List of findings detected by AI
+      summary: String,            // Technical summary
+      explanation: String,        // Patient-friendly explanation
+      confidence: Number,         // Overall confidence score (0-1)
+      limitations: [String],      // Known limitations of this analysis
+      disclaimers: [String],      // Safety disclaimers
+      analyzedAt: Date,
+      language: {
+        type: String,
+        default: 'en'
+      },
+      isMockData: {
+        type: Boolean,
+        default: false            // TRUE if this is mock/test data
+      },
+      metadata: mongoose.Schema.Types.Mixed,  // Model-specific metadata
+      error: String               // Error message if analysis failed
+    },
+
     // Image quality assessment
     qualityAssessment: {
       score: {

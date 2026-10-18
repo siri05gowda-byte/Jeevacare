@@ -122,6 +122,13 @@ const config = {
     model: process.env.GROQ_MODEL || 'mixtral-8x7b-32768',
   },
 
+  // Medical Image AI (Zero-Cost Pretrained Models)
+  medicalImageAI: {
+    enabled: process.env.MEDICAL_IMAGE_AI_ENABLED === 'true',
+    modelPath: process.env.MEDICAL_IMAGE_AI_MODEL_PATH || null,
+    device: process.env.MEDICAL_IMAGE_AI_DEVICE || 'cpu',
+  },
+
   // DigiLocker
   digiLocker: {
     enabled: process.env.DIGILOCKER_ENABLED === 'true',
