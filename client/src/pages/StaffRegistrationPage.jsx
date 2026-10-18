@@ -34,8 +34,8 @@ export default function StaffRegistrationPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      // Fetch hospitals
-      const hospitalsRes = await fetch('/api/v1/hospitals', {
+      // Fetch hospitals from the public list endpoint
+      const hospitalsRes = await fetch('/api/v1/hospital-admin/list', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
@@ -136,21 +136,21 @@ export default function StaffRegistrationPage() {
 
   const getStatusBadge = (status) => {
     switch (status) {
-      case 'PENDING':
+      case 'pending':
         return (
           <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
             <Clock size={14} />
             Pending
           </span>
         );
-      case 'APPROVED':
+      case 'approved':
         return (
           <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
             <CheckCircle size={14} />
             Approved
           </span>
         );
-      case 'REJECTED':
+      case 'rejected':
         return (
           <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
             <XCircle size={14} />
@@ -295,13 +295,13 @@ export default function StaffRegistrationPage() {
                     <p className="text-xs text-gray-500 mt-2">
                       Submitted: {new Date(request.createdAt).toLocaleDateString()}
                     </p>
-                    {request.status === 'REJECTED' && request.rejectionReason && (
+                    {request.status === 'rejected' && request.rejectionReason && (
                       <p className="text-sm text-red-600 mt-2">
                         Rejection reason: {request.rejectionReason}
                       </p>
                     )}
                   </div>
-                  {request.status === 'PENDING' && (
+                  {request.status === 'pending' && (
                     <button
                       onClick={() => handleWithdraw(request._id)}
                       className="ml-4 px-3 py-1 text-sm text-gray-600 hover:text-red-600 border border-gray-300 rounded hover:border-red-300 transition-colors"

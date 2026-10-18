@@ -314,4 +314,30 @@ router.get(
   }
 );
 
+/**
+ * GET /api/v1/hospital-admin/list
+ * List all active hospitals (public endpoint for authenticated users)
+ * Used by staff registration form to show available hospitals
+ * Accessible by: Any authenticated user
+ */
+router.get(
+  '/list',
+  authMiddleware,
+  async (req, res, next) => {
+    try {
+      const hospitals = await Hospital.find({ status: 'active' })
+        .select('_id name facilityType address contactInfo')
+        .sort({ name: 1 });
+
+      res.json({
+        success: true,
+        hospitals,
+      });
+    } catch (error) {
+      logger.error(`Failed to fetch hospital list: ${error.message}`);
+      next(error);
+    }
+  }
+);
+
 export default router;

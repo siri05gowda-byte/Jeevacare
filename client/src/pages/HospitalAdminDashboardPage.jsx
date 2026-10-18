@@ -42,10 +42,10 @@ export default function HospitalAdminDashboardPage() {
 
       const data = await response.json();
       
-      // Separate requests by status
-      const pending = data.requests?.filter((r) => r.status === 'PENDING') || [];
-      const approved = data.requests?.filter((r) => r.status === 'APPROVED') || [];
-      const rejected = data.requests?.filter((r) => r.status === 'REJECTED') || [];
+      // Separate requests by status (lowercase)
+      const pending = data.requests?.filter((r) => r.status === 'pending') || [];
+      const approved = data.requests?.filter((r) => r.status === 'approved') || [];
+      const rejected = data.requests?.filter((r) => r.status === 'rejected') || [];
 
       setPendingRequests(pending);
       setApprovedRequests(approved);

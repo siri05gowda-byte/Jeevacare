@@ -116,7 +116,7 @@ router.get('/my-requests', authMiddleware, async (req, res, next) => {
 
     res.json({
       success: true,
-      data: requests,
+      requests: requests,
     });
   } catch (error) {
     logger.error(`Failed to fetch user registration requests: ${error.message}`);
@@ -173,7 +173,7 @@ router.get(
 
       res.json({
         success: true,
-        data: requests,
+        requests: requests,
         count: requests.length,
       });
     } catch (error) {
