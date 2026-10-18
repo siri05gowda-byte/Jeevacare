@@ -25,6 +25,8 @@ import StaffDocumentUpload from './pages/StaffDocumentUpload';
 import RadiologyPage from './pages/RadiologyPage';
 import SettingsPage from './pages/SettingsPage';
 import NotificationCenterPage from './pages/NotificationCenterPage';
+import StaffRegistrationPage from './pages/StaffRegistrationPage';
+import HospitalAdminDashboardPage from './pages/HospitalAdminDashboardPage';
 
 // Protected route component
 function ProtectedRoute({ children }) {
@@ -85,11 +87,13 @@ function App() {
             <Route path="emergency-profile" element={<PatientEmergencyProfilePage />} />
             <Route path="upload-documents" element={<DocumentUploadPage />} />
             <Route path="staff/upload-documents" element={<StaffDocumentUpload />} />
+            <Route path="staff/registration" element={<StaffRegistrationPage />} />
             <Route path="integrated-dashboard" element={<IntegratedDashboardPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="notifications" element={<NotificationCenterPage />} />
             
             {/* Hospital/Doctor routes */}
+            <Route path="hospital/dashboard" element={<HospitalAdminDashboardPage />} />
             <Route path="hospital/staff" element={<HospitalStaffPage />} />
             <Route path="hospital/patients" element={<HospitalPatientsPage />} />
             <Route path="hospital/appointments" element={<HospitalAppointmentsPage />} />
