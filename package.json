@@ -18,7 +18,8 @@
     "test:quick": "cd server && vitest run src/utils/*.test.js",
     "lint": "npm run lint --workspaces",
     "start:server": "npm run dev --workspace=server",
-    "start:client": "npm run dev --workspace=client"
+    "start:client": "npm run dev --workspace=client",
+    "seed:synthetic": "node server/src/scripts/seedSyntheticData.js"
   },
   "keywords": [
     "healthcare",
