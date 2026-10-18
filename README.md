@@ -1,578 +1,709 @@
 <div align="center">
 
-![JeevaCare — Healthier Lives, Together](https://raw.githubusercontent.com/siri05gowda-byte/Jeevacare/main/client/src/assets/logos/jeevacare-logo-wordmark.png)
+![JeevaCare — Lifelong Health Journey](https://raw.githubusercontent.com/siri05gowda-byte/Jeevacare/main/client/src/assets/logos/jeevacare-logo-wordmark.png)
 
 </div>
 
-A secure, verified, lifelong healthcare platform that maintains a chronological patient health journey across providers with emergency access, AI-assisted medical intelligence, and multilingual accessibility.
+**JeevaCare** is a healthcare information platform designed to organize patient medical records, enable emergency-access workflows, facilitate healthcare-provider interactions, and integrate radiology-report processing with AI-assisted analysis.
+
+> **Academic/Demo Prototype** — Built to address fragmented medical records and demonstrate lifelong healthcare continuity principles. Not a certified medical device; all clinical decisions require qualified healthcare professional review.
+
+---
 
 ## The Problem
 
-Patients' medical records are fragmented across hospitals, cities, and physical documents. During health crises—especially emergencies—critical information is unavailable, identity is unclear, and care is delayed.
+Patients' medical records are fragmented across hospitals, clinics, and cities. During emergencies—when time is critical—essential information is unavailable, identity verification is unclear, and healthcare is delayed.
 
-**Key Challenges**:
-- Records scattered across multiple providers and locations
-- No unified lifelong health timeline
+**Key Challenges:**
+- Records scattered across multiple providers
+- No unified health timeline or chronological view
 - Difficult emergency access to critical information
-- Identity continuity problems across providers
-- Unclear verification status and record provenance
-- Language and accessibility barriers
+- Unclear verification status and data provenance
+- Language and accessibility barriers for diverse populations
 
 ## The Solution
 
-JeevaCare creates a **single, verified, auditable health record** that follows the patient throughout their lifetime:
+JeevaCare creates a **single, auditable health record** that follows the patient across their lifetime:
 
-1. **Unique Lifelong Identity** - One JeevaCare ID across all providers
-2. **Verified Clinical Records** - Only authenticated providers can create official records
-3. **Chronological Timeline** - All healthcare events organized by date
-4. **Emergency Access** - Fast access to critical information after approved identification
-5. **AI Medical Intelligence** - Explanations and summaries in 6 languages
-6. **Audio Accessibility** - Text-to-speech for medical explanations
-7. **Complete Audit Trail** - All access logged for security and compliance
-8. **Patient Control** - View and manage records without altering provider facts
+1. **Unified Patient Identity** — One consistent identity across all providers
+2. **Chronological Timeline** — All healthcare events organized by date and provider
+3. **Verified Clinical Records** — Only authenticated healthcare providers can create official records
+4. **Emergency Access** — Rapid access to critical information after identity verification
+5. **AI-Assisted Intelligence** — Summaries and explanations available in 6 languages (demo/mock mode by default)
+6. **Accessibility** — Text-to-speech, multilingual interface, and intuitive navigation
+7. **Complete Audit Trail** — All access logged for security and compliance
+8. **Patient Control** — Patients can view records and manage personal health information without altering provider data
+
+---
 
 ## Implemented Features
 
 ### Patient Portal
-- **Health Timeline** - Chronological view of all medical events
-- **Medical Records** - Secure viewing of clinical information
-- **Appointments** - Book and manage doctor appointments
-- **Emergency Profile** - Declare critical information (allergies, conditions, medications)
-- **Document Upload** - Add personal medical documents
-- **AI Summaries** - AI-generated summaries of medical history (demo/mock mode)
-- **Radiology AI Analysis** - AI-powered analysis of chest X-ray images (mock mode by default, supports real inference with manual model setup)
-- **Multilingual Interface** - 6 languages: English, Hindi, Kannada, Telugu, Tamil, Malayalam
-- **Audio Explanations** - Text-to-speech for medical explanations (demo/mock mode)
 
-### Clinical Workspace
+- **Health Timeline** — Chronological view of all medical encounters, diagnoses, procedures, lab results, and documents
+- **Medical Records** — Secure viewing of clinical information created by providers
+- **Appointments** — Search providers, book appointments, and manage schedule
+- **Emergency Profile** — Document critical information (allergies, medications, conditions, emergency contacts)
+- **Document Upload** — Add personal medical records and documents for verification by providers
+- **Clinical Records** — View clinical encounters, diagnoses, procedures, medications, and notes
+- **Lab Results** — Access laboratory test results and reference ranges
+- **Vaccinations** — Track vaccination history
+- **Discharge Summaries** — View hospital discharge documents and summaries
+- **AI Summaries** — AI-generated medical history summaries (demo/mock mode if unconfigured)
+- **Radiology Viewing** — View uploaded radiology reports and imaging metadata
+- **Multilingual Interface** — 6 supported languages with language-specific content
 
-- **Patient Search** - Safe patient matching to prevent wrong-patient errors
-- **Clinical Records** - Create encounters, diagnoses, medications, procedures
-- **Appointment Management** - View schedule and manage bookings
-- **Document Verification** - Review and verify patient-uploaded documents
-- **Record Amendment** - Traceable corrections with full history
+### Healthcare Provider Workspace
+
+- **Patient Search** — Secure patient matching to prevent wrong-patient access (JeevaCare ID, phone, email validation)
+- **Clinical Records** — Create and view encounters, diagnoses, medications, procedures, and clinical notes
+- **Appointment Management** — View schedule, book new appointments, and manage existing appointments
+- **Document Verification** — Review patient-uploaded documents and verify accuracy
+- **Record Amendment** — Create amendments and corrections with full audit history (original record preserved)
+- **Lab Management** — Record and manage laboratory results
+- **Radiology Management** — Upload radiology reports and manage imaging data
+- **Discharge Documentation** — Create and manage discharge summaries
+
+### Hospital Administration
+
+- **Staff Management** — Register clinical staff and manage role assignments
+- **Appointment Scheduling** — Create clinic schedules and manage provider availability
+- **Staff Verification** — Approve or reject staff registration requests
+- **Facility Management** — Configure hospital information and settings
 
 ### Emergency Access
 
-- **Rapid Patient Identification** - Access patient after identity verification
-- **Critical Summary** - Allergies, blood group, medications shown first
-- **Full History** - Complete timeline available when needed
-- **Access Logging** - All emergency access audited
+- **Emergency Patient Lookup** — Identify patients by JeevaCare ID, phone, or email
+- **Identity Verification** — Multi-factor verification to authorize access
+- **Critical Summary** — Display essential information first (allergies, blood group, medications)
+- **Full History Access** — Complete timeline available when needed
+- **Access Logging** — Audit trail shows who accessed what information and when
+- **Emergency Incident Tracking** — Record emergency access reasons and outcomes
 
 ### Authorization & Security
 
-- **Role-Based Access** - Patient, Guardian, Doctor, Hospital Admin, Emergency, System Admin
-- **Patient Isolation** - Patients cannot access other patients' records
-- **Facility Isolation** - Staff limited to their facility
-- **Server-Side Authorization** - Backend enforces all permissions
-- **9-Point Clinical Authorization** - User, Professional, Facility, Staff, Role, Permissions, Credentials, Patient Access, Patient Verification
-- **Complete Audit Trail** - All sensitive operations logged
+- **Role-Based Access Control** — 8 user roles: Patient, Guardian, Doctor, Nurse, Hospital Admin, Emergency Access, Staff, System Admin
+- **Facility-Level Isolation** — Staff access limited to their assigned hospital only
+- **Patient-Level Isolation** — Patients cannot access other patients' records
+- **9-Point Clinical Authorization** — User identity, professional credentials, facility assignment, staff role, permissions, patient affiliation, patient authorization, verification status, and time-based access
+- **Server-Side Enforcement** — All authorization decisions made by backend; frontend cannot bypass permissions
+- **Complete Audit Trail** — Sensitive operations logged (login/logout, record access, emergency access, modifications)
 
-### Verified Records
+### Data Integrity
 
-- **Provider-Verified** - Official clinical data from authenticated providers
-- **Patient-Uploaded** - Personal documents (initially unverified)
-- **Verification Workflow** - Providers can review and verify uploads
-- **Amendment History** - Changes create new versions, originals preserved
-- **Correction Requests** - Patient-initiated corrections reviewed by provider
-- **Immutability** - Patient cannot directly modify provider-created records
+- **Provider-Verified Records** — Clinical data created by authenticated providers
+- **Patient-Uploaded Records** — Personal documents (initially unverified)
+- **Verification Workflow** — Providers can review and verify patient uploads
+- **Amendment History** — Changes create new versions; original records preserved
+- **Immutability** — Patients cannot directly modify provider-created records
+- **Correction Requests** — Patients can request corrections; providers review and approve/reject
+
+---
+
+## Technology Stack
+
+### Frontend
+- **React 18** — UI framework with Vite build tooling
+- **Tailwind CSS** — Utility-first CSS styling
+- **Zustand** — Lightweight state management
+- **React Router** — Client-side routing
+- **Axios** — HTTP client
+
+### Backend
+- **Node.js + Express.js** — REST API framework
+- **MongoDB + Mongoose** — Document database and ODM
+- **JWT** — Token-based authentication and authorization
+- **bcryptjs** — Secure password hashing
+- **Winston** — Structured logging
+- **Helmet.js** — HTTP security headers
+
+### External Services (All with Demo/Mock Modes)
+- **Groq AI** — Medical text summaries (demo/mock if unconfigured)
+- **Piper TTS** — Text-to-speech audio (3 languages: English, Hindi, Malayalam; demo/mock for others)
+- **TorchXRayVision** — Chest X-ray analysis using ResNet50 pretrained model (mock mode by default; real inference requires manual setup)
+- **Tesseract OCR** — Text extraction from medical documents (optional)
+- **Cloudinary** — File/document storage (optional; local filesystem used if unconfigured)
+- **DigiLocker** — Government document integration (demo mode by default)
+
+### Deployment
+- **Frontend** — Vercel (https://jeevacare-cmdm.vercel.app)
+- **Backend** — Render (https://jeevacare-th88.onrender.com)
+- **Database** — MongoDB Atlas
+- **Version Control** — GitHub
+
+---
 
 ## Architecture
 
-### Technology Stack
-
-**Frontend**
-- React 18 with Vite
-- Tailwind CSS
-- Zustand state management
-- React Router for navigation
-
-**Backend**
-- Node.js + Express.js
-- MongoDB + Mongoose
-- JWT authentication
-- Winston logging
-- Helmet security headers
-
-**External Services** (Adapter Pattern with Demo Modes)
-- Groq AI (medical summaries - demo mode if unconfigured)
-- Piper TTS (text-to-speech - demo mode if unconfigured)
-- Cloudinary (file storage - optional)
-- DigiLocker (government documents - optional, demo mode)
-
-**Deployment**
-- Frontend: Vercel
-- Backend: Render
-- Database: MongoDB Atlas
-
-### Project Structure
+### System Overview
 
 ```
-JeevaCare/
-├── client/                          # React frontend
-│   ├── src/
-│   │   ├── components/              # UI components (Header, Logo, etc.)
-│   │   ├── pages/                   # Page components (LoginPage, PatientDashboardV2, etc.)
-│   │   ├── stores/                  # Zustand auth store
-│   │   ├── services/                # API services (authService, aiService, etc.)
-│   │   ├── assets/logos/            # Brand logos (stethoscope-J variants)
-│   │   └── styles/                  # CSS and Tailwind config
-│   ├── index.html                   # Title: "JeevaCare - Lifelong Health Journey"
-│   ├── public/favicon.svg           # Favicon (optimized stethoscope-J)
-│   └── vite.config.js
+┌─ Frontend (React + Vite)
+│  ├─ Patient Portal UI
+│  ├─ Provider Workspace UI
+│  ├─ Admin Dashboard
+│  └─ Authentication UI
 │
-├── server/                          # Express backend
-│   ├── src/
-│   │   ├── routes/                  # API routes (auth, patients, health, etc.)
-│   │   ├── models/                  # MongoDB models (User, Patient, Hospital, etc.)
-│   │   ├── middleware/              # Auth, error handling, CORS
-│   │   ├── services/                # Business logic (AI, TTS, etc.)
-│   │   ├── adapters/                # External service adapters
-│   │   ├── config/                  # Configuration with JWT validation
-│   │   └── utils/                   # Utilities and logger
-│   ├── .env.example
-│   └── package.json
+├─ API Gateway (Express.js)
+│  ├─ REST Endpoints
+│  ├─ JWT Middleware
+│  ├─ Authorization Checks
+│  └─ Audit Logging
 │
-├── docs/
-│   ├── STAGING_BACKEND_CONFIG.md    # Staging environment setup
-│   ├── STAGING_FRONTEND_CONFIG.md   # Staging frontend config
-│   ├── STAGING_READINESS_REPORT.md  # Pre-deployment verification
-│   ├── STAGING_SMOKE_TESTS.md       # 15-point post-deployment checklist
-│   └── MEDICAL_IMAGE_AI_SETUP.md    # Radiology AI setup guide
+├─ Services
+│  ├─ AI Summary Service (Groq integration)
+│  ├─ TTS Service (Piper)
+│  ├─ Medical Image Analyzer (TorchXRayVision worker)
+│  ├─ OCR Service (optional)
+│  └─ Document Storage (Cloudinary)
 │
-├── render.yaml                      # Render deployment config
-├── vercel.json                      # Vercel deployment config
-├── Build_spec.md                    # Technical specification
-├── objective.md                     # Feature verification checklist
-└── README.md                        # This file
+├─ Database (MongoDB)
+│  ├─ Users & Authentication
+│  ├─ Patients & Medical Records
+│  ├─ Hospitals & Providers
+│  ├─ Appointments & Schedules
+│  ├─ Documents & Radiology
+│  ├─ Audit Events
+│  └─ Emergency Access Logs
+│
+└─ Python Workers
+   ├─ ChestXRayInferenceWorker (TorchXRayVision ResNet50)
+   └─ OCR Worker (optional)
 ```
+
+### Data Model
+
+**Core Entities:**
+- **User** — Authentication identity (email, password hash, role)
+- **Patient** — Personal health record container
+- **Hospital** — Healthcare facility with administrators and staff
+- **HealthcareProfessional** — Doctor, nurse, or clinical staff profile
+- **HospitalStaff** — Hospital-provider affiliation and permissions
+- **Appointment** — Scheduled encounter between patient and provider
+- **Encounter** — Individual clinical visit with diagnoses, medications, procedures
+- **ClinicalRecord** — Provider-created clinical documentation
+- **RadiologyRecord** — Medical imaging metadata and reports
+- **Document** — Patient-uploaded medical documents (with verification status)
+- **EmergencyProfile** — Patient-declared critical information
+- **EmergencyAccess** — Emergency access event with audit trail
+- **AuditEvent** — Log of all sensitive operations
+
+---
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 18+
-- MongoDB (local or MongoDB Atlas)
-- npm or yarn
+- **Node.js 18+** and npm
+- **MongoDB** (local or MongoDB Atlas)
+- **Python 3.8+** (optional, for real medical image inference)
 
 ### Installation
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/siri05gowda-byte/Jeevacare.git
-   cd JeevaCare
-   ```
+#### 1. Clone the Repository
 
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
-
-3. **Configure backend environment**
-   ```bash
-   cp server/.env.example server/.env
-   # Edit server/.env with your settings
-   ```
-
-4. **Start MongoDB**
-   ```bash
-   # Option 1: Local MongoDB
-   mongod
-   
-   # Option 2: Use MongoDB Atlas connection string in server/.env
-   MONGODB_URI=mongodb+srv://username:password@cluster/jeevacare
-   ```
-
-5. **Start development servers**
-   ```bash
-   # Terminal 1: Backend (http://localhost:5000)
-   npm run start:server
-
-   # Terminal 2: Frontend (http://localhost:5173)
-   npm run start:client
-   ```
-
-6. **Access the application**
-   - Frontend: http://localhost:5173
-   - Backend API: http://localhost:5000
-   - API Health: http://localhost:5000/health
-
-### Demo Credentials
-
-```
-Patient:  patient@demo.com  / DemoPassword123
-Doctor:   doctor@demo.com   / DemoPassword123
-Admin:    admin@demo.com    / DemoPassword123
+```bash
+git clone https://github.com/siri05gowda-byte/Jeevacare.git
+cd JeevaCare
 ```
 
-## Environment Variables
+#### 2. Install Dependencies
 
-### Backend Configuration (server/.env)
+```bash
+npm install
+```
+
+This installs dependencies for the root workspace and all child workspaces (client, server).
+
+#### 3. Configure Backend Environment
+
+```bash
+cp server/.env.example server/.env
+# Edit server/.env with your configuration
+```
+
+#### 4. Start Development Servers
+
+```bash
+# Terminal 1: Start backend (http://localhost:5000)
+npm run start:server
+
+# Terminal 2: Start frontend (http://localhost:5173)
+npm run start:client
+```
+
+#### 5. Access the Application
+
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:5000
+- **API Health Check**: http://localhost:5000/health
+
+### Testing Demo Accounts
+
+**Local Development** (using demo seed):
+- Patient: `patient@demo.com` / `DemoPassword123`
+- Doctor: `doctor@demo.com` / `DemoPassword123`
+- Admin: `admin@demo.com` / `DemoPassword123`
+
+**Synthetic Multi-Hospital Demo** (when seeded):
+See `docs/RENDER_DEPLOYMENT_GUIDE.md` for Sanjivani Hospital and Aarogya Kendra demo accounts.
+
+---
+
+## Environment Configuration
+
+### Required Backend Variables (server/.env)
 
 ```env
-# Server
-NODE_ENV=development
+# Server & Database
+NODE_ENV=development              # development, staging, or production
 PORT=5000
-
-# Database
 MONGODB_URI=mongodb://localhost:27017/jeevacare
-TEST_MONGODB_URI=mongodb+srv://user:pass@cluster/jeevacare-test
 
-# JWT Authentication (staging/production require 32+ chars, no 'dev-' keyword)
-JWT_SECRET=dev-secret-change-in-production-12345
-JWT_EXPIRATION=24h
-REFRESH_TOKEN_SECRET=dev-refresh-secret-change-12345
-REFRESH_TOKEN_EXPIRATION=7d
+# Authentication (32+ chars in staging/production, no 'dev-' prefix)
+JWT_SECRET=your-32-char-secret-key-here
+REFRESH_TOKEN_SECRET=your-32-char-refresh-secret-here
 
-# CORS
+# Optional: Test Database (for integration tests)
+TEST_MONGODB_URI=mongodb+srv://...jeevacare-test
+
+# CORS Configuration
 CORS_ORIGIN=http://localhost:5173
+```
 
-# External Services (optional - demo modes used if unconfigured)
-GROQ_API_KEY=                          # Leave empty for demo mode
+### Optional Backend Variables
+
+```env
+# AI Services (all have demo/mock fallback modes)
+GROQ_API_KEY=                     # Leave empty for AI demo mode
 GROQ_MODEL=mixtral-8x7b-32768
 
-# Medical Image AI (optional - mock mode by default)
-MEDICAL_IMAGE_AI_ENABLED=false         # Set to true for real inference
-MEDICAL_IMAGE_AI_MODEL_PATH=           # Path to inference script (e.g., ./models/chest-xray/infer.py)
-MEDICAL_IMAGE_AI_DEVICE=cpu            # 'cpu' or 'cuda'
+# Medical Image AI (real inference requires manual setup)
+MEDICAL_IMAGE_AI_ENABLED=false    # Set true for real chest X-ray analysis
+MEDICAL_IMAGE_AI_MODEL_PATH=      # Path to model (e.g., ./models/chest-xray)
+MEDICAL_IMAGE_AI_DEVICE=cpu       # cpu or cuda
 
-# File Storage
+# File Storage (optional; local filesystem used if unconfigured)
 CLOUDINARY_CLOUD_NAME=
 CLOUDINARY_API_KEY=
 CLOUDINARY_API_SECRET=
 
+# Text-to-Speech (optional; demo/mock mode if unconfigured)
+PIPER_TTS_ENABLED=false
+PIPER_BINARY_PATH=
+PIPER_MODELS_PATH=
+
 # Logging
 LOG_LEVEL=info
 ```
+
+---
+
+## Available Commands
+
+```bash
+# Development
+npm run dev                    # Start both frontend and backend
+npm run start:server          # Start backend only
+npm run start:client          # Start frontend only
+
+# Building
+npm run build                 # Build frontend for production
+npm run build --workspace=server   # Build backend
+
+# Testing
+npm run test                  # Run all tests
+npm run test:backend          # Run backend tests
+npm run test:frontend         # Run frontend tests
+npm run test:quick            # Run quick unit tests
+
+# Linting
+npm run lint                  # Lint all workspaces
+
+# Database Seeding (local development)
+npm run seed:synthetic        # Seed synthetic demo data
+```
+
+---
+
+## API Endpoints
+
+### Authentication
+- `POST /api/v1/auth/register` — Register new user
+- `POST /api/v1/auth/login` — Login with email and password
+- `GET /api/v1/auth/current-user` — Get logged-in user profile
+- `POST /api/v1/auth/refresh` — Refresh JWT token
+- `POST /api/v1/auth/logout` — Logout
+
+### Health & Status
+- `GET /health` — API health status
+- `GET /healthz` — Render health check
+- `GET /api/v1/health/config` — Configuration summary (non-sensitive)
+- `GET /api/v1/health/services` — External service status
+
+### Patient Records
+- `GET /api/v1/patients/:id` — Get patient profile
+- `POST /api/v1/patients` — Create new patient
+- `GET /api/v1/patients/:id/timeline` — Get chronological health timeline
+- `GET /api/v1/patients/:id/encounters` — Get clinical encounters
+- `POST /api/v1/patients/:id/documents` — Upload medical documents
+
+### Appointments
+- `GET /api/v1/appointments` — List appointments
+- `POST /api/v1/appointments` — Book new appointment
+- `GET /api/v1/appointments/:id` — Get appointment details
+- `PUT /api/v1/appointments/:id` — Update appointment
+
+### Clinical Records (Provider)
+- `GET /api/v1/encounters` — List provider's encounters
+- `POST /api/v1/encounters` — Create new encounter
+- `GET /api/v1/clinical-records/:id` — Get clinical record
+- `POST /api/v1/clinical-records` — Create clinical record
+
+### Radiology
+- `GET /api/v1/radiology/:id` — Get radiology record
+- `POST /api/v1/radiology/upload` — Upload radiology report
+- `POST /api/v1/radiology/:id/analyze-image` — Analyze chest X-ray (real or mock)
+- `GET /api/v1/radiology/:id/ai-status` — Check AI analysis status
+
+### Emergency Access
+- `POST /api/v1/emergency/lookup` — Find patient in emergency
+- `POST /api/v1/emergency/access` — Request emergency access
+- `GET /api/v1/emergency/history` — View emergency access history
+
+### AI Features
+- `POST /api/v1/ai-summary/:patientId` — Generate medical summary (demo/mock)
+- `POST /api/v1/tts/speak` — Generate speech from text (English, Hindi, Malayalam with Piper; demo/mock for others)
+
+---
+
+## Security & Privacy
+
+### Authentication & Authorization
+
+**JWT Security:**
+- Development/Testing: Flexible configuration
+- Staging/Production: **Enforced fail-safe**
+  - JWT_SECRET must be 32+ characters
+  - Cannot contain `dev-` prefix
+  - Separate REFRESH_TOKEN_SECRET required
+  - Backend startup fails if constraints violated
+
+**Role-Based Access Control:**
+- 8 user roles with distinct permissions
+- Server-side authorization enforcement (frontend cannot bypass)
+- Patient isolation (cannot access other patients)
+- Facility isolation (staff limited to assigned hospital)
+- 9-point clinical authorization boundary
+
+### Data Protection
+
+- **Passwords**: bcryptjs hashing (11 rounds)
+- **Transmission**: HTTPS/TLS (enforced on Render and Vercel)
+- **Storage**: Encrypted at rest (MongoDB Atlas)
+- **Audit Trail**: All sensitive operations logged
+- **Rate Limiting**: 100 requests per IP per 15 minutes
+- **CORS**: Strict origin validation
+- **Security Headers**: Helmet.js protections
+
+### Demo Data Handling
+
+- **Synthetic credentials** kept in local `DEMO_CREDENTIALS.json` (ignored by Git, never committed)
+- **Plaintext demo passwords** are fictional and only for development/testing
+- **Mock AI modes** clearly labeled and cannot be mistaken for real analysis
+
+---
+
+## Radiology & Medical Image Processing
+
+### Chest X-Ray Analysis
+
+**Technology**: TorchXRayVision with pretrained ResNet50
+
+**Architecture:**
+- Real deep-learning inference using pretrained convolutional neural network
+- Python worker spawned by Node.js backend
+- Model cached in memory after first load
+- JSON-RPC communication over stdin/stdout
+- Detects 18 common chest pathologies
+
+**Supported Modalities:**
+- ✅ **Chest X-rays** — Real inference (18 pathologies detected)
+- ❌ **CT, MRI, Ultrasound** — Not supported (unsupported modality message)
+
+**Deployment:**
+- **Default (Free Tier):** Mock mode (clearly labeled)
+- **Real Inference:** Requires manual setup + 2-4GB RAM minimum
+- **Render Free Tier:** Insufficient RAM (512MB) for real inference; keep in mock mode
+- See `docs/MEDICAL_IMAGE_AI_SETUP.md` for real inference setup
+
+**Important Disclaimers:**
+- No custom training on JeevaCare-specific dataset
+- Uses pretrained weights (published research model)
+- Experimental feature; not a clinical diagnostic tool
+- Predictions are **not a substitute for qualified radiologist interpretation**
+- Always requires licensed healthcare professional review
+
+### OCR Processing
+
+Text extraction from uploaded medical documents (optional feature).
+
+### AI Safety Guardrails
+
+- ✓ No autonomous diagnosis
+- ✓ AI never invents medical facts
+- ✓ All AI output clearly marked "AI-generated" or "Demo"
+- ✓ Linked to original records and source documents
+- ✓ Cannot become official clinical record
+- ✓ Requires clinician approval for clinical decisions
+
+---
+
+## Multilingual Support
+
+| Language | Code | UI | Text-to-Speech |
+|---|---|---|---|
+| English | en | ✓ | ✓ Real (Piper) |
+| हिन्दी (Hindi) | hi | ✓ | ✓ Real (Piper) |
+| മലയാളം (Malayalam) | ml | ✓ | ✓ Real (Piper) |
+| ಕನ್ನಡ (Kannada) | kn | ✓ | Demo/Mock |
+| తెలుగు (Telugu) | te | ✓ | Demo/Mock |
+| தமிழ் (Tamil) | ta | ✓ | Demo/Mock |
+
+**Notes:**
+- Piper TTS officially supports 3 languages with verified models
+- Other languages use demo/mock audio unless custom TTS providers integrated
+- UI translations available for all 6 languages
+- See `docs/RENDER_DEPLOYMENT_GUIDE.md` for language-specific deployment configuration
+
+---
+
+## Deployment
+
+### Frontend (Vercel)
+
+Currently deployed at: **https://jeevacare-cmdm.vercel.app**
+
+**Setup:**
+1. Push code to GitHub
+2. Connect repository to Vercel dashboard
+3. Configure environment variable:
+   ```
+   VITE_API_BASE_URL=https://jeevacare-th88.onrender.com
+   ```
+4. Build: `npm run build --workspace=client`
+5. Output: `client/dist`
+
+### Backend (Render)
+
+Currently deployed at: **https://jeevacare-th88.onrender.com**
+
+**Setup:**
+1. Push code to GitHub
+2. Connect repository to Render dashboard
+3. Use `render.yaml` configuration
+4. Configure required environment variables:
+   ```
+   NODE_ENV=staging
+   MONGODB_URI=mongodb+srv://...
+   JWT_SECRET=[32+ char random string]
+   REFRESH_TOKEN_SECRET=[32+ char random string]
+   CORS_ORIGIN=https://jeevacare-cmdm.vercel.app
+   ```
+5. Optional: Configure external services (Groq, Piper TTS, etc.)
+
+**Health Check:** `https://jeevacare-th88.onrender.com/health`
+
+### Seeding Staging Demo Data
+
+See `docs/RENDER_DEPLOYMENT_GUIDE.md` for complete instructions on:
+- Setting up isolated `jeevacare-test` database
+- Running dry-run seed (validates logic without writes)
+- Executing actual seed (creates demo hospitals, administrators, doctors, patients)
+- Verifying seeded records
+- Testing synthetic demo logins
+
+---
 
 ## Testing
 
 ### Test Coverage
 
 ```bash
-npm run test
+npm run test                  # Run all tests
+npm run test:backend          # Backend tests
+npm run test:frontend         # Frontend tests
 ```
 
+**Available Tests:**
+- Unit tests for authentication, authorization, validation
+- Integration tests for API endpoints (require MongoDB)
+- Frontend component tests
+- Production regression tests (23 verified fixes)
+
 **Test Status:**
-- ✓ Backend: Unit and integration tests included (23 regression tests for production fixes)
-- ✓ Frontend: 60 tests passing
-- ✓ Build verification: Production build validates all modules
-- ✓ Production stability: Regression tests for state management, authorization, and parameter validation
+- Backend: Unit and integration tests included
+- Frontend: 60+ tests
+- Production builds: Validated (exit 0)
+- Deployment: Health checks configured
 
-Backend tests include AI service integration, authentication, and authorization validation. Integration tests require a configured MongoDB test database.
+---
 
-### Recent Production Fixes (Commit 6bfd8e8)
+## Known Limitations
 
-**Verified Production Stability Issues Fixed:**
+| Feature | Status | Notes |
+|---|---|---|
+| Full Integration Tests | Configurable | Requires TEST_MONGODB_URI |
+| AI Medical Summaries | Demo Mode | Groq API optional; mock responses if unconfigured |
+| Chest X-Ray Analysis | Real/Mock Switchable | Real inference requires 2-4GB RAM; mock mode default |
+| Text-to-Speech | Real/Mock Switchable | Piper TTS for English/Hindi/Malayalam; demo/mock for others |
+| DigiLocker Integration | Optional | Demo mode by default |
+| Cloudinary File Storage | Optional | Local filesystem used if unconfigured |
+| Production Scaling | Configurable | Free tier: 1 instance; can enable autoscaling on paid plans |
 
-1. **DocumentsPage** - Infinite loading spinner on patient ID resolution failure
-   - Fix: Clear state (documents, isLoading) on early return
-   - Test: 2/2 passing
-
-2. **RadiologyPage** - Render crash due to undefined array on error
-   - Fix: Initialize radiologyRecords as empty array on error
-   - Test: 1/1 passing
-
-3. **appointmentService** - HTTP 400 on patient appointment queries
-   - Fix: Remove unsupported `facilityId` parameter from patient query
-   - Test: 2/2 passing
-
-4. **HospitalStaffPage** - Staff validation loop with incorrect error state
-   - Fix: Proper response unwrapping + move setLoading to finally block
-   - Test: 2/2 passing
-
-5. **AppointmentService** - Silent date filtering failure
-   - Fix: Parameter name correction (dateFrom/dateTo → startDate/endDate)
-   - Test: 15/15 passing (includes authorization, boundary conditions, edge cases)
-
-**Total Production Regression Tests: 23/23 Passing**
-- All fixes verified with isolated mocks (no production database accessed)
-- Frontend build passes with all changes (exit 0)
-- See TEST_VERIFICATION_REPORT.md for detailed analysis
-
-## API Endpoints
-
-### Health Check
-- `GET /health` - API health status
-- `GET /api/v1/health/services` - External service status (demo/mock info)
-- `GET /api/v1/health/config` - Configuration summary (non-sensitive)
-
-### Authentication
-- `POST /api/v1/auth/register` - Register new user
-- `POST /api/v1/auth/login` - Login with email/password
-- `GET /api/v1/auth/current-user` - Get logged-in user
-- `POST /api/v1/auth/logout` - Logout
-
-### Patients
-- `GET /api/v1/patients/:id` - Get patient record
-- `POST /api/v1/patients` - Create patient
-- `GET /api/v1/patients/:id/timeline` - Get health timeline
-
-### Appointments
-- `GET /api/v1/appointments` - List appointments
-- `POST /api/v1/appointments` - Book appointment
-- `GET /api/v1/appointments/:id` - Get appointment details
-
-### AI Features (Demo/Mock Mode)
-- `POST /api/v1/patients/:id/ai-summary` - Generate medical summary (returns mock data if Groq unconfigured)
-- `POST /api/v1/radiology/:radiologyId/analyze-image` - Analyze radiology image with AI (chest X-rays supported, mock mode by default)
-- `GET /api/v1/radiology/:radiologyId/ai-status` - Check AI analysis status
-- `GET /api/v1/radiology/ai-service-status` - Check AI service capabilities
-- `GET /api/v1/health/services` - Check service status
-
-## Security
-
-### Authentication & Authorization
-
-**JWT Security Validation:**
-- Development/Test: Allow development defaults
-- Staging/Production: **Fail-safe enforcement**
-  - JWT_SECRET must be 32+ characters
-  - JWT_SECRET cannot contain `dev-` or `development`
-  - Separate REFRESH_TOKEN_SECRET required
-  - Backend WILL NOT START if constraints violated
-
-**Authorization:**
-- 9-point clinical authorization boundary
-- Server-side RBAC enforcement
-- Patient isolation (cannot access other patients)
-- Facility isolation (staff limited to their facility)
-
-**Password Security:**
-- bcryptjs hashing (11 rounds)
-- No plaintext storage
-
-### Data Protection
-
-- HTTPS/TLS in transit (configured by Render/Vercel)
-- Input validation on all endpoints
-- Rate limiting: 100 requests/IP/15 minutes
-- CORS: Strict origin configuration
-- Security headers via Helmet.js
-- Sensitive data not logged
-
-### Audit Trail
-
-All sensitive operations logged:
-- Login/logout
-- Patient record access
-- Emergency access with reason
-- Record creation/amendment
-- Document upload/verification
-- Permission changes
-
-## AI & Accessibility
-
-### Medical Intelligence Features
-
-**AI Summary Generation**
-- Returns demo summaries if AI service is unconfigured
-- Available in 6 supported languages
-- Source-linked to patient records
-- Clearly marked as "AI-generated"
-
-**Radiology Image Analysis**
-- AI-powered analysis of medical images (chest X-rays currently supported)
-- Mock mode by default (no additional cost, clearly labeled as mock data)
-- Real inference mode available with manual pretrained model setup
-- Detects unsupported modalities (CT, MRI, ultrasound) and provides clear messaging
-- Multilingual support for findings and explanations
-- Zero-cost constraint maintained (no paid APIs, subscriptions, or GPU rentals)
-- See `docs/MEDICAL_IMAGE_AI_SETUP.md` for setup instructions
-
-**Text-to-Speech Accessibility**
-- Piper TTS available for English, Hindi, and Malayalam (real audio)
-- Demo/mock mode for other languages or when service is unconfigured
-- Optional playback speed control
-- Free, self-hosted, no subscription required
-
-### AI Safety Guardrails
-
-- ✓ No autonomous diagnosis - AI never independently diagnoses
-- ✓ No fabrication - AI never invents medical facts
-- ✓ Clear labeling - All AI output marked "AI-generated"
-- ✓ Source-tracked - Linked to original records
-- ✓ Not clinical fact - AI output cannot become official record
-- ✓ Requires review - Clinician approval required for clinical decisions
-
-## Multilingual Support
-
-JeevaCare provides a user interface in 6 languages with text-to-speech support for 3 languages:
-
-| Language | Code | UI | Text-to-Speech |
-|---|---|---|---|
-| English | en | ✓ | ✓ (Piper available) |
-| हिन्दी (Hindi) | hi | ✓ | ✓ (Piper available) |
-| മലയാളം (Malayalam) | ml | ✓ | ✓ (Piper available) |
-| ಕನ್ನಡ (Kannada) | kn | ✓ | Demo mode |
-| తెలుగు (Telugu) | te | ✓ | Demo mode |
-| தமிழ் (Tamil) | ta | ✓ | Demo mode |
-
-**Note:** Piper TTS models are officially available for English, Hindi, and Malayalam. Other languages are supported through the UI with demo/mock audio unless custom TTS providers are integrated. See `PIPER_TTS_SETUP.md` for language support details.
-
-## Deployment
-
-### Frontend (Vercel)
-
-1. Push code to GitHub
-2. Connect repository to Vercel
-3. Environment variables:
-   ```
-   VITE_API_BASE_URL=https://your-backend-url.onrender.com
-   ```
-4. Build command: `npm run build --workspace=client`
-5. Output directory: `client/dist`
-
-### Backend (Render)
-
-1. Push code to GitHub
-2. Connect repository to Render
-3. Use `render.yaml` configuration
-4. Environment variables:
-   - `NODE_ENV`: development, staging, or production
-   - `MONGODB_URI`: MongoDB connection string
-   - `JWT_SECRET`: 32+ character random string (no 'dev-' prefix in staging/production)
-   - `REFRESH_TOKEN_SECRET`: Separate refresh token secret (32+ characters)
-   - `CORS_ORIGIN`: Frontend URL for CORS configuration
-   - Optional: `GROQ_API_KEY` for production AI features
-
-### Optional: Text-to-Speech (Piper TTS)
-
-For production audio generation instead of demo/mock audio:
-
-1. **Environment Setup**
-   - Set `PIPER_TTS_ENABLED=true` in backend environment
-   - Configure `PIPER_BINARY_PATH` and `PIPER_MODELS_PATH`
-
-2. **Supported Languages** (3 languages with verified Piper models)
-   - English (en) - en_US-amy-medium
-   - Hindi (hi) - hi_IN-pratham-medium
-   - Malayalam (ml) - ml_IN-meera-medium
-
-3. **Deployment Notes**
-   - See `PIPER_TTS_SETUP.md` for local installation and testing
-   - Python 3.8+ required
-   - On Render: Models can be stored in persistent disk or downloaded during build
-   - First deployment takes ~10-15 minutes for model download
-   - System automatically falls back to demo mode if TTS is unconfigured
-
-4. **Deployment Documentation**
-   - `docs/STAGING_BACKEND_CONFIG.md` - Complete backend configuration
-   - `docs/PIPER_TTS_SETUP.md` - TTS installation and testing (local and Docker)
+---
 
 ## Important Disclaimers
 
 ### Medical Disclaimer
 
-JeevaCare is a healthcare **information platform**, NOT a diagnostic tool:
+JeevaCare is a **healthcare information platform**, not a diagnostic or clinical decision system:
 
-- BLOCKED: Does NOT diagnose diseases
-- BLOCKED: Does NOT replace doctors
-- BLOCKED: Does NOT provide medical advice
-- PASS: Organizes and presents medical information
-- PASS: Assists in data access and explanation
-- PASS: Requires clinician review and approval
+- **Blocked Functions:**
+  - Does NOT diagnose diseases
+  - Does NOT replace qualified healthcare professionals
+  - Does NOT provide independent medical advice
+  - Cannot be used as sole basis for clinical decisions
 
-**All clinical decisions must be made by qualified healthcare professionals.**
+- **Supported Functions:**
+  - Organizes and presents patient medical information
+  - Provides secure access to provider-created records
+  - Assists in data explanation and accessibility
+  - Requires clinician review and approval for clinical decisions
 
-### AI Disclaimer
+**⚠️ All clinical decisions must be made by qualified healthcare professionals.**
 
-All AI features (summaries, explanations, accessibility) are:
+### AI & Machine Learning Disclaimer
 
-- **Assistive only** - Supports clinicians, does not diagnose
-- **Clearly labeled** - Always marked "AI-generated"
-- **Source-tracked** - Linked to original records
-- **Demo/Mock** - Returns placeholder data if service unconfigured
-- **Not autonomous** - Requires human review
+All AI-assisted features are:
+- **Assistive only** — Supports clinicians; does not diagnose
+- **Clearly labeled** — Always marked "AI-generated" or "Demo"
+- **Source-tracked** — Linked to original records
+- **Not autonomous** — Requires human review and clinical judgment
+- **Experimental** — Research-based models, not clinically validated
+- **Zero custom training** — Uses pretrained weights; no JeevaCare-specific model training performed
 
-### External Integrations
+**Chest X-Ray Analysis Specifics:**
+- Uses pretrained ResNet50 from TorchXRayVision
+- Detects patterns consistent with 18 common pathologies
+- NOT a substitute for radiologist interpretation
+- Predictions are experimental; require qualified radiologist review
+- No custom training on JeevaCare datasets
 
-- **DigiLocker**: Optional government document integration (demo mode by default)
-- **Groq AI**: Optional AI provider for text summaries (demo/mock mode if unconfigured)
-- **Medical Image AI**: Optional pretrained model for radiology analysis (mock mode by default, requires manual setup for real inference)
-- **Piper TTS**: Optional text-to-speech (demo/mock mode if unconfigured)
-- **Cloudinary**: Optional file storage (not required for basic operation)
+### External Dependencies
 
-All external services have demo/fallback modes to prevent production failures.
+All external services have demo/fallback modes:
+- **Groq AI**: Optional text summaries (mock mode if unconfigured)
+- **Piper TTS**: Optional text-to-speech (demo/mock if unconfigured)
+- **Cloudinary**: Optional file storage (local filesystem fallback)
+- **DigiLocker**: Optional government documents (demo mode by default)
+- **TorchXRayVision**: Optional medical image analysis (mock mode by default)
 
-## Development Status
+---
 
-### Phase 1: Foundation Complete
+## Project Status
 
-Core features implemented and tested:
+### Current Milestone: Foundation Complete
 
-- ✓ Monorepo structure (client, server, shared)
-- ✓ Backend foundation (Express, MongoDB, authentication)
-- ✓ Frontend foundation (React, Tailwind, auth store)
-- ✓ Role-based access control (RBAC) with 9-point authorization
-- ✓ Patient identity and lifelong health timeline
-- ✓ Verified clinical records with amendment history
-- ✓ Emergency access with logging and audit trail
-- ✓ Appointment booking and management
-- ✓ AI medical summaries (with demo/mock fallback)
-- ✓ Multilingual interface (6 languages)
-- ✓ Text-to-speech accessibility (English, Hindi, Malayalam with Piper TTS)
-- ✓ Complete audit trail for all operations
-- ✓ Security validation (JWT, CORS, rate limiting, input validation)
-- ✓ Deployment configurations (Render + Vercel)
-- ✓ Production stability fixes (commit 6bfd8e8: state management, response unwrapping, parameter validation)
+**Implementation Status:**
+- ✅ Phase 1: Foundation architecture and core features
+- ✅ Authentication and authorization framework
+- ✅ Patient health timeline and medical records
+- ✅ Emergency access workflows
+- ✅ Role-based access control (8 roles)
+- ✅ Multilingual interface (6 languages)
+- ✅ Deployment configuration (Render + Vercel)
+- ✅ Production stability fixes and regression tests
 
-### Production Stability
+**Verified & Tested:**
+- ✅ User authentication and JWT security
+- ✅ Patient record isolation and access control
+- ✅ Hospital-level data segregation
+- ✅ Emergency access audit trail
+- ✅ Frontend build validation
+- ✅ API health checks
 
-**Latest Deployment (Commit 6bfd8e8):**
-- ✓ State management fixes (DocumentsPage, RadiologyPage, HospitalStaffPage)
-- ✓ Response unwrapping and error handling
-- ✓ Parameter validation (appointments date filtering)
-- ✓ 23 regression tests: 23/23 passing
-- ✓ Frontend build: Successful (exit 0)
-- ✓ All fixes verified with isolated testing (no production DB access)
+**Not Yet Implemented:**
+- Advanced clinical analytics and reporting
+- Custom model training for radiology
+- Bi-directional integration with hospital EHRs
+- Real-time collaboration features
+- Mobile-native apps (web-responsive only)
 
-### Known Limitations
+### Future Phases
 
-| Feature | Status | Notes |
-|---|---|---|
-| Full Integration Tests | Configurable | User must provide TEST_MONGODB_URI |
-| Production AI (Groq) | Optional | Demo/mock mode if unconfigured |
-| Radiology Image AI | Optional | Mock mode by default; real inference requires manual model setup and 2-4GB RAM |
-| Production TTS (Piper) | Optional | Demo/mock mode if unconfigured; 3 languages supported |
-| DigiLocker Integration | Optional | Demo mode by default |
-| File Upload (Cloudinary) | Optional | Not required for core functionality |
+- **Phase 2-7**: Enhanced clinical records (growth tracking, vaccination, lab integration)
+- **Phase 8-13**: Advanced dashboards and reporting
+- **Phase 14+**: Production hardening, operational monitoring, and compliance validation
 
-**Radiology AI Deployment Note**: Render free tier (512MB RAM) is insufficient for ML model inference. Keep in mock mode for free tier, or upgrade to a paid plan with 2GB+ RAM for real inference. See `docs/MEDICAL_IMAGE_AI_SETUP.md` for details.
+### Maintenance Notes
 
-### Upcoming
+**This milestone represents completion of the initial academic/demo scope.** Future development (if continued) should address:
+- Clinical validation and regulatory compliance assessment
+- Extended integration testing with real healthcare systems
+- Performance optimization for large-scale deployments
+- Enhanced security audit and penetration testing
 
-- Phase 2-7: Enhanced clinical records (vaccination, growth tracking, lab results, etc.)
-- Phase 8-13: Advanced dashboards and clinical reporting
-- Phase 14+: Production hardening and operational monitoring
+Bug fixes and dependency updates can be addressed in subsequent maintenance work.
+
+---
+
+## Documentation
+
+- **[Build_spec.md](Build_spec.md)** — Technical architecture and detailed specifications
+- **[objective.md](objective.md)** — Feature requirements and verification checklist
+- **[docs/RENDER_DEPLOYMENT_GUIDE.md](docs/RENDER_DEPLOYMENT_GUIDE.md)** — Staging deployment with synthetic demo data
+- **[docs/MEDICAL_IMAGE_AI_SETUP.md](docs/MEDICAL_IMAGE_AI_SETUP.md)** — Chest X-ray analysis setup and limitations
+- **[docs/JEEVACARE_FRONTEND_IMPLEMENTATION.md](docs/JEEVACARE_FRONTEND_IMPLEMENTATION.md)** — Frontend architecture
+- **[docs/RADIOLOGY_AI_QUICK_START.md](docs/RADIOLOGY_AI_QUICK_START.md)** — Quick-start guide for radiology features
+
+---
 
 ## Contributing
 
-Contributions follow the Build_spec.md and objective.md. Process:
+Contributions follow the specifications in **Build_spec.md** and **objective.md**.
 
-1. Read [Build_spec.md](Build_spec.md) for architecture
-2. Check [objective.md](objective.md) for feature requirements
+**Process:**
+1. Read Build_spec.md for architecture guidelines
+2. Review objective.md for feature requirements
 3. Create feature branch: `git checkout -b feature/your-feature`
-4. Make meaningful commits
+4. Make meaningful commits with clear messages
 5. Include tests for new code
-6. Update README with changes
-7. Submit pull request
+6. Update README for user-facing changes
+7. Ensure frontend builds successfully
+8. Submit pull request
+
+---
 
 ## License
 
 Apache License 2.0
 
-## Acknowledgments
+## Attribution & Acknowledgments
 
 - Built as an academic prototype for lifelong healthcare continuity
 - Designed to address fragmented medical records across providers
-- Inspired by real healthcare challenges
-- Focused on patient safety, security, and accessibility
+- Inspired by real healthcare access challenges
+- Focuses on patient safety, security, and accessibility
+- Community healthcare philosophy: organized health information saves lives
 
 ---
 
-**Current Status**: Phase 1 Foundation Complete
+**Current Status**: Phase 1 Foundation — Ready for academic demonstration and further development
 
-**Ready for Deployment**: Yes — See deployment section above
+**Live Deployment**: 
+- Frontend: https://jeevacare-cmdm.vercel.app
+- Backend: https://jeevacare-th88.onrender.com
+- Health: https://jeevacare-th88.onrender.com/health
 
-**Documentation**: See [Build_spec.md](Build_spec.md), [objective.md](objective.md), and [docs/](docs/) for detailed technical information
+**Latest Commit**: See [Git history](https://github.com/siri05gowda-byte/Jeevacare) for recent changes
