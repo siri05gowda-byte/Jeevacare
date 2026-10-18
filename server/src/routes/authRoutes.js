@@ -800,9 +800,6 @@ router.get('/current-user', authMiddleware, async (req, res) => {
   }
 });
 
-export default router;
-
-
 /**
  * POST /api/v1/auth/provision-system-admin
  * Provision a system administrator (bootstrap endpoint)
