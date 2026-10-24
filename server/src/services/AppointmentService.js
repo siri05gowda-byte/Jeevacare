@@ -186,7 +186,17 @@ class AppointmentService {
         throw new Error('Patients cannot view doctor appointment lists');
       }
 
-      const provider = await User.findById(doctorId);
+      // doctorId may be passed as User._id or HealthcareProfessional._id
+      let providerUserId = doctorId;
+      let provider = await User.findById(doctorId);
+      if (!provider) {
+        const HealthcareProfessional = (await import('../models/HealthcareProfessional.js')).default;
+        const prof = await HealthcareProfessional.findById(doctorId);
+        if (prof) {
+          provider = await User.findById(prof.userId);
+          providerUserId = prof.userId;
+        }
+      }
       if (!provider) {
         throw new Error(`Provider not found: ${doctorId}`);
       }
@@ -217,7 +227,7 @@ class AppointmentService {
 
       // Build query
       const query = {
-        providerId: doctorId,
+        providerId: providerUserId,
         hospitalId: filters.facilityId,
       };
 

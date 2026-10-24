@@ -376,26 +376,52 @@ router.post(
       // If user is a healthcare professional, resolve staff association and professional profile
       if (['DOCTOR', 'NURSE', 'LAB_TECHNICIAN', 'RADIOLOGY_TECHNICIAN', 'PHARMACIST', 'HOSPITAL_ADMIN'].includes(user.role)) {
         try {
-          const { ensureStaffAssociation } = await import('../utils/staffHelper.js');
-          const staffAssociation = await ensureStaffAssociation(user);
+          const HospitalStaff = (await import('../models/HospitalStaff.js')).default;
+          const staffAssociations = await HospitalStaff.find({
+            userId: user._id,
+            associationStatus: 'active',
+          }).populate('hospitalId', 'name facilityId address');
 
-          if (staffAssociation) {
-            userResponse.facilityId = staffAssociation.hospitalId;
-            userResponse.staffId = staffAssociation._id;
+          if (staffAssociations && staffAssociations.length > 0) {
+            userResponse.facilities = staffAssociations.map(s => ({
+              facilityId: s.hospitalId?._id || s.hospitalId,
+              facilityName: s.hospitalId?.name || 'Hospital',
+              hospitalCode: s.hospitalId?.facilityId || '',
+              role: s.role,
+              department: s.department,
+              specialization: s.specialization,
+            }));
+            userResponse.facilityId = userResponse.facilities[0].facilityId;
+            userResponse.facilityName = userResponse.facilities[0].facilityName;
+            userResponse.staffId = staffAssociations[0]._id;
+          } else {
+            const { ensureStaffAssociation } = await import('../utils/staffHelper.js');
+            const staffAssociation = await ensureStaffAssociation(user);
 
-            const Hospital = (await import('../models/Hospital.js')).default;
-            const hospital = await Hospital.findById(staffAssociation.hospitalId).select('name');
-            if (hospital) {
-              userResponse.facilityName = hospital.name;
+            if (staffAssociation) {
+              userResponse.facilityId = staffAssociation.hospitalId;
+              userResponse.staffId = staffAssociation._id;
+
+              const Hospital = (await import('../models/Hospital.js')).default;
+              const hospital = await Hospital.findById(staffAssociation.hospitalId).select('name facilityId');
+              if (hospital) {
+                userResponse.facilityName = hospital.name;
+                userResponse.facilities = [{
+                  facilityId: hospital._id,
+                  facilityName: hospital.name,
+                  hospitalCode: hospital.facilityId,
+                  role: staffAssociation.role,
+                }];
+              }
             }
           }
         } catch (staffErr) {
-          logger.warn(`Failed to resolve staff association on login: ${staffErr.message}`);
+          logger.warn(`Failed to resolve staff associations on login: ${staffErr.message}`);
         }
 
         const HealthcareProfessional = (await import('../models/HealthcareProfessional.js')).default;
         const professional = await HealthcareProfessional.findOne({ userId: user._id })
-          .select('_id professionalId professionalType specialization verificationStatus')
+          .select('_id professionalId professionalType specialization licenseNumber verificationStatus')
           .lean();
         
         if (professional) {
@@ -762,17 +788,43 @@ router.get('/current-user', authMiddleware, async (req, res) => {
     // If user is a healthcare professional, resolve staff association and professional profile
     if (['DOCTOR', 'NURSE', 'LAB_TECHNICIAN', 'RADIOLOGY_TECHNICIAN', 'PHARMACIST', 'HOSPITAL_ADMIN'].includes(user.role)) {
       try {
-        const { ensureStaffAssociation } = await import('../utils/staffHelper.js');
-        const staffAssociation = await ensureStaffAssociation(user);
+        const HospitalStaff = (await import('../models/HospitalStaff.js')).default;
+        const staffAssociations = await HospitalStaff.find({
+          userId: user._id,
+          associationStatus: 'active',
+        }).populate('hospitalId', 'name facilityId address');
 
-        if (staffAssociation) {
-          user.facilityId = staffAssociation.hospitalId;
-          user.staffId = staffAssociation._id;
+        if (staffAssociations && staffAssociations.length > 0) {
+          user.facilities = staffAssociations.map(s => ({
+            facilityId: s.hospitalId?._id || s.hospitalId,
+            facilityName: s.hospitalId?.name || 'Hospital',
+            hospitalCode: s.hospitalId?.facilityId || '',
+            role: s.role,
+            department: s.department,
+            specialization: s.specialization,
+          }));
+          user.facilityId = user.facilities[0].facilityId;
+          user.facilityName = user.facilities[0].facilityName;
+          user.staffId = staffAssociations[0]._id;
+        } else {
+          const { ensureStaffAssociation } = await import('../utils/staffHelper.js');
+          const staffAssociation = await ensureStaffAssociation(user);
 
-          const Hospital = (await import('../models/Hospital.js')).default;
-          const hospital = await Hospital.findById(staffAssociation.hospitalId).select('name');
-          if (hospital) {
-            user.facilityName = hospital.name;
+          if (staffAssociation) {
+            user.facilityId = staffAssociation.hospitalId;
+            user.staffId = staffAssociation._id;
+
+            const Hospital = (await import('../models/Hospital.js')).default;
+            const hospital = await Hospital.findById(staffAssociation.hospitalId).select('name facilityId');
+            if (hospital) {
+              user.facilityName = hospital.name;
+              user.facilities = [{
+                facilityId: hospital._id,
+                facilityName: hospital.name,
+                hospitalCode: hospital.facilityId,
+                role: staffAssociation.role,
+              }];
+            }
           }
         }
       } catch (staffErr) {
@@ -781,7 +833,7 @@ router.get('/current-user', authMiddleware, async (req, res) => {
 
       const HealthcareProfessional = (await import('../models/HealthcareProfessional.js')).default;
       const professional = await HealthcareProfessional.findOne({ userId: user._id })
-        .select('_id professionalId professionalType specialization verificationStatus facilityAssociations')
+        .select('_id professionalId professionalType specialization licenseNumber verificationStatus facilityAssociations')
         .lean();
       
       if (professional) {

@@ -5,8 +5,10 @@
 export class JeevaError extends Error {
   constructor(message, statusCode = 500, code = 'INTERNAL_ERROR') {
     super(message);
+    this.name = this.constructor.name;
     this.statusCode = statusCode;
     this.code = code;
+    this.isJeevaError = true;
     this.timestamp = new Date();
   }
 }
@@ -114,15 +116,15 @@ export class AmbiguousPatientIdentificationError extends JeevaError {
  * Error response formatter
  */
 export const formatErrorResponse = (error) => {
-  if (error instanceof JeevaError) {
+  if (error && (error instanceof JeevaError || error.isJeevaError || error.statusCode || error.code)) {
     return {
       success: false,
       error: {
-        message: error.message,
-        code: error.code,
-        statusCode: error.statusCode,
+        message: error.message || 'An error occurred',
+        code: error.code || 'ERROR',
+        statusCode: error.statusCode || 500,
         ...(error.details && { details: error.details }),
-        timestamp: error.timestamp,
+        timestamp: error.timestamp || new Date(),
       },
     };
   }
@@ -131,8 +133,8 @@ export const formatErrorResponse = (error) => {
   return {
     success: false,
     error: {
-      message: 'An unexpected error occurred',
-      code: 'INTERNAL_ERROR',
+      message: error?.message || 'An unexpected error occurred',
+      code: error?.code || 'INTERNAL_ERROR',
       statusCode: 500,
       timestamp: new Date(),
     },

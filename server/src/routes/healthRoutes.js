@@ -93,10 +93,38 @@ router.get('/sheets', async (req, res) => {
 
 /**
  * POST /api/v1/health/bootstrap-demo
- * Idempotently bootstrap or verify demo hospitals, clinicians, and patients
+ * Idempotently bootstrap or verify demo hospitals, clinicians, and patients.
+ * Secured with JEEVACARE_ADMIN_SECRET or authenticated SYSTEM_ADMIN role.
  */
 router.post('/bootstrap-demo', async (req, res) => {
   try {
+    const adminSecret = process.env.JEEVACARE_ADMIN_SECRET || 'dev-admin-secret-change-in-production';
+    const providedSecret = req.headers['x-admin-secret'] || req.query.secret;
+
+    // Check secret
+    let isAuthorized = providedSecret && providedSecret === adminSecret;
+
+    // If no secret provided, check for Bearer token with SYSTEM_ADMIN role
+    if (!isAuthorized && req.headers.authorization?.startsWith('Bearer ')) {
+      try {
+        const token = req.headers.authorization.split(' ')[1];
+        const { verifyToken } = await import('../utils/auth.js');
+        const decoded = verifyToken(token);
+        if (decoded?.role === 'SYSTEM_ADMIN') {
+          isAuthorized = true;
+        }
+      } catch (authErr) {
+        // Token verification failed
+      }
+    }
+
+    if (!isAuthorized) {
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized: Demo account provisioning requires valid x-admin-secret header or SYSTEM_ADMIN authentication',
+      });
+    }
+
     const { bootstrapDemoHospitalsAndAccounts } = await import('../utils/bootstrapDemoData.js');
     const result = await bootstrapDemoHospitalsAndAccounts();
     res.json({

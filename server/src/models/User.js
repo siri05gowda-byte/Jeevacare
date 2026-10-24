@@ -87,14 +87,17 @@ const userSchema = new mongoose.Schema(
     },
 
     auditMetadata: {
-      createdFromIp: String,
-      lastLoginIp: String,
-      loginAttempts: {
-        type: Number,
-        default: 0,
+      type: {
+        createdFromIp: String,
+        lastLoginIp: String,
+        loginAttempts: {
+          type: Number,
+          default: 0,
+        },
+        lastLoginAttemptAt: Date,
+        lockedUntil: Date,
       },
-      lastLoginAttemptAt: Date,
-      lockedUntil: Date,
+      default: () => ({ loginAttempts: 0 }),
     },
 
     preferences: {
@@ -164,10 +167,13 @@ userSchema.pre('save', async function (next) {
 
 // Method to compare passwords
 userSchema.methods.comparePassword = async function (candidatePassword) {
+  if (!candidatePassword || !this.passwordHash || typeof this.passwordHash !== 'string') {
+    return false;
+  }
   try {
     return await bcryptjs.compare(candidatePassword, this.passwordHash);
   } catch (error) {
-    throw new Error('Password comparison failed');
+    return false;
   }
 };
 

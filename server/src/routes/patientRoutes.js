@@ -157,6 +157,7 @@ router.get(
     query('q').trim().notEmpty().withMessage('Search query required'),
     query('page').optional().isInt({ min: 1 }).withMessage('Valid page number required'),
     query('limit').optional().isInt({ min: 1, max: 50 }).withMessage('Limit must be between 1 and 50'),
+    query('facilityId').optional().isMongoId().withMessage('Invalid facility ID'),
   ],
   handleValidationErrors,
   authMiddleware,
@@ -166,12 +167,25 @@ router.get(
       const { q, page, limit } = req.query;
 
       // Enforce facility association for doctors and nurses
+      let activeFacilityId = req.user.facilityId;
       if (['DOCTOR', 'NURSE'].includes(req.user.role)) {
         if (!req.user.facilityId) {
           const { ensureStaffAssociation } = await import('../utils/staffHelper.js');
           await ensureStaffAssociation(req.user);
+          activeFacilityId = req.user.facilityId;
         }
-        if (!req.user.facilityId) {
+        if (req.query.facilityId) {
+          const HospitalStaff = (await import('../models/HospitalStaff.js')).default;
+          const staff = await HospitalStaff.findOne({
+            userId: req.user._id,
+            hospitalId: req.query.facilityId,
+            associationStatus: 'active'
+          });
+          if (staff) {
+            activeFacilityId = req.query.facilityId;
+          }
+        }
+        if (!activeFacilityId) {
           return res.status(400).json({
             success: false,
             code: 'NO_FACILITY_ASSOCIATION',
@@ -184,7 +198,7 @@ router.get(
       const results = await PatientService.searchPatients(q, {
         page: parseInt(page) || 1,
         limit: parseInt(limit) || 10,
-        facilityId: ['DOCTOR', 'NURSE'].includes(req.user.role) ? req.user.facilityId : null,
+        facilityId: ['DOCTOR', 'NURSE'].includes(req.user.role) ? activeFacilityId : null,
       });
 
       // Log audit event

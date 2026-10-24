@@ -229,11 +229,12 @@ export async function bootstrapDemoHospitalsAndAccounts() {
     // 2. Hospital Administrators
     for (const aConfig of ADMINS_DATA) {
       const hospital = hospitals[aConfig.hospitalIndex];
-      let user = await User.findOne({ email: aConfig.email });
+      let user = await User.findOne({ email: aConfig.email }).select('+passwordHash');
+      const expectedPassword = getDemoPassword(aConfig.firstName, aConfig.lastName);
       if (!user) {
         user = new User({
           email: aConfig.email,
-          passwordHash: getDemoPassword(aConfig.firstName, aConfig.lastName), // Pre-save hook will hash once
+          passwordHash: expectedPassword, // Pre-save hook will hash once
           role: 'HOSPITAL_ADMIN',
           profile: {
             firstName: aConfig.firstName,
@@ -246,6 +247,19 @@ export async function bootstrapDemoHospitalsAndAccounts() {
         });
         await user.save();
         logger.info(`  ✓ Created hospital admin: ${aConfig.firstName} ${aConfig.lastName} (${aConfig.email})`);
+      } else {
+        const matches = await user.comparePassword(expectedPassword);
+        if (!matches) {
+          user.passwordHash = expectedPassword;
+          user.status = 'active';
+          user.verificationStatus = 'verified';
+          if (!user.profile?.hospitalId) {
+            user.profile = user.profile || {};
+            user.profile.hospitalId = hospital._id;
+          }
+          await user.save();
+          logger.info(`  ✓ Repaired password hash for hospital admin: ${aConfig.email}`);
+        }
       }
 
       // Link HospitalStaff
@@ -284,11 +298,12 @@ export async function bootstrapDemoHospitalsAndAccounts() {
 
     // 3. Doctors helper
     const setupDoctor = async (docConfig, targetHospital, isShared = false) => {
-      let user = await User.findOne({ email: docConfig.email });
+      let user = await User.findOne({ email: docConfig.email }).select('+passwordHash');
+      const expectedPassword = getDemoPassword(docConfig.firstName, docConfig.lastName);
       if (!user) {
         user = new User({
           email: docConfig.email,
-          passwordHash: getDemoPassword(docConfig.firstName, docConfig.lastName),
+          passwordHash: expectedPassword,
           role: 'DOCTOR',
           profile: {
             firstName: docConfig.firstName,
@@ -301,6 +316,19 @@ export async function bootstrapDemoHospitalsAndAccounts() {
         });
         await user.save();
         logger.info(`  ✓ Created doctor: Dr. ${docConfig.firstName} ${docConfig.lastName} (${docConfig.specialization})`);
+      } else {
+        const matches = await user.comparePassword(expectedPassword);
+        if (!matches) {
+          user.passwordHash = expectedPassword;
+          user.status = 'active';
+          user.verificationStatus = 'verified';
+          if (!user.profile?.hospitalId) {
+            user.profile = user.profile || {};
+            user.profile.hospitalId = targetHospital._id;
+          }
+          await user.save();
+          logger.info(`  ✓ Repaired password hash for doctor: ${docConfig.email}`);
+        }
       }
 
       // HospitalStaff association for target hospital
@@ -372,11 +400,12 @@ export async function bootstrapDemoHospitalsAndAccounts() {
     // 4. Patients helper
     const setupPatients = async (patientsList, hospital, primaryDoctorUser) => {
       for (const pConfig of patientsList) {
-        let user = await User.findOne({ email: pConfig.email });
+        let user = await User.findOne({ email: pConfig.email }).select('+passwordHash');
+        const expectedPassword = getDemoPassword(pConfig.firstName, pConfig.lastName);
         if (!user) {
           user = new User({
             email: pConfig.email,
-            passwordHash: getDemoPassword(pConfig.firstName, pConfig.lastName),
+            passwordHash: expectedPassword,
             role: 'PATIENT',
             profile: {
               firstName: pConfig.firstName,
@@ -493,6 +522,15 @@ export async function bootstrapDemoHospitalsAndAccounts() {
           }
 
           GoogleSheetsService.recordPatient(user, patient, hospital).catch(() => {});
+        } else {
+          const matches = await user.comparePassword(expectedPassword);
+          if (!matches) {
+            user.passwordHash = expectedPassword;
+            user.status = 'active';
+            user.verificationStatus = 'verified';
+            await user.save();
+            logger.info(`  ✓ Repaired password hash for patient: ${pConfig.email}`);
+          }
         }
       }
     };
@@ -502,11 +540,12 @@ export async function bootstrapDemoHospitalsAndAccounts() {
     logger.info('  ✓ Seeded 20 patients (10 Sanjivani, 10 Aarogya Kendra)');
 
     // 5. System Administrator Demo Account
-    let sysAdmin = await User.findOne({ email: 'admin@jeevacare.demo' });
+    let sysAdmin = await User.findOne({ email: 'admin@jeevacare.demo' }).select('+passwordHash');
+    const adminPassword = process.env.DEMO_ADMIN_PASSWORD || 'DemoAdmin@123';
     if (!sysAdmin) {
       sysAdmin = new User({
         email: 'admin@jeevacare.demo',
-        passwordHash: 'DemoAdmin@123',
+        passwordHash: adminPassword,
         role: 'SYSTEM_ADMIN',
         profile: {
           firstName: 'System',
@@ -519,6 +558,32 @@ export async function bootstrapDemoHospitalsAndAccounts() {
       await sysAdmin.save();
       logger.info('  ✓ Created system administrator: admin@jeevacare.demo');
       GoogleSheetsService.recordUser(sysAdmin, { role: 'SYSTEM_ADMIN' }).catch(() => {});
+    } else {
+      const matches = await sysAdmin.comparePassword(adminPassword);
+      if (!matches) {
+        sysAdmin.passwordHash = adminPassword;
+        sysAdmin.status = 'active';
+        sysAdmin.verificationStatus = 'verified';
+        await sysAdmin.save();
+        logger.info('  ✓ Repaired password hash for system administrator: admin@jeevacare.demo');
+      }
+    }
+
+    // 6. Ensure existing Demo Patient has valid working password
+    try {
+      const demoPatientUser = await User.findOne({ email: 'patient@jeevacare.demo' }).select('+passwordHash');
+      if (demoPatientUser) {
+        const matches = await demoPatientUser.comparePassword('Patient@123');
+        if (!matches) {
+          demoPatientUser.passwordHash = 'Patient@123';
+          demoPatientUser.status = 'active';
+          demoPatientUser.verificationStatus = 'verified';
+          await demoPatientUser.save();
+          logger.info('  ✓ Repaired password hash for Demo Patient: patient@jeevacare.demo');
+        }
+      }
+    } catch (demoPatErr) {
+      logger.warn(`Demo patient check warning: ${demoPatErr.message}`);
     }
 
     logger.info('✅ JeevaCare demo hospitals and accounts bootstrap COMPLETE.');

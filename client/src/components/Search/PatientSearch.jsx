@@ -17,7 +17,7 @@ import api from '../../services/api';
  * @param {boolean} [props.isLoading=false] - Loading state
  * @returns {React.ReactElement}
  */
-export default function PatientSearch({ onSelectPatient, onSearch = null, isLoading = false }) {
+export default function PatientSearch({ onSelectPatient, onSearch = null, isLoading = false, facilityId = null }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -32,7 +32,8 @@ export default function PatientSearch({ onSelectPatient, onSearch = null, isLoad
 
     try {
       // Call backend patient search API
-      const response = await api.get(`/patients/search?q=${encodeURIComponent(searchQuery)}&limit=10`);
+      const facilityQuery = facilityId ? `&facilityId=${encodeURIComponent(facilityId)}` : '';
+      const response = await api.get(`/patients/search?q=${encodeURIComponent(searchQuery)}&limit=10${facilityQuery}`);
       
       if (response.success && response.data?.patients) {
         // Transform backend data to component format
@@ -57,7 +58,7 @@ export default function PatientSearch({ onSelectPatient, onSearch = null, isLoad
       // Return empty array on error to show "no results" UI
       return [];
     }
-  }, []);
+  }, [facilityId]);
 
   // Handle search input
   const handleSearch = useCallback(
