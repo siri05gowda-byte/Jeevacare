@@ -299,6 +299,11 @@ router.post(
         return next(new InvalidOperationError(`Your account is currently ${user.status}`));
       }
 
+      // Ensure auditMetadata is initialized
+      if (!user.auditMetadata) {
+        user.auditMetadata = { loginAttempts: 0 };
+      }
+
       // Verify password
       const passwordMatch = await user.comparePassword(password);
 
