@@ -704,7 +704,8 @@ async function seedPatients(hospitals, doctors) {
             patientId: patient._id,
             providerId: assignedDoctor.user._id,
             hospitalId: hospitals[0]._id,
-            recordType: 'initial_assessment',
+            recordType: 'clinical_note',
+            recordDate: new Date(),
             status: 'completed',
             createdAt: new Date(),
           });
@@ -780,7 +781,8 @@ async function seedPatients(hospitals, doctors) {
             patientId: patient._id,
             providerId: assignedDoctor.user._id,
             hospitalId: hospitals[1]._id,
-            recordType: 'initial_assessment',
+            recordType: 'clinical_note',
+            recordDate: new Date(),
             status: 'completed',
             createdAt: new Date(),
           });

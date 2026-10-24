@@ -15,6 +15,7 @@ router.get('/', (req, res) => {
   res.json({
     success: true,
     message: 'JeevaCare API v1 is healthy',
+    build: '2026-10-24-v2-recovery',
     timestamp: new Date(),
   });
 });
