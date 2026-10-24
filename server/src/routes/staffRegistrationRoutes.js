@@ -167,8 +167,10 @@ router.get(
         });
       }
 
+      const status = req.query.status || 'all';
       const requests = await StaffRegistrationService.getPendingRequestsForHospital(
-        hospitalId
+        hospitalId,
+        status
       );
 
       res.json({

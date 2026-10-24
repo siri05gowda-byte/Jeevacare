@@ -11,6 +11,7 @@ import Notification from '../models/Notification.js';
 import AuditService from './AuditService.js';
 import StaffService from './StaffService.js';
 import logger from '../utils/logger.js';
+import GoogleSheetsService from './GoogleSheetsService.js';
 
 class StaffRegistrationService {
   /**
@@ -163,6 +164,11 @@ class StaffRegistrationService {
         `Staff registration request created: ${request._id} (${user.email} → ${hospital.name})`
       );
 
+      // Persist to Google Sheets integration boundary
+      GoogleSheetsService.recordRegistrationRequest(request, hospital).catch((err) => {
+        logger.warn(`GoogleSheets sync request error: ${err.message}`);
+      });
+
       return request;
     } catch (error) {
       logger.error(`Failed to submit registration request: ${error.message}`);
@@ -171,16 +177,19 @@ class StaffRegistrationService {
   }
 
   /**
-   * Get pending registration requests for a hospital
+   * Get registration requests for a hospital
    * @param {String} hospitalId - Hospital ID
-   * @returns {Promise<Array>} Pending requests with user details
+   * @param {String} status - Status filter ('all', 'pending', 'approved', 'rejected')
+   * @returns {Promise<Array>} Requests with user details
    */
-  static async getPendingRequestsForHospital(hospitalId) {
+  static async getPendingRequestsForHospital(hospitalId, status = 'all') {
     try {
-      const requests = await StaffRegistrationRequest.find({
-        hospitalId,
-        status: 'pending',
-      })
+      const query = { hospitalId };
+      if (status && status !== 'all') {
+        query.status = status;
+      }
+
+      const requests = await StaffRegistrationRequest.find(query)
         .populate('userId', 'email profile')
         .sort({ submittedAt: -1 });
 
@@ -319,6 +328,11 @@ class StaffRegistrationService {
         `Staff registration request approved: ${request._id} (${request.email})`
       );
 
+      // Persist approval to Google Sheets integration boundary
+      GoogleSheetsService.updateRegistrationRequestDecision(requestId, 'approved', approvingUserId, approvalReason || '').catch((err) => {
+        logger.warn(`GoogleSheets sync approval error: ${err.message}`);
+      });
+
       return { request, staffAssociation };
     } catch (error) {
       logger.error(`Failed to approve registration request: ${error.message}`);
@@ -416,6 +430,11 @@ class StaffRegistrationService {
       logger.info(
         `Staff registration request rejected: ${request._id} (${request.email}) - Reason: ${rejectionReason}`
       );
+
+      // Persist rejection to Google Sheets integration boundary
+      GoogleSheetsService.updateRegistrationRequestDecision(requestId, 'rejected', rejectingUserId, rejectionReason).catch((err) => {
+        logger.warn(`GoogleSheets sync rejection error: ${err.message}`);
+      });
 
       return request;
     } catch (error) {

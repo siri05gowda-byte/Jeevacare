@@ -184,6 +184,14 @@ router.post('/upload-report', authMiddleware, authorize(['DOCTOR', 'RADIOLOGY_TE
 
     logger.info(`Radiology report uploaded: ${radiologyRecord._id} by user ${req.user.id}`);
 
+    // Sync metadata to Google Sheets boundary
+    try {
+      const GoogleSheetsService = (await import('../services/GoogleSheetsService.js')).default;
+      GoogleSheetsService.recordMedicalReport(radiologyRecord, { _id: patientId }, { _id: hospitalId }).catch(() => {});
+    } catch (sheetErr) {
+      logger.warn(`GoogleSheets recordMedicalReport error: ${sheetErr.message}`);
+    }
+
     res.status(201).json({
       success: true,
       data: radiologyRecord,
@@ -368,6 +376,18 @@ router.post('/:radiologyId/analyze-image', authMiddleware, async (req, res) => {
       },
       { language }
     );
+
+    // Sync updated AI analysis to Google Sheets boundary
+    try {
+      const GoogleSheetsService = (await import('../services/GoogleSheetsService.js')).default;
+      GoogleSheetsService.recordMedicalReport(
+        { ...radiologyRecord.toObject(), aiAnalysis: analysisResult.analysis },
+        { _id: radiologyRecord.patientId },
+        { _id: radiologyRecord.hospitalId }
+      ).catch(() => {});
+    } catch (sheetErr) {
+      logger.warn(`GoogleSheets recordMedicalReport after analysis error: ${sheetErr.message}`);
+    }
 
     res.json({
       success: analysisResult.success,

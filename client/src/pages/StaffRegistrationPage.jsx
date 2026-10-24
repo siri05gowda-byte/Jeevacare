@@ -28,12 +28,16 @@ export default function StaffRegistrationPage() {
   const [requests, setRequests] = useState([]);
 
   useEffect(() => {
-    loadData();
+    loadData(true);
+    const interval = setInterval(() => {
+      loadData(false);
+    }, 4000);
+    return () => clearInterval(interval);
   }, []);
 
-  const loadData = async () => {
+  const loadData = async (showLoadingSpinner = true) => {
     try {
-      setLoading(true);
+      if (showLoadingSpinner) setLoading(true);
       // Fetch hospitals from the public list endpoint
       const hospitalsRes = await fetch('/api/v1/hospital-admin/list', {
         headers: {
@@ -57,9 +61,11 @@ export default function StaffRegistrationPage() {
       }
     } catch (err) {
       console.error('Error loading data:', err);
-      setError('Failed to load hospital list');
+      if (showLoadingSpinner) {
+        setError('Failed to load hospital list');
+      }
     } finally {
-      setLoading(false);
+      if (showLoadingSpinner) setLoading(false);
     }
   };
 

@@ -17,20 +17,44 @@ export default function HospitalAdminDashboardPage() {
   const [submittingId, setSubmittingId] = useState(null);
 
   useEffect(() => {
-    loadRequests();
-  }, []);
+    loadRequests(true);
+    // Poll every 4 seconds for real-time cross-browser sync
+    const interval = setInterval(() => {
+      loadRequests(false);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [user]);
 
-  const loadRequests = async () => {
+  const loadRequests = async (showLoadingSpinner = true) => {
     try {
-      setLoading(true);
+      if (showLoadingSpinner) setLoading(true);
       setError(null);
 
-      if (!user?.facilityId) {
+      let facilityId = user?.facilityId || user?.profile?.hospitalId;
+
+      if (!facilityId) {
+        // Fallback: query hospital list to find admin's hospital
+        try {
+          const listRes = await fetch('/api/v1/hospital-admin/list', {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+          });
+          if (listRes.ok) {
+            const listData = await listRes.json();
+            if (listData.hospitals?.length > 0) {
+              facilityId = listData.hospitals[0]._id;
+            }
+          }
+        } catch (e) {
+          console.warn('Could not fallback-resolve hospital ID:', e);
+        }
+      }
+
+      if (!facilityId) {
         setError('No hospital associated with your account');
         return;
       }
 
-      const response = await fetch(`/api/v1/staff-registration/hospital/${user.facilityId}/pending`, {
+      const response = await fetch(`/api/v1/staff-registration/hospital/${facilityId}/pending?status=all`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
@@ -51,9 +75,11 @@ export default function HospitalAdminDashboardPage() {
       setApprovedRequests(approved);
       setRejectedRequests(rejected);
     } catch (err) {
-      setError(err.message || 'Failed to load requests');
+      if (showLoadingSpinner) {
+        setError(err.message || 'Failed to load requests');
+      }
     } finally {
-      setLoading(false);
+      if (showLoadingSpinner) setLoading(false);
     }
   };
 

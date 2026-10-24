@@ -6,6 +6,7 @@ import logger from '../utils/logger.js';
 import { generateToken, generateRefreshToken, verifyRefreshToken } from '../utils/auth.js';
 import { authMiddleware } from '../middleware/authentication.js';
 import AuditService from '../services/AuditService.js';
+import GoogleSheetsService from '../services/GoogleSheetsService.js';
 import { generateJeevaId } from '../utils/jeevaIdGenerator.js';
 import {
   ValidationError,
@@ -188,6 +189,36 @@ router.post(
         // Update user profile with patient reference
         user.profile.patientId = patient._id;
         await user.save();
+      }
+
+      // Record newly registered user to Google Sheets boundary
+      GoogleSheetsService.recordUser(user, { hospitalName: req.body.hospitalName }).catch((err) => {
+        logger.warn(`GoogleSheets recordUser: ${err.message}`);
+      });
+
+      // If staff role with hospital provided, auto-create StaffRegistrationRequest
+      if (STAFF_ROLES.includes(role) && req.body.hospitalId) {
+        try {
+          const Hospital = (await import('../models/Hospital.js')).default;
+          const targetHospital = await Hospital.findById(req.body.hospitalId);
+          if (targetHospital) {
+            const StaffRegistrationService = (await import('../services/StaffRegistrationService.js')).default;
+            await StaffRegistrationService.submitRegistrationRequest(
+              user._id,
+              targetHospital._id,
+              {
+                department: req.body.department,
+                specialization: req.body.specialization ? [req.body.specialization] : [],
+                licenseNumber: req.body.licenseNumber,
+              },
+              req.ip,
+              req.headers['user-agent']
+            );
+            logger.info(`Auto-created staff registration request for ${user.email} -> ${targetHospital.name}`);
+          }
+        } catch (regReqErr) {
+          logger.warn(`Failed to auto-submit staff registration request: ${regReqErr.message}`);
+        }
       }
 
       // Log audit event

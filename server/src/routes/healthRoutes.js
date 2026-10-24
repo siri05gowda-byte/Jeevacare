@@ -71,4 +71,45 @@ router.get('/config', (req, res) => {
   }
 });
 
+/**
+ * GET /api/v1/health/sheets
+ * Diagnostic endpoint for Google Sheets integration status
+ */
+router.get('/sheets', async (req, res) => {
+  try {
+    const GoogleSheetsService = (await import('../services/GoogleSheetsService.js')).default;
+    res.json({
+      success: true,
+      sheets: GoogleSheetsService.getStatus(),
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * POST /api/v1/health/bootstrap-demo
+ * Idempotently bootstrap or verify demo hospitals, clinicians, and patients
+ */
+router.post('/bootstrap-demo', async (req, res) => {
+  try {
+    const { bootstrapDemoHospitalsAndAccounts } = await import('../utils/bootstrapDemoData.js');
+    const result = await bootstrapDemoHospitalsAndAccounts();
+    res.json({
+      success: result.success,
+      result,
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
 export default router;

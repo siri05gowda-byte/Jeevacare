@@ -20,11 +20,34 @@ export default function RegisterPage() {
     specialization: '',
     department: '',
     licenseNumber: '',
+    hospitalId: '',
     termsAccepted: false,
   });
+  const [hospitals, setHospitals] = useState([]);
   const [localError, setLocalError] = useState('');
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+
+  React.useEffect(() => {
+    fetch('/api/v1/hospital-admin/list')
+      .then(res => res.json())
+      .then(data => {
+        if (data.hospitals?.length > 0) {
+          setHospitals(data.hospitals);
+        } else {
+          setHospitals([
+            { _id: 'JC-HOSP-SANJIVANI-001', name: 'Sanjivani Hospital — Mysore' },
+            { _id: 'JC-HOSP-AAROGYA-KENDRA-001', name: 'Aarogya Kendra — Mandya' }
+          ]);
+        }
+      })
+      .catch(() => {
+        setHospitals([
+          { _id: 'JC-HOSP-SANJIVANI-001', name: 'Sanjivani Hospital — Mysore' },
+          { _id: 'JC-HOSP-AAROGYA-KENDRA-001', name: 'Aarogya Kendra — Mandya' }
+        ]);
+      });
+  }, []);
 
   // Role categories for dynamic form fields
   const STAFF_ROLES = [
@@ -119,6 +142,7 @@ export default function RegisterPage() {
         if (formData.specialization) registrationData.specialization = formData.specialization.trim();
         if (formData.department) registrationData.department = formData.department.trim();
         if (formData.licenseNumber) registrationData.licenseNumber = formData.licenseNumber.trim();
+        if (formData.hospitalId) registrationData.hospitalId = formData.hospitalId;
       }
 
       const response = await register(registrationData);
@@ -128,10 +152,10 @@ export default function RegisterPage() {
       const isStaff = STAFF_ROLES.includes(role);
       
       if (isStaff) {
-        // Staff accounts need verification - show info message
-        navigate('/dashboard', { 
+        // Navigate directly to staff registration requests dashboard
+        navigate('/staff/registration', { 
           state: { 
-            message: 'Registration successful! Your account is pending verification. You will be able to access staff features once a hospital administrator approves your account.' 
+            message: 'Registration successful! Your hospital affiliation request has been submitted for administrative review.' 
           } 
         });
       } else if (role === 'DOCTOR') {
@@ -339,6 +363,31 @@ export default function RegisterPage() {
             {/* Staff-specific fields */}
             {isStaffRole && (
               <>
+                <div>
+                  <label className="form-label" htmlFor="hospitalId">
+                    Target Hospital <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    id="hospitalId"
+                    name="hospitalId"
+                    value={formData.hospitalId}
+                    onChange={handleChange}
+                    className="form-input w-full font-medium"
+                    disabled={isLoading}
+                    required
+                  >
+                    <option value="">-- Select Hospital --</option>
+                    {hospitals.map((h) => (
+                      <option key={h._id} value={h._id}>
+                        {h.name} {h.address?.city ? `(${h.address.city})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Your registration request will appear in this hospital administrator's dashboard for review.
+                  </p>
+                </div>
+
                 {formData.role === 'DOCTOR' && (
                   <div>
                     <label className="form-label" htmlFor="specialization">

@@ -102,6 +102,7 @@ app.use('/api/v1/guardians', (await import('./routes/guardianRoutes.js')).defaul
 app.use('/api/v1/emergency', (await import('./routes/emergencyRoutes.js')).default);
 
 // Phase 4 Staff Management Routes
+app.use('/api/v1/facilities', (await import('./routes/facilityRoutes.js')).default);
 app.use('/api/v1/staff', (await import('./routes/staffRoutes.js')).default);
 app.use('/api/v1/staff-registration', (await import('./routes/staffRegistrationRoutes.js')).default);
 
@@ -144,6 +145,14 @@ const startServer = async () => {
     // Connect to MongoDB (only in production/development mode)
     if (process.env.NODE_ENV !== 'test') {
       await connectDatabase();
+
+      // Ensure demo hospitals, clinicians, and patients are securely bootstrapped
+      try {
+        const { bootstrapDemoHospitalsAndAccounts } = await import('./utils/bootstrapDemoData.js');
+        await bootstrapDemoHospitalsAndAccounts();
+      } catch (bootErr) {
+        logger.warn(`Startup demo bootstrap warning: ${bootErr.message}`);
+      }
     }
 
     // Start server

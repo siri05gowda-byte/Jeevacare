@@ -135,7 +135,7 @@ export default function RadiologyPage() {
     try {
       // First, check if we need to extract text
       if (!record.findings && !record.impression && !record.ocrData?.extractedText && record.imageReference?.cloudinaryPublicId) {
-        logger.info(`No findings/impression text found, attempting OCR extraction for ${record._id}`);
+        console.info(`No findings/impression text found, attempting OCR extraction for ${record._id}`);
         try {
           await radiologyService.extractRadiologyText(record._id);
           // Reload the record to get updated OCR data
@@ -143,7 +143,7 @@ export default function RadiologyPage() {
           setSelectedRecord(updatedRecord);
           record = updatedRecord; // Use updated record for explanation
         } catch (ocrError) {
-          logger.warn(`OCR extraction failed: ${ocrError.message}`);
+          console.warn(`OCR extraction failed: ${ocrError.message}`);
           // Continue anyway - AI will work with metadata
         }
       }
