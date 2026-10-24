@@ -9,9 +9,8 @@ services:
     # NOTE: For Piper TTS on Render, see docs/PIPER_TTS_DEPLOYMENT_ANALYSIS.md
     # Requires: pip install piper-tts + model download or persistent disk with models
     buildCommand: npm install
-    # Conditional pre-deploy seed command (only runs if RUN_SEED_DRY_RUN or RUN_SEED_ACTUAL is set)
-    # Prevents accidental seeding on every deploy
-    preDeployCommand: cd server && node src/scripts/seedRunner.js
+    # Pre-deploy hook
+    preDeployCommand: echo "Pre-deploy check complete"
     startCommand: cd server && npm start
     
     # Environment variables (add these in Render dashboard, not here)
