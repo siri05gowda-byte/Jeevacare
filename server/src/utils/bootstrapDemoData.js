@@ -416,15 +416,28 @@ export async function bootstrapDemoHospitalsAndAccounts() {
             status: 'active',
           });
           await user.save();
+        } else {
+          const matches = await user.comparePassword(expectedPassword);
+          if (!matches) {
+            user.passwordHash = expectedPassword;
+            user.status = 'active';
+            user.verificationStatus = 'verified';
+            await user.save();
+            logger.info(`  ✓ Repaired password hash for patient: ${pConfig.email}`);
+          }
+        }
 
-          const patient = new Patient({
+        // Check or create Patient profile for this user
+        let patient = await Patient.findOne({ userId: user._id });
+        if (!patient) {
+          patient = new Patient({
             userId: user._id,
             personalIdentity: {
               firstName: pConfig.firstName,
               lastName: pConfig.lastName,
               dateOfBirth: new Date(pConfig.dob),
               sex: pConfig.sex,
-              phone: user.profile.phone,
+              phone: user.profile?.phone || '+91-9876543210',
               email: pConfig.email,
             },
             bloodGroup: {
@@ -449,88 +462,85 @@ export async function bootstrapDemoHospitalsAndAccounts() {
           await patient.save();
 
           // Link a clinical record establishing patient history
-          const clinicalRecord = new ClinicalRecord({
-            patientId: patient._id,
-            providerId: primaryDoctorUser._id,
-            hospitalId: hospital._id,
-            recordType: 'consultation',
-            status: 'completed',
-            visitDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-            chiefComplaint: 'Routine health checkup and monitoring',
-            clinicalNotes: 'Patient vital signs stable. Baseline metabolic profile within normal limits.',
-            diagnosis: [
-              {
+          try {
+            const clinicalRecord = new ClinicalRecord({
+              patientId: patient._id,
+              providerId: primaryDoctorUser._id,
+              hospitalId: hospital._id,
+              recordType: 'clinical_note',
+              recordDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+              verificationStatus: 'provider_verified',
+              data: {
                 condition: 'General Health Maintenance',
-                status: 'active',
-                type: 'primary',
-                diagnosedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+                notes: 'Patient vital signs stable. Baseline metabolic profile within normal limits.',
+                severity: { level: 'mild' },
               },
-            ],
-          });
-          await clinicalRecord.save();
+            });
+            await clinicalRecord.save();
+          } catch (recErr) {
+            logger.warn(`Could not save clinical record for ${pConfig.email}: ${recErr.message}`);
+          }
 
           // Link a demo radiology record for demo patient #1 of each hospital
           if (pConfig === patientsList[0]) {
-            const radiologyRecord = new RadiologyRecord({
-              patientId: patient._id,
-              hospitalId: hospital._id,
-              studyDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-              reportDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-              modalityType: 'x_ray',
-              bodyPart: 'Chest',
-              clinicalIndication: 'Evaluation for cough and shortness of breath',
-              radiologistName: 'Dr. Vinay Kumar',
-              radiologistLicense: 'KA-LIC-VK-2017-010',
-              findings: 'Lungs are clear bilaterally. Cardiothoracic ratio is normal (< 0.50). No pleural effusion, pneumothorax, or focal airspace consolidation. Costophrenic angles are sharp.',
-              impression: 'Normal frontal chest radiograph. No acute cardiopulmonary disease.',
-              recommendation: 'Clinical correlation recommended. Follow up as needed.',
-              aiAnalysis: {
-                status: 'completed',
-                detectedModality: 'chest_xray',
-                model: 'TorchXRayVision-ResNet50',
-                confidence: 0.94,
-                isMockData: false,
-                analyzedAt: new Date(),
-                findings: [
-                  { pathology: 'Pneumonia', confidence: 0.05, severity: 'low' },
-                  { pathology: 'Cardiomegaly', confidence: 0.08, severity: 'low' },
-                  { pathology: 'Effusion', confidence: 0.03, severity: 'low' },
-                  { pathology: 'Consolidation', confidence: 0.04, severity: 'low' }
-                ],
-                summary: 'AI decision support indicates low probability (< 10%) across 18 tested thoracic pathologies. Normal cardiopulmonary structures.',
-                explanation: 'Frontal chest radiograph demonstrates clear lung parenchyma without focal infiltrates or vascular congestion. Heart size is within normal physiological limits.',
-                limitations: [
-                  'Automated decision support only. Not an independent medical diagnosis.',
-                  'Radiological interpretation must be verified by a board-certified radiologist.'
-                ]
-              },
-              ocrStatus: 'extracted',
-              ocrData: {
-                extractedText: 'CHEST X-RAY PA VIEW: Lung fields are normal. Cardiac silhouette is normal in size and contour. Bony thorax intact. IMPRESSION: Normal study.',
-                confidence: 0.98,
-                extractedAt: new Date(),
-              },
-              imageReference: {
-                cloudinaryPublicId: 'demo/sample_chest_xray',
-                cloudinaryUrl: 'https://res.cloudinary.com/demo/image/upload/sample.jpg',
-                fileSize: 245000,
-                mimeType: 'image/jpeg',
-                originalFilename: 'chest_xray_frontal.jpg',
-              },
-            });
-            await radiologyRecord.save();
+            try {
+              const radiologyRecord = new RadiologyRecord({
+                patientId: patient._id,
+                hospitalId: hospital._id,
+                facilityId: hospital._id,
+                providerId: primaryDoctorUser._id,
+                studyDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+                reportDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+                modalityType: 'x_ray',
+                bodyPart: 'Chest',
+                verificationStatus: 'provider_verified',
+                clinicalIndication: 'Evaluation for cough and shortness of breath',
+                radiologistName: 'Dr. Vinay Kumar',
+                radiologistLicense: 'KA-LIC-VK-2017-010',
+                findings: 'Lungs are clear bilaterally. Cardiothoracic ratio is normal (< 0.50). No pleural effusion, pneumothorax, or focal airspace consolidation. Costophrenic angles are sharp.',
+                impression: 'Normal frontal chest radiograph. No acute cardiopulmonary disease.',
+                recommendation: 'Clinical correlation recommended. Follow up as needed.',
+                aiAnalysis: {
+                  status: 'completed',
+                  detectedModality: 'chest_xray',
+                  model: 'TorchXRayVision-ResNet50',
+                  confidence: 0.94,
+                  isMockData: false,
+                  analyzedAt: new Date(),
+                  findings: [
+                    'Pathology Pneumonia: Low Risk (5%)',
+                    'Pathology Cardiomegaly: Normal (8%)',
+                    'Pathology Effusion: Clear (3%)',
+                    'Pathology Consolidation: Negative (4%)'
+                  ],
+                  summary: 'AI decision support indicates low probability (< 10%) across 18 tested thoracic pathologies. Normal cardiopulmonary structures.',
+                  explanation: 'Frontal chest radiograph demonstrates clear lung parenchyma without focal infiltrates or vascular congestion. Heart size is within normal physiological limits.',
+                  limitations: [
+                    'Automated decision support only. Not an independent medical diagnosis.',
+                    'Radiological interpretation must be verified by a board-certified radiologist.'
+                  ]
+                },
+                ocrStatus: 'extracted',
+                ocrData: {
+                  extractedText: 'CHEST X-RAY PA VIEW: Lung fields are normal. Cardiac silhouette is normal in size and contour. Bony thorax intact. IMPRESSION: Normal study.',
+                  confidence: 0.98,
+                  extractedAt: new Date(),
+                },
+                imageReference: {
+                  cloudinaryPublicId: 'demo/sample_chest_xray',
+                  cloudinaryUrl: 'https://res.cloudinary.com/demo/image/upload/sample.jpg',
+                  fileSize: 245000,
+                  mimeType: 'image/jpeg',
+                  originalFilename: 'chest_xray_frontal.jpg',
+                },
+              });
+              await radiologyRecord.save();
+            } catch (radErr) {
+              logger.warn(`Could not save radiology record for ${pConfig.email}: ${radErr.message}`);
+            }
           }
 
           GoogleSheetsService.recordPatient(user, patient, hospital).catch(() => {});
-        } else {
-          const matches = await user.comparePassword(expectedPassword);
-          if (!matches) {
-            user.passwordHash = expectedPassword;
-            user.status = 'active';
-            user.verificationStatus = 'verified';
-            await user.save();
-            logger.info(`  ✓ Repaired password hash for patient: ${pConfig.email}`);
-          }
         }
       }
     };
