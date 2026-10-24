@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { 
   AlertCircle, 
   Stethoscope, 
@@ -31,6 +31,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000
 
 export default function RadiologyPage() {
   const { user } = useAuthStore();
+  const fileInputRef = useRef(null);
   const [radiologyRecords, setRadiologyRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -45,11 +46,12 @@ export default function RadiologyPage() {
   const [selectedLanguage, setSelectedLanguage] = useState('English');
   const [showOcrModal, setShowOcrModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [uploadData, setUploadData] = useState({
     file: null,
-    studyDate: '',
-    reportDate: '',
-    modalityType: 'X_RAY',
+    studyDate: new Date().toISOString().split('T')[0],
+    reportDate: new Date().toISOString().split('T')[0],
+    modalityType: 'x_ray',
     bodyPart: '',
     clinicalIndication: '',
     radiologistName: '',
@@ -57,6 +59,7 @@ export default function RadiologyPage() {
   });
   const [uploadLoading, setUploadLoading] = useState(false);
   const [uploadError, setUploadError] = useState(null);
+  const [uploadSuccess, setUploadSuccess] = useState(null);
 
   const resolvePatientId = useCallback(async (token) => {
     if (user?.profile?.patientId) return user.profile.patientId;
@@ -213,53 +216,116 @@ export default function RadiologyPage() {
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (file.size > 50 * 1024 * 1024) {
+        setUploadError('File size exceeds the 50MB limit.');
+        return;
+      }
       setUploadData(prev => ({ ...prev, file }));
       setUploadError(null);
     }
   };
 
-  const handleUploadSubmit = async (e) => {
+  const handleDrop = (e) => {
     e.preventDefault();
-    setUploadLoading(true);
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (file.size > 50 * 1024 * 1024) {
+        setUploadError('File size exceeds the 50MB limit.');
+        return;
+      }
+      setUploadData(prev => ({ ...prev, file }));
+      setUploadError(null);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleUploadSubmit = async (e) => {
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
     setUploadError(null);
 
+    // Client-side validation with clear, actionable error messages
+    if (!uploadData.file) {
+      setUploadError('Please select or drag-and-drop a radiology report file (PDF, JPEG, PNG, TIFF, DICOM).');
+      return;
+    }
+
+    if (!uploadData.bodyPart || !uploadData.bodyPart.trim()) {
+      setUploadError('Please specify the examined body part (e.g., Chest, Abdomen, Left Knee).');
+      return;
+    }
+
+    if (!uploadData.studyDate) {
+      setUploadError('Please select the study date.');
+      return;
+    }
+
+    if (!uploadData.reportDate) {
+      setUploadError('Please select the report date.');
+      return;
+    }
+
+    setUploadLoading(true);
+
     try {
-      const patientId = await resolvePatientId(localStorage.getItem('token'));
+      const token = localStorage.getItem('token');
+      const patientId = await resolvePatientId(token);
       if (!patientId) {
-        throw new Error('Unable to resolve patient identity');
+        throw new Error('Unable to resolve patient identity. Please refresh the page and try again.');
       }
 
-      // Get hospital ID from user (resolved during authentication)
-      // Priority: facilityId (set by ensureStaffAssociation) > profile.hospitalId (patient-specific) > hospitalId
-      const hospitalId = user?.facilityId || user?.profile?.hospitalId || user?.hospitalId;
-      if (!hospitalId) {
-        throw new Error('No hospital affiliation found. Please contact your administrator.');
-      }
+      // Facility ID: optional for patient uploads; backend resolves to patient facility or active hospital
+      const hospitalId = user?.facilityId || user?.profile?.hospitalId || user?.hospitalId || undefined;
 
       await radiologyService.uploadRadiologyReport({
-        ...uploadData,
+        file: uploadData.file,
         patientId,
         hospitalId,
+        studyDate: uploadData.studyDate,
+        reportDate: uploadData.reportDate,
+        modalityType: (uploadData.modalityType || 'x_ray').toLowerCase(),
+        bodyPart: uploadData.bodyPart.trim(),
+        clinicalIndication: uploadData.clinicalIndication?.trim() || undefined,
+        radiologistName: uploadData.radiologistName?.trim() || undefined,
+        radiologistLicense: uploadData.radiologistLicense?.trim() || undefined,
       });
 
-      // Reset form and close modal
+      // Clear form and close modal
       setUploadData({
         file: null,
-        studyDate: '',
-        reportDate: '',
-        modalityType: 'X_RAY',
+        studyDate: new Date().toISOString().split('T')[0],
+        reportDate: new Date().toISOString().split('T')[0],
+        modalityType: 'x_ray',
         bodyPart: '',
         clinicalIndication: '',
         radiologistName: '',
         radiologistLicense: '',
       });
       setShowUploadModal(false);
+      setUploadSuccess('Radiology report uploaded successfully. AI analysis is available on-demand via "Explain with AI".');
 
-      // Reload records
+      // Refresh records to update the list and statistics
       await loadRadiologyRecords();
     } catch (err) {
-      console.error('Upload error:', err);
-      setUploadError(err.message || 'Failed to upload radiology report');
+      console.error('Radiology upload error:', err);
+      // Preserve user-entered form data on failure!
+      setUploadError(err.message || 'Failed to upload radiology report. Please verify details and try again.');
     } finally {
       setUploadLoading(false);
     }
@@ -306,7 +372,10 @@ export default function RadiologyPage() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setShowUploadModal(true)}
+            onClick={() => {
+              setUploadError(null);
+              setShowUploadModal(true);
+            }}
             className="flex items-center gap-2 px-3.5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm"
           >
             <Upload size={16} />
@@ -329,6 +398,23 @@ export default function RadiologyPage() {
           </button>
         </div>
       </div>
+
+      {/* Upload Success Banner */}
+      {uploadSuccess && (
+        <div className="p-4 bg-green-50 border border-green-200 rounded-xl flex items-center justify-between gap-3 text-sm text-green-900 shadow-sm animate-fade-in">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 size={20} className="text-green-600 flex-shrink-0" />
+            <span>{uploadSuccess}</span>
+          </div>
+          <button
+            onClick={() => setUploadSuccess(null)}
+            className="p-1 text-green-700 hover:bg-green-100 rounded-md"
+            aria-label="Dismiss message"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       {/* Error Banner */}
       {error && (
@@ -717,7 +803,7 @@ export default function RadiologyPage() {
       {showUploadModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200 animate-slide-in-up">
-            <form onSubmit={handleUploadSubmit}>
+            <form onSubmit={handleUploadSubmit} noValidate>
               {/* Modal Header */}
               <div className="sticky top-0 bg-white z-10 px-6 py-4 border-b border-gray-200 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -726,7 +812,7 @@ export default function RadiologyPage() {
                   </div>
                   <div>
                     <h2 className="text-xl font-bold text-gray-900">Upload Radiology Report</h2>
-                    <p className="text-xs text-gray-500">Upload PDF or image of radiology study</p>
+                    <p className="text-xs text-gray-500">Upload diagnostic imaging report (PDF, JPEG, PNG, TIFF, DICOM)</p>
                   </div>
                 </div>
                 <button
@@ -742,29 +828,73 @@ export default function RadiologyPage() {
               <div className="p-6 space-y-4">
                 {/* Error Display */}
                 {uploadError && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-sm text-red-800">
-                    <AlertCircle size={16} className="text-red-600 flex-shrink-0" />
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2.5 text-sm text-red-800">
+                    <AlertCircle size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
                     <span>{uploadError}</span>
                   </div>
                 )}
 
-                {/* File Upload */}
+                {/* File Dropzone */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
                     Report File <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="file"
-                    accept=".pdf,.jpg,.jpeg,.png,.tiff"
-                    onChange={handleFileChange}
-                    required
-                    className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 p-2"
-                  />
-                  {uploadData.file && (
-                    <p className="mt-1 text-xs text-gray-500">
-                      Selected: {uploadData.file.name} ({(uploadData.file.size / 1024 / 1024).toFixed(2)} MB)
-                    </p>
-                  )}
+                  <div
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-colors duration-150 ${
+                      isDragging
+                        ? 'border-blue-500 bg-blue-50'
+                        : uploadData.file
+                        ? 'border-green-300 bg-green-50/50'
+                        : 'border-gray-300 hover:border-blue-400 bg-gray-50'
+                    }`}
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png,.tiff,.dicom"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                    {uploadData.file ? (
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0 text-left">
+                          <div className="p-2 bg-green-100 text-green-700 rounded-lg flex-shrink-0">
+                            <FileText size={20} />
+                          </div>
+                          <div className="truncate">
+                            <p className="text-sm font-semibold text-gray-900 truncate">{uploadData.file.name}</p>
+                            <p className="text-xs text-gray-500">{(uploadData.file.size / 1024 / 1024).toFixed(2)} MB • Ready to upload</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setUploadData(prev => ({ ...prev, file: null }));
+                            if (fileInputRef.current) fileInputRef.current.value = '';
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50"
+                          title="Remove file"
+                        >
+                          <X size={18} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <Upload size={24} className="text-gray-400 mx-auto mb-1" />
+                        <p className="text-sm font-medium text-gray-800">
+                          Click to browse or drag and drop report file
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Supports PDF, JPEG, PNG, TIFF, DICOM up to 50MB
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Modality Type */}
@@ -775,16 +905,15 @@ export default function RadiologyPage() {
                   <select
                     value={uploadData.modalityType}
                     onChange={(e) => setUploadData(prev => ({ ...prev, modalityType: e.target.value }))}
-                    required
                     className="block w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="X_RAY">X-Ray</option>
-                    <option value="CT_SCAN">CT Scan</option>
-                    <option value="MRI">MRI</option>
-                    <option value="ULTRASOUND">Ultrasound</option>
-                    <option value="PET_SCAN">PET Scan</option>
-                    <option value="DEXA_SCAN">DEXA Scan</option>
-                    <option value="OTHER">Other</option>
+                    <option value="x_ray">X-Ray (Plain Radiograph)</option>
+                    <option value="ct_scan">CT Scan (Computed Tomography)</option>
+                    <option value="mri">MRI (Magnetic Resonance Imaging)</option>
+                    <option value="ultrasound">Ultrasound / Sonography</option>
+                    <option value="pet_scan">PET Scan</option>
+                    <option value="dexa_scan">DEXA Scan (Bone Density)</option>
+                    <option value="other">Other Diagnostic Imaging</option>
                   </select>
                 </div>
 
@@ -797,80 +926,87 @@ export default function RadiologyPage() {
                     type="text"
                     value={uploadData.bodyPart}
                     onChange={(e) => setUploadData(prev => ({ ...prev, bodyPart: e.target.value }))}
-                    required
-                    placeholder="e.g., Chest, Abdomen, Left Knee"
+                    placeholder="e.g., Chest, Abdomen, Left Knee, Lumbar Spine"
                     className="block w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 
-                {/* Study Date */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Study Date <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={uploadData.studyDate}
-                    onChange={(e) => setUploadData(prev => ({ ...prev, studyDate: e.target.value }))}
-                    required
-                    className="block w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                {/* Report Date */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Report Date <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={uploadData.reportDate}
-                    onChange={(e) => setUploadData(prev => ({ ...prev, reportDate: e.target.value }))}
-                    required
-                    className="block w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                {/* Dates Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Study Date <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={uploadData.studyDate}
+                      onChange={(e) => setUploadData(prev => ({ ...prev, studyDate: e.target.value }))}
+                      className="block w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Report Date <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={uploadData.reportDate}
+                      onChange={(e) => setUploadData(prev => ({ ...prev, reportDate: e.target.value }))}
+                      className="block w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
                 </div>
 
                 {/* Clinical Indication */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Clinical Indication
+                    Clinical Indication (Optional)
                   </label>
                   <textarea
                     value={uploadData.clinicalIndication}
                     onChange={(e) => setUploadData(prev => ({ ...prev, clinicalIndication: e.target.value }))}
-                    placeholder="Reason for imaging study"
+                    placeholder="e.g., Persistent cough, trauma evaluation, rule out fracture"
                     rows={2}
                     className="block w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 
                 {/* Radiologist Info */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Radiologist Name
+                      Radiologist Name (Optional)
                     </label>
                     <input
                       type="text"
                       value={uploadData.radiologistName}
                       onChange={(e) => setUploadData(prev => ({ ...prev, radiologistName: e.target.value }))}
-                      placeholder="Dr. Name"
+                      placeholder="Dr. Radiologist Name"
                       className="block w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      License Number
+                      License Number (Optional)
                     </label>
                     <input
                       type="text"
                       value={uploadData.radiologistLicense}
                       onChange={(e) => setUploadData(prev => ({ ...prev, radiologistLicense: e.target.value }))}
-                      placeholder="License #"
+                      placeholder="e.g., KMC-12345"
                       className="block w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
+                </div>
+
+                {/* AI / Transparency Notice */}
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-900 leading-relaxed">
+                  <p className="font-semibold mb-0.5">Note on Archival & AI Analysis:</p>
+                  <span>
+                    Uploaded reports are securely persisted and associated with your medical records. 
+                    AI clinical explanations and OCR transcription are processed on-demand via the 
+                    "Explain with AI" button on your study card.
+                  </span>
                 </div>
               </div>
 
@@ -885,14 +1021,15 @@ export default function RadiologyPage() {
                   Cancel
                 </button>
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={handleUploadSubmit}
                   disabled={uploadLoading}
                   className="px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2"
                 >
                   {uploadLoading ? (
                     <>
                       <RefreshCw size={16} className="animate-spin" />
-                      <span>Uploading...</span>
+                      <span>Uploading Report...</span>
                     </>
                   ) : (
                     <>

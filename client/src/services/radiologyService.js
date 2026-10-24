@@ -48,15 +48,17 @@ export const uploadRadiologyReport = async (data) => {
   const formData = new FormData();
   
   // Append file
-  formData.append('file', data.file);
+  if (data.file) {
+    formData.append('file', data.file);
+  }
   
-  // Append required fields
-  formData.append('patientId', data.patientId);
-  formData.append('hospitalId', data.hospitalId);
-  formData.append('studyDate', data.studyDate);
-  formData.append('reportDate', data.reportDate);
-  formData.append('modalityType', data.modalityType);
-  formData.append('bodyPart', data.bodyPart);
+  // Append required fields with lowercase modalityType
+  if (data.patientId) formData.append('patientId', data.patientId);
+  if (data.hospitalId) formData.append('hospitalId', data.hospitalId);
+  if (data.studyDate) formData.append('studyDate', data.studyDate);
+  if (data.reportDate) formData.append('reportDate', data.reportDate);
+  formData.append('modalityType', (data.modalityType || 'x_ray').toLowerCase());
+  if (data.bodyPart) formData.append('bodyPart', data.bodyPart);
   
   // Append optional fields if provided
   if (data.clinicalIndication) formData.append('clinicalIndication', data.clinicalIndication);
@@ -65,21 +67,26 @@ export const uploadRadiologyReport = async (data) => {
   if (data.encounterId) formData.append('encounterId', data.encounterId);
 
   // Use fetch to avoid axios Content-Type conflict with multipart boundary
+  const token = localStorage.getItem('token');
   const response = await fetch(`${api.defaults.baseURL}/radiology/upload-report`, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${localStorage.getItem('token')}`,
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     },
     body: formData,
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to upload radiology report');
+    let errorMsg = 'Failed to upload radiology report';
+    try {
+      const error = await response.json();
+      errorMsg = error.error || error.message || (error.errors ? error.errors.map(e => e.msg).join(', ') : errorMsg);
+    } catch (_) {}
+    throw new Error(errorMsg);
   }
 
   const result = await response.json();
-  return result.data;
+  return result;
 };
 
 /**

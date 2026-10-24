@@ -92,11 +92,16 @@ export default function DocumentsPage() {
       success(`Document "${file.name}" uploaded successfully!`);
       setShowUploadForm(false);
       
-      // Reload documents
+      // Reload documents and update statistics
       await loadDocuments();
     } catch (err) {
       console.error('Upload error:', err);
-      showError(err.message || 'Failed to upload document. Please try again.');
+      const userMessage = err.response?.data?.error ||
+        err.response?.data?.message ||
+        (err.response?.data?.errors ? err.response.data.errors.map(e => e.msg).join(', ') : null) ||
+        err.message ||
+        'Failed to upload document. Please check the file and try again.';
+      showError(userMessage);
     } finally {
       setIsLoading(false);
     }

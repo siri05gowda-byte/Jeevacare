@@ -43,16 +43,78 @@ const upload = multer({
 });
 
 /**
+ * Multer upload error handling wrapper
+ */
+const handleMulterUpload = (multerMiddleware) => (req, res, next) => {
+  multerMiddleware(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({
+          success: false,
+          error: 'File size exceeds limit (maximum 50MB).',
+          code: 'LIMIT_FILE_SIZE',
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        error: `File upload error: ${err.message}`,
+        code: err.code || 'MULTER_ERROR',
+      });
+    } else if (err) {
+      return res.status(400).json({
+        success: false,
+        error: err.message || 'Invalid file uploaded. Allowed: PDF, JPEG, PNG, TIFF, DOCX, DOC, TXT',
+        code: 'INVALID_FILE_TYPE',
+      });
+    }
+    next();
+  });
+};
+
+/**
  * Upload medical document
  * POST /api/v1/documents/upload
- * Accessible by staff roles: DOCTOR, LAB_TECHNICIAN, RADIOLOGY_TECHNICIAN, NURSE, HOSPITAL_ADMIN
- * Patients cannot upload documents for other patients using this endpoint
+ * Accessible by: DOCTOR, LAB_TECHNICIAN, RADIOLOGY_TECHNICIAN, NURSE, HOSPITAL_ADMIN, PATIENT
  */
 router.post(
   '/upload',
   authMiddleware,
   requireRole('DOCTOR', 'LAB_TECHNICIAN', 'RADIOLOGY_TECHNICIAN', 'NURSE', 'HOSPITAL_ADMIN', 'PATIENT'),
-  upload.single('file'),
+  handleMulterUpload(upload.single('file')),
+  async (req, res, next) => {
+    try {
+      // Server-side context enforcement for PATIENT role
+      if (req.user.role === 'PATIENT') {
+        let patientId = req.user.patientId;
+        if (!patientId) {
+          const Patient = (await import('../models/Patient.js')).default;
+          const patientRecord = await Patient.findOne({ userId: req.user._id });
+          if (patientRecord) {
+            patientId = patientRecord._id;
+          }
+        }
+        if (!patientId) {
+          return res.status(404).json({
+            success: false,
+            error: 'Patient profile not found. Please complete patient registration first.',
+          });
+        }
+        // Always enforce the authenticated patient's ID for patients
+        req.body.patientId = patientId.toString();
+      }
+
+      // Normalize documentType / type field
+      let rawType = req.body.documentType || req.body.type || 'medical_record';
+      if (rawType.includes('/') || rawType === 'general') {
+        rawType = 'medical_record';
+      }
+      req.body.documentType = rawType;
+
+      next();
+    } catch (prepErr) {
+      next(prepErr);
+    }
+  },
   [
     body('patientId')
       .trim()
@@ -72,7 +134,7 @@ router.post(
         'medical_record',
         'other',
       ])
-      .withMessage('Invalid documentType'),
+      .withMessage('Invalid documentType. Allowed: discharge_summary, lab_result, radiology_report, prescription, vaccination_record, imaging, medical_record, other'),
     body('category')
       .trim()
       .optional(),
@@ -89,12 +151,20 @@ router.post(
       // Validate request
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
+        const firstError = errors.array()[0]?.msg || 'Validation failed';
+        return res.status(400).json({
+          success: false,
+          error: firstError,
+          errors: errors.array(),
+        });
       }
 
       // Validate file
       if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded' });
+        return res.status(400).json({
+          success: false,
+          error: 'Please select a document file to upload (PDF, JPEG, PNG, TIFF, DOCX)',
+        });
       }
 
       const {

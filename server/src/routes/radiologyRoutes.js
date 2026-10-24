@@ -39,6 +39,32 @@ const upload = multer({
 });
 
 /**
+ * Safe Multer upload handler for radiology files
+ */
+const handleMulterUpload = (multerMiddleware) => (req, res, next) => {
+  multerMiddleware(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({
+          error: 'File size exceeds limit (maximum 50MB).',
+          code: 'LIMIT_FILE_SIZE',
+        });
+      }
+      return res.status(400).json({
+        error: `File upload error: ${err.message}`,
+        code: err.code || 'MULTER_ERROR',
+      });
+    } else if (err) {
+      return res.status(400).json({
+        error: err.message || 'Invalid file type. Allowed: PDF, JPEG, PNG, TIFF, DICOM',
+        code: 'INVALID_FILE_TYPE',
+      });
+    }
+    next();
+  });
+};
+
+/**
  * POST /api/radiology
  * Create a radiology record
  */
@@ -118,11 +144,11 @@ router.post('/', authMiddleware, authorize(['DOCTOR', 'RADIOLOGY_TECHNICIAN']), 
  * - radiologistLicense: string (optional)
  * - encounterId: string (optional)
  */
-router.post('/upload-report', authMiddleware, authorize(['DOCTOR', 'RADIOLOGY_TECHNICIAN']), upload.single('file'), async (req, res) => {
+router.post('/upload-report', authMiddleware, authorize(['DOCTOR', 'RADIOLOGY_TECHNICIAN', 'HOSPITAL_ADMIN', 'PATIENT']), handleMulterUpload(upload.single('file')), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
-        error: 'No file uploaded',
+        error: 'Please select a radiology report file to upload (PDF, JPEG, PNG, TIFF, DICOM)',
       });
     }
 
@@ -139,55 +165,105 @@ router.post('/upload-report', authMiddleware, authorize(['DOCTOR', 'RADIOLOGY_TE
       encounterId,
     } = req.body;
 
-    if (!patientId || !studyDate || !reportDate || !modalityType || !bodyPart || !hospitalId) {
-      return res.status(400).json({
-        error: 'Missing required fields: patientId, hospitalId, studyDate, reportDate, modalityType, bodyPart',
-      });
+    // Resolve patient ID: For patients, always enforce authenticated context
+    let resolvedPatientId = patientId;
+    if (req.user.role === 'PATIENT') {
+      const Patient = (await import('../models/Patient.js')).default;
+      const patientRecord = await Patient.findOne({ userId: req.user._id });
+      if (!patientRecord) {
+        return res.status(404).json({
+          error: 'Patient profile not found. Please complete patient registration first.',
+        });
+      }
+      resolvedPatientId = patientRecord._id.toString();
     }
 
-    // Upload file to Cloudinary
+    // Resolve hospital context: staff facility, patient registered facility, or active facility
+    let resolvedHospitalId = hospitalId;
+    if (!resolvedHospitalId || resolvedHospitalId === 'undefined' || resolvedHospitalId === 'null') {
+      resolvedHospitalId = req.user.facilityId;
+      if (!resolvedHospitalId && req.user.role === 'PATIENT') {
+        const Patient = (await import('../models/Patient.js')).default;
+        const patientRecord = await Patient.findById(resolvedPatientId);
+        if (patientRecord?.facilities?.length > 0 && patientRecord.facilities[0]?.facilityId) {
+          resolvedHospitalId = patientRecord.facilities[0].facilityId.toString();
+        } else {
+          const Hospital = (await import('../models/Hospital.js')).default;
+          const activeHospital = await Hospital.findOne({ status: 'active' }) || await Hospital.findOne({});
+          if (activeHospital) {
+            resolvedHospitalId = activeHospital._id.toString();
+          }
+        }
+      }
+    }
+
+    if (!resolvedPatientId) {
+      return res.status(400).json({ error: 'Patient ID is required' });
+    }
+    if (!studyDate) {
+      return res.status(400).json({ error: 'Study Date is required' });
+    }
+    if (!reportDate) {
+      return res.status(400).json({ error: 'Report Date is required' });
+    }
+    if (!modalityType) {
+      return res.status(400).json({ error: 'Modality Type is required' });
+    }
+    if (!bodyPart || !bodyPart.trim()) {
+      return res.status(400).json({ error: 'Body Part is required' });
+    }
+
+    // Normalize modalityType to lowercase
+    const rawModality = (modalityType || 'other').toLowerCase();
+    const validModalities = ['x_ray', 'ct_scan', 'mri', 'ultrasound', 'pet_scan', 'dexa_scan', 'other'];
+    const normalizedModality = validModalities.includes(rawModality) ? rawModality : 'other';
+
+    // Upload file to Cloudinary with persistent storage reference
     const cloudinaryResult = await CloudinaryAdapter.uploadFile(req.file.buffer, {
       folder: 'radiology-reports',
       resource_type: 'auto', // auto-detect PDF vs image
       access_mode: 'authenticated', // Require signed URLs
+      fileName: req.file.originalname,
+      allowTestMock: process.env.NODE_ENV === 'test',
     });
 
     const radiologyData = {
-      patientId,
-      hospitalId,
+      patientId: resolvedPatientId,
+      hospitalId: resolvedHospitalId,
       encounterId,
-      studyDate,
-      reportDate,
-      modalityType,
-      bodyPart,
-      clinicalIndication,
-      radiologistName,
-      radiologistLicense,
+      studyDate: new Date(studyDate),
+      reportDate: new Date(reportDate),
+      modalityType: normalizedModality,
+      bodyPart: bodyPart.trim(),
+      clinicalIndication: clinicalIndication ? clinicalIndication.trim() : '',
+      radiologistName: radiologistName ? radiologistName.trim() : '',
+      radiologistLicense: radiologistLicense ? radiologistLicense.trim() : '',
       imageReference: {
-        cloudinaryPublicId: cloudinaryResult.public_id,
-        cloudinaryUrl: cloudinaryResult.secure_url,
+        cloudinaryPublicId: cloudinaryResult.publicId || cloudinaryResult.public_id,
+        cloudinaryUrl: cloudinaryResult.secureUrl || cloudinaryResult.secure_url || cloudinaryResult.url,
         fileSize: req.file.size,
         mimeType: req.file.mimetype,
         originalFilename: req.file.originalname,
       },
-      // Set findings and impression as empty - will be populated by AI analysis or manual entry
       findings: '',
       impression: '',
       recommendation: '',
     };
 
     const radiologyRecord = await RadiologyService.createRadiologyRecord(radiologyData, {
-      _id: req.user.id,
+      _id: req.user.id || req.user._id,
       role: req.user.role,
-      facilityId: req.user.facilityId,
+      facilityId: req.user.facilityId || resolvedHospitalId,
+    }, {
+      isPatientUpload: req.user.role === 'PATIENT',
     });
 
     logger.info(`Radiology report uploaded: ${radiologyRecord._id} by user ${req.user.id}`);
 
-    // Sync metadata to Google Sheets boundary
+    // Sync metadata to Google Sheets boundary (secondary asynchronous sync)
     try {
       const GoogleSheetsService = (await import('../services/GoogleSheetsService.js')).default;
-      GoogleSheetsService.recordMedicalReport(radiologyRecord, { _id: patientId }, { _id: hospitalId }).catch(() => {});
+      GoogleSheetsService.recordMedicalReport(radiologyRecord, { _id: resolvedPatientId }, { _id: resolvedHospitalId }).catch(() => {});
     } catch (sheetErr) {
       logger.warn(`GoogleSheets recordMedicalReport error: ${sheetErr.message}`);
     }
@@ -195,7 +271,8 @@ router.post('/upload-report', authMiddleware, authorize(['DOCTOR', 'RADIOLOGY_TE
     res.status(201).json({
       success: true,
       data: radiologyRecord,
-      message: 'Radiology report uploaded successfully',
+      message: 'Radiology report uploaded successfully. AI analysis is pending on-demand.',
+      aiStatus: 'pending_on_demand',
     });
   } catch (error) {
     logger.error('Error uploading radiology report:', error);
@@ -251,7 +328,7 @@ router.get('/:radiologyId/download', authMiddleware, async (req, res) => {
     }
 
     // Generate secure download URL (expires in 1 hour)
-    const downloadUrl = CloudinaryAdapter.getSecureDownloadUrl(
+    const downloadUrl = await CloudinaryAdapter.getSecureDownloadUrl(
       radiologyRecord.imageReference.cloudinaryPublicId,
       3600 // 1 hour expiry
     );

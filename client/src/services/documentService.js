@@ -53,11 +53,19 @@ export const documentService = {
   uploadDocument: async (file, metadata = {}) => {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('type', metadata.type || metadata.documentType || 'other');
+    
+    // Normalize documentType (avoid MIME types like application/pdf being passed as documentType)
+    const rawType = metadata.documentType || metadata.type || 'medical_record';
+    const documentType = (rawType.includes('/') || rawType === 'general') ? 'medical_record' : rawType;
+    
+    formData.append('documentType', documentType);
+    formData.append('type', documentType); // backwards compatibility
+    
     if (metadata.patientId) formData.append('patientId', metadata.patientId);
     if (metadata.facilityId) formData.append('facilityId', metadata.facilityId);
     if (metadata.description) formData.append('description', metadata.description);
     if (metadata.title) formData.append('title', metadata.title);
+    if (metadata.category) formData.append('category', metadata.category);
     if (metadata.documentDate) formData.append('documentDate', metadata.documentDate);
 
     try {
@@ -66,9 +74,17 @@ export const documentService = {
           'Content-Type': 'multipart/form-data',
         },
       });
-      return response;
+      return response.data || response;
     } catch (error) {
       console.error('Error uploading document:', error);
+      const serverMessage = error.response?.data?.error ||
+        error.response?.data?.message ||
+        (error.response?.data?.errors ? error.response.data.errors.map(e => e.msg).join(', ') : null);
+      if (serverMessage) {
+        const err = new Error(serverMessage);
+        err.response = error.response;
+        throw err;
+      }
       throw error;
     }
   },

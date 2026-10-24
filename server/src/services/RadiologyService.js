@@ -10,10 +10,12 @@ class RadiologyService {
    * @param {Object} requestingUser
    * @returns {Object} Radiology record
    */
-  static async createRadiologyRecord(radiologyData, requestingUser) {
+  static async createRadiologyRecord(radiologyData, requestingUser, options = {}) {
     try {
-      // Only authorized healthcare professionals can create official records
-      if (!['DOCTOR', 'RADIOLOGY_TECHNICIAN'].includes(requestingUser.role)) {
+      const isPatientUpload = options.isPatientUpload || (options.allowPatientUpload && requestingUser.role === 'PATIENT');
+
+      // Only authorized healthcare professionals can create official records (unless patient upload workflow)
+      if (!isPatientUpload && !['DOCTOR', 'RADIOLOGY_TECHNICIAN'].includes(requestingUser.role)) {
         throw new Error('Only doctors and radiology technicians can create radiology records');
       }
 
@@ -24,15 +26,28 @@ class RadiologyService {
       }
 
       // Verify authorization
-      const { authorized } = await ClinicalAuthorizationBoundary.canCreateOfficialClinicalRecord(
-        requestingUser._id,
-        radiologyData.hospitalId,
-        patient._id
-      );
+      if (isPatientUpload && requestingUser.role === 'PATIENT') {
+        if (patient.userId && patient.userId.toString() !== requestingUser._id.toString()) {
+          throw new Error('Patients can only upload radiology records for themselves');
+        }
+      } else if (!isPatientUpload) {
+        const { authorized } = await ClinicalAuthorizationBoundary.canCreateOfficialClinicalRecord(
+          requestingUser._id,
+          radiologyData.hospitalId,
+          patient._id
+        );
 
-      if (!authorized) {
-        throw new Error('Not authorized to create radiology records at this facility');
+        if (!authorized) {
+          throw new Error('Not authorized to create radiology records at this facility');
+        }
       }
+
+      // Normalize modalityType to lowercase enum
+      const rawModality = (radiologyData.modalityType || 'other').toLowerCase();
+      const validModalities = ['x_ray', 'ct_scan', 'mri', 'ultrasound', 'pet_scan', 'dexa_scan', 'other'];
+      const modalityType = validModalities.includes(rawModality) ? rawModality : 'other';
+
+      const verificationStatus = isPatientUpload ? 'patient_uploaded' : 'provider_verified';
 
       // Create radiology record
       const radiologyRecord = new RadiologyRecord({
@@ -40,18 +55,18 @@ class RadiologyService {
         encounterId: radiologyData.encounterId,
         studyDate: new Date(radiologyData.studyDate),
         reportDate: new Date(radiologyData.reportDate),
-        modalityType: radiologyData.modalityType,
+        modalityType,
         bodyPart: radiologyData.bodyPart,
         clinicalIndication: radiologyData.clinicalIndication,
-        findings: radiologyData.findings,
-        impression: radiologyData.impression,
-        recommendation: radiologyData.recommendation,
+        findings: radiologyData.findings || '',
+        impression: radiologyData.impression || '',
+        recommendation: radiologyData.recommendation || '',
         radiologistName: radiologyData.radiologistName,
         radiologistLicense: radiologyData.radiologistLicense,
-        facilityId: radiologyData.hospitalId,
-        providerId: requestingUser._id,
+        facilityId: radiologyData.hospitalId || (patient.facilities && patient.facilities[0]?.facilityId) || undefined,
+        providerId: isPatientUpload ? undefined : requestingUser._id,
         imageReference: radiologyData.imageReference,
-        verificationStatus: 'provider_verified',
+        verificationStatus,
         createdBy: requestingUser._id,
       });
 
@@ -73,10 +88,10 @@ class RadiologyService {
         hospital: radiologyData.hospitalId,
         status: 'success',
         details: {
-          modalityType: radiologyData.modalityType,
+          modalityType,
           bodyPart: radiologyData.bodyPart,
           hasCriticalFindings: radiologyRecord.hasCriticalFindings,
-          verificationStatus: 'provider_verified',
+          verificationStatus,
         },
       });
 

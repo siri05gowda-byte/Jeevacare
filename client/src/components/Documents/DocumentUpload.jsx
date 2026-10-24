@@ -30,6 +30,8 @@ export default function DocumentUpload({
   const inputRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [documentType, setDocumentType] = useState('medical_record');
+  const [description, setDescription] = useState('');
   const [validation, setValidation] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
 
@@ -128,14 +130,17 @@ export default function DocumentUpload({
       setUploadProgress(33);
 
       // Simulate upload progress
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 300));
       setUploadProgress(66);
 
-      // Call parent callback
+      // Call parent callback with validated clinical document metadata
       const metadata = {
         name: selectedFile.name,
         size: selectedFile.size,
-        type: selectedFile.type,
+        mimeType: selectedFile.type,
+        type: documentType,
+        documentType: documentType,
+        description: description.trim() || undefined,
         uploadedAt: new Date().toISOString(),
       };
 
@@ -143,6 +148,7 @@ export default function DocumentUpload({
 
       setUploadProgress(100);
       setSelectedFile(null);
+      setDescription('');
       setValidation(null);
       setUploadProgress(0);
 
@@ -153,7 +159,7 @@ export default function DocumentUpload({
       console.error('Upload error:', error);
       setValidation({
         valid: false,
-        errors: ['Upload failed. Please try again.'],
+        errors: [error.message || 'Upload failed. Please try again.'],
         warnings: [],
       });
       setUploadProgress(0);
@@ -225,6 +231,42 @@ export default function DocumentUpload({
             </p>
           </>
         )}
+      </div>
+
+      {/* Document Metadata Inputs */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5">
+            Document Category <span className="text-red-500">*</span>
+          </label>
+          <select
+            value={documentType}
+            onChange={(e) => setDocumentType(e.target.value)}
+            disabled={isLoading}
+            className="w-full text-sm rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 shadow-sm focus:border-jeevacare-blue focus:outline-none focus:ring-1 focus:ring-jeevacare-blue"
+          >
+            <option value="medical_record">Medical Record / Note</option>
+            <option value="lab_result">Lab Results / Pathology</option>
+            <option value="radiology_report">Radiology / Imaging</option>
+            <option value="prescription">Prescription</option>
+            <option value="discharge_summary">Discharge Summary</option>
+            <option value="vaccination_record">Vaccination Record</option>
+            <option value="other">Other Health Document</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5">
+            Description / Notes (Optional)
+          </label>
+          <input
+            type="text"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            disabled={isLoading}
+            placeholder="e.g., Annual health checkup report"
+            className="w-full text-sm rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 shadow-sm focus:border-jeevacare-blue focus:outline-none focus:ring-1 focus:ring-jeevacare-blue"
+          />
+        </div>
       </div>
 
       {/* Validation Messages */}

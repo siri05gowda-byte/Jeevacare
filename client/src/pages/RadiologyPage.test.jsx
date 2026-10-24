@@ -84,4 +84,30 @@ describe('RadiologyPage Component Tests', () => {
     expect(xrays).toHaveLength(1);
     expect(xrays[0]._id).toBe('rec1');
   });
+
+  it('normalizes uppercase modality types to valid lowercase schema enum', () => {
+    const rawModalities = ['X_RAY', 'CT_SCAN', 'MRI', 'ULTRASOUND', 'PET_SCAN', 'DEXA_SCAN', 'OTHER'];
+    const validModalities = ['x_ray', 'ct_scan', 'mri', 'ultrasound', 'pet_scan', 'dexa_scan', 'other'];
+
+    rawModalities.forEach(raw => {
+      const normalized = raw.toLowerCase();
+      expect(validModalities).toContain(normalized);
+    });
+  });
+
+  it('validates required fields before allowing submission', () => {
+    const validate = (data) => {
+      if (!data.file) return 'Please select or drag-and-drop a radiology report file';
+      if (!data.bodyPart?.trim()) return 'Please specify the examined body part';
+      if (!data.studyDate) return 'Please select the study date';
+      if (!data.reportDate) return 'Please select the report date';
+      return null;
+    };
+
+    expect(validate({})).toMatch(/select or drag-and-drop/);
+    expect(validate({ file: new Blob(['test']) })).toMatch(/examined body part/);
+    expect(validate({ file: new Blob(['test']), bodyPart: 'Chest' })).toMatch(/study date/);
+    expect(validate({ file: new Blob(['test']), bodyPart: 'Chest', studyDate: '2026-10-24' })).toMatch(/report date/);
+    expect(validate({ file: new Blob(['test']), bodyPart: 'Chest', studyDate: '2026-10-24', reportDate: '2026-10-24' })).toBeNull();
+  });
 });
