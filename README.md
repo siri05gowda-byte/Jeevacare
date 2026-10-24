@@ -510,9 +510,17 @@ Currently deployed at: **https://jeevacare-th88.onrender.com**
    REFRESH_TOKEN_SECRET=[32+ char random string]
    CORS_ORIGIN=https://jeevacare-cmdm.vercel.app
    ```
-5. Optional: Configure external services (Groq, Piper TTS, etc.)
+5. Optional: Configure Google Sheets Demo Synchronization (Secondary Sync Layer):
+   ```
+   GOOGLE_SHEETS_SPREADSHEET_ID=[44-char spreadsheet id from URL]
+   GOOGLE_SERVICE_ACCOUNT_EMAIL=[service-account@project.iam.gserviceaccount.com]
+   GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n..."
+   ```
+   *Note: Ensure the spreadsheet is shared with the service account email as Editor. The alias `GOOGLE_PRIVATE_KEY` is also supported.*
+6. Optional: Configure external services (Groq, Piper TTS, Cloudinary)
 
 **Health Check:** `https://jeevacare-th88.onrender.com/health`
+**Sheets Diagnostic:** `https://jeevacare-th88.onrender.com/api/v1/health/sheets` (or `POST /api/v1/health/sheets/test` for smoke test)
 
 ### Seeding Staging Demo Data
 

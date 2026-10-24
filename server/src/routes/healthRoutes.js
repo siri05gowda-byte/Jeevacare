@@ -74,14 +74,46 @@ router.get('/config', (req, res) => {
 
 /**
  * GET /api/v1/health/sheets
- * Diagnostic endpoint for Google Sheets integration status
+ * Diagnostic endpoint for Google Sheets integration status.
+ * Optional query parameter: ?test=true triggers a live API smoke test against the spreadsheet.
  */
 router.get('/sheets', async (req, res) => {
   try {
     const GoogleSheetsService = (await import('../services/GoogleSheetsService.js')).default;
+
+    if (req.query.test === 'true') {
+      const testResult = await GoogleSheetsService.testConnection();
+      return res.status(testResult.success ? 200 : 502).json({
+        success: testResult.success,
+        diagnostic: testResult,
+        timestamp: new Date(),
+      });
+    }
+
     res.json({
       success: true,
       sheets: GoogleSheetsService.getStatus(),
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * POST /api/v1/health/sheets/test
+ * Explicit live smoke test and verification against Google Sheets API.
+ */
+router.post('/sheets/test', async (req, res) => {
+  try {
+    const GoogleSheetsService = (await import('../services/GoogleSheetsService.js')).default;
+    const testResult = await GoogleSheetsService.testConnection();
+    res.status(testResult.success ? 200 : 502).json({
+      success: testResult.success,
+      diagnostic: testResult,
       timestamp: new Date(),
     });
   } catch (error) {

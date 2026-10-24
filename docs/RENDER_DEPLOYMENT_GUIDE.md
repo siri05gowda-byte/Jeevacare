@@ -37,13 +37,16 @@ In the **Render Dashboard** for the `jeevacare-backend` service, add these envir
 | `CLOUDINARY_API_KEY` | Your Cloudinary API key | Optional for demo |
 | `CLOUDINARY_API_SECRET` | Your Cloudinary secret | Optional for demo |
 | `GROQ_API_KEY` | Your Groq API key | Optional; demo mode if unset |
+| `GOOGLE_SHEETS_SPREADSHEET_ID` | `your-spreadsheet-id` | 44-character spreadsheet ID from URL |
+| `GOOGLE_SERVICE_ACCOUNT_EMAIL` | `sa-name@project-id.iam.gserviceaccount.com` | Service account email shared as Editor |
+| `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` | `"-----BEGIN PRIVATE KEY-----\n..."` | Full private key from JSON (alias `GOOGLE_PRIVATE_KEY` also supported) |
 | `RUN_SEED_ACTUAL` | `false` | Keep false by default — set to `true` only to execute seed |
 | `RUN_SEED_DRY_RUN` | `false` | Keep false — set to `true` to validate seed without writes |
 
 **Critical**: 
 - `MONGODB_URI` and `TEST_MONGODB_URI` **must be identical** for staging
 - Both must point to `jeevacare-test` database
-- Database name is validated by seed runner; it will exit if database ≠ `jeevacare-test`
+- For Google Sheets synchronization: Ensure the spreadsheet is shared with the service account email as **Editor**. Escaped `\n` sequences in `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` are automatically unescaped. You can verify live connection status via `GET /api/v1/health/sheets` or run a smoke test via `POST /api/v1/health/sheets/test`.
 
 ---
 
