@@ -3,28 +3,32 @@
 Chest X-Ray Inference Worker
 
 Real deep-learning inference using TorchXRayVision + ResNet50.
-Runs as a standalone Python process, communicating with Node.js via JSON.
+Communicates with Node.js via JSON-RPC protocol over stdin/stdout.
 
 Architecture:
-- Input: JSON with image URL/path, device preference
+- Input: JSON with image URL/path, device preference, and request ID
 - Process: Load model, preprocess image, run inference
-- Output: JSON with pathology scores, confidence, metadata
+- Output: JSON with request ID, real pathology scores, confidence, metadata
 
-Cost: ₹0 (free/open-source models only)
-Hardware: CPU-optimized (no GPU required)
+Supported Modality: Chest Radiographs (18 pathologies)
 """
 
 import json
 import sys
+import os
+import io
+import base64
+import urllib.request
 import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
 import traceback
 
-# Configure logging
+# Configure logging to stderr so stdout is reserved for JSON-RPC
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - ChestXRayWorker - %(levelname)s - %(message)s'
+    format='%(asctime)s - ChestXRayWorker - %(levelname)s - %(message)s',
+    stream=sys.stderr
 )
 logger = logging.getLogger(__name__)
 
@@ -39,299 +43,296 @@ try:
     logger.info("✅ All deep learning libraries loaded successfully")
 except ImportError as e:
     logger.error(f"❌ Failed to import required libraries: {e}")
-    logger.error("Install with: pip install torch torchxrayvision scikit-image")
+    logger.error("Install with: pip install torch torchvision torchxrayvision scikit-image numpy")
     sys.exit(1)
 
 # Global model cache
 _MODEL_CACHE = {}
-_DEVICE = "cpu"  # CPU only (no CUDA for Intel HD Graphics)
+_DEVICE = "cpu"
 
 
 class ChestXRayInferenceWorker:
-    """Real chest X-ray inference using pretrained DenseNet/ResNet."""
+    """Real chest X-ray inference using pretrained TorchXRayVision ResNet50."""
     
-    # 18 pathologies detected by TorchXRayVision models
-    PATHOLOGIES = [
+    DEFAULT_PATHOLOGIES = [
         "Atelectasis",
-        "Cardiomegaly", 
         "Consolidation",
+        "Infiltration",
+        "Pneumothorax",
         "Edema",
-        "Effusion",
         "Emphysema",
         "Fibrosis",
-        "Infiltration",
-        "Mass",
-        "Nodule",
-        "Pleural Thickening",
+        "Effusion",
         "Pneumonia",
-        "Pneumothorax",
-        "Tortuous Aorta",
-        "Tuberculosis",
-        "Enlarged Cardiomediastinum",
-        "Subcutaneous Emphysema",
-        "Aortic Enlargement"
+        "Pleural_Thickening",
+        "Cardiomegaly",
+        "Nodule",
+        "Mass",
+        "Hernia",
+        "Lung Lesion",
+        "Fracture",
+        "Lung Opacity",
+        "Enlarged Cardiomediastinum"
     ]
     
-    # Confidence threshold for reporting findings
-    CONFIDENCE_THRESHOLD = 0.3  # Report findings above 30% confidence
-    
+    CONFIDENCE_THRESHOLD = 0.30  # Report findings above 30% confidence
+
     def __init__(self, model_name: str = "resnet50-res512-all", device: str = "cpu"):
-        """
-        Initialize inference worker.
-        
-        Args:
-            model_name: TorchXRayVision model identifier
-            device: "cpu" or "cuda" (cuda not supported on Intel HD)
-        """
         self.model_name = model_name
         self.device = device
         self.model = None
-        self.metadata = {
-            "model": model_name,
-            "device": device,
-            "pathologies": self.PATHOLOGIES,
-            "confidence_threshold": self.CONFIDENCE_THRESHOLD
-        }
-        logger.info(f"ChestXRayInferenceWorker initialized: model={model_name}, device={device}")
-    
-    def load_model(self) -> Dict[str, Any]:
-        """
-        Load pretrained model from HuggingFace hub or cache.
+        self.pathologies = self.DEFAULT_PATHOLOGIES
         
-        Returns:
-            Status dict with success flag and metadata
-        """
+        # Load from cache if already loaded
+        if model_name in _MODEL_CACHE:
+            self.model = _MODEL_CACHE[model_name]
+            if hasattr(self.model, 'pathologies'):
+                self.pathologies = list(self.model.pathologies)
+
+    def load_model(self) -> Dict[str, Any]:
+        """Load pretrained model from cache or TorchXRayVision hub."""
+        global _MODEL_CACHE
         try:
-            # Check cache first
             if self.model_name in _MODEL_CACHE:
-                logger.info(f"✅ Model loaded from cache: {self.model_name}")
                 self.model = _MODEL_CACHE[self.model_name]
+                if hasattr(self.model, 'pathologies'):
+                    self.pathologies = list(self.model.pathologies)
                 return {
                     "success": True,
-                    "message": f"Model loaded from cache",
+                    "message": "Model loaded from cache",
                     "model": self.model_name,
-                    "source": "cache"
+                    "source": "cache",
+                    "pathologies": self.pathologies
                 }
             
-            logger.info(f"Loading model from disk/cache: {self.model_name}")
-            
-            # Load model using correct TorchXRayVision API
-            # get_model(weights) where weights is the model name
+            logger.info(f"Loading TorchXRayVision model: {self.model_name}")
             self.model = xrv.models.get_model(self.model_name)
-            
-            # Move to device (CPU)
             self.model = self.model.to(self.device)
-            self.model.eval()  # Set to evaluation mode
+            self.model.eval()
             
-            # Cache model
             _MODEL_CACHE[self.model_name] = self.model
+            if hasattr(self.model, 'pathologies'):
+                self.pathologies = list(self.model.pathologies)
             
-            logger.info(f"✅ Model loaded successfully: {self.model_name}")
+            logger.info(f"✅ Model loaded successfully: {self.model_name} with {len(self.pathologies)} pathologies")
             
             return {
                 "success": True,
-                "message": f"Model loaded from HuggingFace",
+                "message": "Model loaded successfully",
                 "model": self.model_name,
-                "source": "huggingface",
-                "weights_url": "https://huggingface.co/torchxrayvision/resnet50-res512-all"
+                "source": "torchxrayvision",
+                "pathologies": self.pathologies
             }
-        
         except Exception as e:
             logger.error(f"❌ Failed to load model: {e}\n{traceback.format_exc()}")
             return {
                 "success": False,
                 "error": str(e),
-                "message": "Model loading failed - check internet connection and HuggingFace access"
+                "message": "Model loading failed"
             }
-    
+
+    def _read_image(self, image_path: str) -> np.ndarray:
+        """Fetch image from local path, http/https URL, or base64 data URL."""
+        if not image_path or not isinstance(image_path, str):
+            raise ValueError("Invalid or empty image path provided")
+
+        image_path = image_path.strip()
+
+        if image_path.startswith(('http://', 'https://')):
+            logger.info(f"Downloading image from URL: {image_path[:80]}...")
+            req = urllib.request.Request(
+                image_path,
+                headers={'User-Agent': 'JeevaCare-RadiologyWorker/1.0'}
+            )
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                data = resp.read()
+            if len(data) == 0:
+                raise ValueError("Downloaded image payload is empty")
+            return skimage.io.imread(io.BytesIO(data))
+
+        elif image_path.startswith('data:'):
+            logger.info("Decoding base64 image data URL...")
+            if ',' not in image_path:
+                raise ValueError("Malformed data URL format")
+            b64_str = image_path.split(',', 1)[1]
+            data = base64.b64decode(b64_str)
+            if len(data) == 0:
+                raise ValueError("Decoded base64 image payload is empty")
+            return skimage.io.imread(io.BytesIO(data))
+
+        else:
+            # Local filesystem path
+            path_obj = Path(image_path)
+            if not path_obj.exists():
+                raise FileNotFoundError(f"Local image file not found: {image_path}")
+            return skimage.io.imread(str(path_obj))
+
     def preprocess_image(self, image_path: str) -> Dict[str, Any]:
-        """
-        Load and preprocess image for inference.
-        
-        Args:
-            image_path: Path or URL to chest X-ray image
-            
-        Returns:
-            Dict with preprocessed tensor and metadata, or error
-        """
+        """Preprocess chest X-ray into standard TorchXRayVision 512x512 tensor."""
         try:
-            logger.info(f"Loading image: {image_path}")
+            raw_img = self._read_image(image_path)
             
-            # Load image
-            img = skimage.io.imread(image_path)
-            logger.info(f"Image shape: {img.shape}, dtype: {img.dtype}")
-            
-            # Validate image
-            if img.size == 0:
+            if raw_img is None or raw_img.size == 0:
                 return {
                     "success": False,
-                    "error": "Image is empty",
+                    "error": "Image is empty or unreadable",
                     "code": "INVALID_IMAGE"
                 }
-            
-            # Normalize to [0, 1]
-            if img.dtype == np.uint8:
-                img = img.astype(np.float32) / 255.0
-            elif img.dtype == np.uint16:
-                img = img.astype(np.float32) / 65535.0
-            
-            # Convert to grayscale if needed
-            if len(img.shape) > 2:
-                # Multi-channel - convert to grayscale
-                img = img[:, :, 0]  # Take first channel (R for RGB, or only channel for RGBA)
-                logger.info(f"Converted to grayscale: {img.shape}")
-            
-            # Ensure 2D
-            if len(img.shape) != 2:
+
+            original_shape = list(raw_img.shape)
+            logger.info(f"Loaded image: shape={original_shape}, dtype={raw_img.dtype}")
+
+            # Handle color channels -> convert to 2D grayscale
+            if len(raw_img.shape) == 3:
+                if raw_img.shape[2] == 4:
+                    # RGBA -> take RGB
+                    raw_img = raw_img[:, :, :3]
+                # Weighted or mean RGB to grayscale
+                img_gray = raw_img.mean(axis=2).astype(np.float32)
+            elif len(raw_img.shape) == 2:
+                img_gray = raw_img.astype(np.float32)
+            else:
                 return {
                     "success": False,
-                    "error": f"Image has invalid shape: {img.shape}",
+                    "error": f"Unsupported image dimensions: {raw_img.shape}",
                     "code": "INVALID_SHAPE"
                 }
-            
-            # Apply TorchXRayVision normalization
-            img_normalized = xrv.datasets.normalize(img, 255)
-            
-            # Apply center crop transform
+
+            # Check image variance (reject blank/uniform images)
+            if np.std(img_gray) < 1.0:
+                return {
+                    "success": False,
+                    "error": "Image appears to be blank or has insufficient contrast for analysis",
+                    "code": "INADEQUATE_IMAGE_QUALITY"
+                }
+
+            # Normalize to [-1024, 1024] using TorchXRayVision dataset normalizer
+            max_val = 65535.0 if img_gray.max() > 255.0 else 255.0
+            img_norm = xrv.datasets.normalize(img_gray, maxval=max_val)
+
+            # Apply standard Center Crop and Resizer to 512x512 for ResNet50
             transform = torchvision.transforms.Compose([
-                xrv.datasets.XRayCenterCrop()
+                xrv.datasets.XRayCenterCrop(),
+                xrv.datasets.XRayResizer(512)
             ])
-            
-            img_transformed = transform(img_normalized[None, :, :])
-            
-            # Convert to tensor
+            img_transformed = transform(img_norm[None, :, :])
             img_tensor = torch.from_numpy(img_transformed).unsqueeze(0).float()
-            
-            logger.info(f"Preprocessing complete: tensor shape {img_tensor.shape}")
-            
+
             return {
                 "success": True,
-                "tensor_shape": list(img_tensor.shape),
-                "original_shape": list(img.shape),
-                "preprocessed": True
+                "tensor": img_tensor,
+                "original_shape": original_shape,
+                "tensor_shape": list(img_tensor.shape)
             }
-        
         except Exception as e:
-            logger.error(f"❌ Preprocessing failed: {e}\n{traceback.format_exc()}")
+            logger.error(f"Image preprocessing error: {e}\n{traceback.format_exc()}")
             return {
                 "success": False,
                 "error": str(e),
                 "code": "PREPROCESSING_FAILED"
             }
-    
+
     def infer(self, image_path: str) -> Dict[str, Any]:
-        """
-        Run inference on chest X-ray image.
-        
-        Args:
-            image_path: Path or URL to image
-            
-        Returns:
-            Dict with pathology scores, findings, and metadata
-        """
+        """Run deep-learning inference on chest X-ray image."""
         try:
-            # Ensure model is loaded
+            # Ensure model is ready
             if self.model is None:
-                load_result = self.load_model()
-                if not load_result.get("success"):
+                load_res = self.load_model()
+                if not load_res.get("success"):
                     return {
                         "success": False,
-                        "error": "Model failed to load",
-                        "details": load_result
+                        "error": load_res.get("error", "Model loading failed"),
+                        "code": "MODEL_LOAD_FAILED"
                     }
-            
+
             # Preprocess image
-            logger.info(f"Preprocessing image...")
-            img = skimage.io.imread(image_path)
-            
-            # Validate and normalize
-            if len(img.shape) > 2:
-                img = img[:, :, 0]
-            if len(img.shape) != 2:
-                raise ValueError(f"Invalid image shape: {img.shape}")
-            
-            img_normalized = xrv.datasets.normalize(img, 255)
-            transform = torchvision.transforms.Compose([
-                xrv.datasets.XRayCenterCrop()
-            ])
-            img_transformed = transform(img_normalized[None, :, :])
-            img_tensor = torch.from_numpy(img_transformed).unsqueeze(0).float()
-            
-            # Move to device
-            img_tensor = img_tensor.to(self.device)
-            
-            # Run inference
-            logger.info(f"Running inference on {self.device}...")
+            prep_res = self.preprocess_image(image_path)
+            if not prep_res.get("success"):
+                return prep_res
+
+            img_tensor = prep_res["tensor"].to(self.device)
+
+            logger.info(f"Running TorchXRayVision inference on {self.device}...")
             with torch.no_grad():
-                predictions = self.model(img_tensor).cpu()
-            
-            # Convert to probabilities (predictions are logits)
-            probabilities = torch.sigmoid(predictions)[0].numpy()
-            
-            logger.info(f"Inference complete. Shape: {probabilities.shape}")
-            
-            # Build pathology findings
+                raw_preds = self.model(img_tensor).cpu()
+
+            # ResNet50 outputs raw logits; sigmoid gives probabilities in [0, 1]
+            probabilities = torch.sigmoid(raw_preds)[0].numpy()
+
             findings = []
-            pathology_scores = {}
-            
-            for idx, pathology in enumerate(self.PATHOLOGIES):
-                score = float(probabilities[idx])
-                pathology_scores[pathology] = score
-                
-                # Report findings above threshold
-                if score >= self.CONFIDENCE_THRESHOLD:
-                    findings.append({
-                        "pathology": pathology,
-                        "confidence": score,
-                        "severity": "high" if score > 0.7 else "moderate" if score > 0.5 else "low"
-                    })
-            
-            # Sort findings by confidence
+            all_pathologies = {}
+
+            for idx, pathology in enumerate(self.pathologies):
+                if idx < len(probabilities):
+                    score = float(probabilities[idx])
+                    all_pathologies[pathology] = round(score, 4)
+                    
+                    if score >= self.CONFIDENCE_THRESHOLD:
+                        severity = "high" if score > 0.70 else "moderate" if score > 0.50 else "low"
+                        findings.append({
+                            "pathology": pathology.replace('_', ' '),
+                            "rawPathology": pathology,
+                            "confidence": round(score, 4),
+                            "severity": severity
+                        })
+
             findings.sort(key=lambda x: x["confidence"], reverse=True)
-            
-            # Generate summary
+
+            # Plain-language grounded summary
             if findings:
-                top_finding = findings[0]
-                summary = f"Possible {top_finding['pathology'].lower()} detected with {top_finding['confidence']:.1%} confidence"
+                top_findings_str = ", ".join([f"{f['pathology']} ({f['confidence']:.1%})" for f in findings[:3]])
+                summary = f"Automated analysis identified findings exceeding the clinical reporting threshold ({self.CONFIDENCE_THRESHOLD:.0%}): {top_findings_str}."
             else:
-                summary = "No significant abnormalities detected at threshold"
-            
+                summary = f"No focal abnormalities detected exceeding the reporting threshold ({self.CONFIDENCE_THRESHOLD:.0%}) across {len(self.pathologies)} supported chest pathologies."
+
+            limitations = [
+                "TorchXRayVision ResNet-50 is a deep-learning clinical decision-support model, not an autonomous diagnostic system.",
+                f"Evaluates only {len(self.pathologies)} specific chest radiograph pathologies and cannot diagnose conditions outside this set.",
+                "Absence of reported findings does not guarantee normal health or absence of pathology.",
+                "Clinical correlation and formal interpretation by a licensed radiologist are strictly required."
+            ]
+
             return {
                 "success": True,
                 "isMockData": False,
-                "model": self.model_name,
+                "model": f"TorchXRayVision-{self.model_name}",
+                "pipelineVersion": "2.0.0-torchxrayvision",
                 "device": self.device,
+                "modality": "chest_xray",
                 "findings": findings,
+                "positiveFindings": len(findings),
+                "pathologiesTested": len(self.pathologies),
+                "confidenceThreshold": self.CONFIDENCE_THRESHOLD,
                 "summary": summary,
-                "all_pathologies": pathology_scores,
-                "confidence_threshold": self.CONFIDENCE_THRESHOLD,
-                "pathologies_tested": len(self.PATHOLOGIES),
-                "positive_findings": len(findings)
+                "allPathologies": all_pathologies,
+                "limitations": limitations,
+                "metadata": {
+                    "originalShape": prep_res["original_shape"],
+                    "tensorShape": prep_res["tensor_shape"],
+                    "thresholdUsed": self.CONFIDENCE_THRESHOLD,
+                    "modelArchitecture": "ResNet50",
+                    "weights": "resnet50-res512-all"
+                }
             }
-        
         except Exception as e:
-            logger.error(f"❌ Inference failed: {e}\n{traceback.format_exc()}")
+            logger.error(f"Inference execution failed: {e}\n{traceback.format_exc()}")
             return {
                 "success": False,
+                "isMockData": False,
                 "error": str(e),
-                "code": "INFERENCE_FAILED",
-                "isMockData": False
+                "code": "INFERENCE_FAILED"
             }
 
 
 def handle_request(request: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Handle single RPC request from Node.js.
-    
-    Protocol:
-    - request: {"method": "load" | "infer", "params": {...}}
-    - response: {"result": {...}} or {"error": "..."}
+    Handle single JSON-RPC request from Node.js.
+    Always includes the request 'id' so Node.js can resolve the request promise.
     """
+    req_id = request.get("id")
     try:
         method = request.get("method")
         params = request.get("params", {})
-        
-        logger.info(f"Processing request: method={method}")
         
         worker = ChestXRayInferenceWorker(
             model_name=params.get("model_name", "resnet50-res512-all"),
@@ -343,54 +344,53 @@ def handle_request(request: Dict[str, Any]) -> Dict[str, Any]:
         elif method == "infer":
             image_path = params.get("image_path")
             if not image_path:
-                return {"error": "Missing image_path"}
+                return {"id": req_id, "error": "Missing image_path parameter"}
             result = worker.infer(image_path)
+        elif method == "preprocess":
+            image_path = params.get("image_path")
+            if not image_path:
+                return {"id": req_id, "error": "Missing image_path parameter"}
+            result = worker.preprocess_image(image_path)
+            # Remove tensor from JSON response
+            if "tensor" in result:
+                del result["tensor"]
         elif method == "status":
             result = {
                 "ready": True,
-                "model": params.get("model_name", "resnet50-res512-all"),
+                "model": "resnet50-res512-all",
                 "device": "cpu",
-                "pathologies": len(ChestXRayInferenceWorker.PATHOLOGIES)
+                "pathologies": worker.DEFAULT_PATHOLOGIES
             }
         else:
-            return {"error": f"Unknown method: {method}"}
-        
-        return {"result": result}
-    
+            return {"id": req_id, "error": f"Unknown RPC method: {method}"}
+            
+        return {"id": req_id, "result": result}
     except Exception as e:
-        logger.error(f"Request handling error: {e}\n{traceback.format_exc()}")
-        return {"error": str(e)}
+        logger.error(f"Request handler error: {e}\n{traceback.format_exc()}")
+        return {"id": req_id, "error": str(e)}
 
 
 def main():
-    """
-    Main entry point for JSON-RPC communication with Node.js.
-    Reads JSON lines from stdin, processes, writes JSON to stdout.
-    """
-    logger.info("ChestXRayInferenceWorker started, waiting for requests...")
-    
+    """Main JSON-RPC line loop reading from stdin and outputting to stdout."""
+    logger.info("ChestXRayInferenceWorker daemon started, awaiting Node.js RPC requests...")
     try:
         for line in sys.stdin:
             line = line.strip()
             if not line:
                 continue
-            
             try:
-                request = json.loads(line)
-                response = handle_request(request)
-                print(json.dumps(response))
+                req = json.loads(line)
+                resp = handle_request(req)
+                sys.stdout.write(json.dumps(resp) + "\n")
                 sys.stdout.flush()
-            
-            except json.JSONDecodeError as e:
-                logger.error(f"Invalid JSON: {e}")
-                print(json.dumps({"error": f"Invalid JSON: {e}"}))
+            except json.JSONDecodeError as err:
+                sys.stdout.write(json.dumps({"error": f"Invalid JSON input: {str(err)}"}) + "\n")
                 sys.stdout.flush()
-    
     except KeyboardInterrupt:
-        logger.info("ChestXRayInferenceWorker shut down")
+        logger.info("ChestXRayInferenceWorker shutting down")
         sys.exit(0)
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}\n{traceback.format_exc()}")
+    except Exception as err:
+        logger.error(f"Fatal worker error: {err}\n{traceback.format_exc()}")
         sys.exit(1)
 
 

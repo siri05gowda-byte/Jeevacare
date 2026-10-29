@@ -69,6 +69,8 @@ dump/
 # Temporary files
 *.tmp
 temp/
+uploads/
+server/uploads/
 
 # Dataset files (NEVER COMMIT RAW DATA)
 /data/

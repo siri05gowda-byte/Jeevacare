@@ -40,12 +40,13 @@ class RadiologyAIService {
       }
 
       // Check if image exists
-      if (!radiologyRecord.imageReference?.cloudinaryUrl) {
+      const imageInput = radiologyRecord.imageReference?.localPath || radiologyRecord.imageReference?.cloudinaryUrl;
+      if (!imageInput) {
         throw new Error('No image attached to this radiology record');
       }
 
-      // Check if already analyzed
-      if (radiologyRecord.aiAnalysis?.status === 'completed') {
+      // Check if already analyzed (unless force re-analysis requested)
+      if (radiologyRecord.aiAnalysis?.status === 'completed' && !options.force) {
         logger.info(`Returning cached AI analysis for radiology ${radiologyId}`);
         return {
           success: true,
@@ -66,18 +67,15 @@ class RadiologyAIService {
       // Detect modality if not already known
       const detectedModality = await this._detectModalityFromRecord(radiologyRecord);
 
-      // Download image for analysis
-      // Note: In production with larger models, you might stream directly
-      // For now, we pass the URL to the analyzer
-      const imageUrl = radiologyRecord.imageReference.cloudinaryUrl;
-      const mimeType = radiologyRecord.imageReference.mimeType;
+      const mimeType = radiologyRecord.imageReference?.mimeType;
 
       // Run image analysis
-      const analysisResult = await MedicalImageAnalyzer.analyzeImage(imageUrl, {
+      const analysisResult = await MedicalImageAnalyzer.analyzeImage(imageInput, {
         metadata: {
           mimeType,
-          filename: radiologyRecord.imageReference.originalFilename,
-          modalityType: radiologyRecord.modalityType
+          filename: radiologyRecord.imageReference?.originalFilename,
+          modalityType: radiologyRecord.modalityType,
+          bodyPart: radiologyRecord.bodyPart
         },
         detectedModality,
         language
@@ -93,6 +91,7 @@ class RadiologyAIService {
       const aiAnalysisData = {
         status: finalStatus,
         model: analysisResult.model || MedicalImageAnalyzer.getStatus().model,
+        pipelineVersion: analysisResult.pipelineVersion || '2.0.0-torchxrayvision',
         detectedModality: detectedModality.modality,
         findings: analysisResult.findings || [],
         summary: analysisResult.summary || '',
@@ -294,12 +293,36 @@ class RadiologyAIService {
   }
 
   /**
+   * Get AI analysis status for a radiology record
+   * @param {String} radiologyId - Record ID
+   * @returns {Promise<Object>} Status object or aiAnalysis document
+   */
+  static async getAnalysisStatus(radiologyId) {
+    const record = await RadiologyRecord.findById(radiologyId).select('aiAnalysis');
+    if (!record) {
+      throw new Error(`Radiology record not found: ${radiologyId}`);
+    }
+
+    if (!record.aiAnalysis || !record.aiAnalysis.status) {
+      return {
+        status: 'not_analyzed',
+      };
+    }
+
+    return record.aiAnalysis;
+  }
+
+  /**
    * Get service status and capabilities
    */
   static getServiceStatus() {
+    const analyzerStatus = MedicalImageAnalyzer.getStatus();
     return {
       service: 'Radiology AI Service',
-      imageAnalyzer: MedicalImageAnalyzer.getStatus(),
+      available: analyzerStatus.enabled,
+      healthy: true,
+      mode: analyzerStatus.mode,
+      imageAnalyzer: analyzerStatus,
       supportedModalities: MedicalImageAnalyzer.getSupportedModalities(),
       capabilities: {
         imageAnalysis: MedicalImageAnalyzer.isReady(),

@@ -54,9 +54,9 @@ describe('Radiology AI Integration Tests', () => {
       // Check if worker is spawned with correct configuration
       if (analyzer.workerProcess) {
         expect(analyzer.workerProcess.stdio).toBeDefined();
-        expect(analyzer.workerProcess.stdio[0]).toBe('pipe'); // stdin
-        expect(analyzer.workerProcess.stdio[1]).toBe('pipe'); // stdout
-        expect(analyzer.workerProcess.stdio[2]).toBe('pipe'); // stderr
+        expect(analyzer.workerProcess.stdin).toBeDefined(); // stdin stream
+        expect(analyzer.workerProcess.stdout).toBeDefined(); // stdout stream
+        expect(analyzer.workerProcess.stderr).toBeDefined(); // stderr stream
       } else {
         // Worker not initialized in test environment
         logger.info('[1] Worker not initialized (expected in non-worker environment)');

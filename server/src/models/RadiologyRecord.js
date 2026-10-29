@@ -80,6 +80,9 @@ const radiologyRecordSchema = new mongoose.Schema(
       fileSize: Number,
       uploadedAt: Date,
       imageCount: Number,
+      localPath: String,
+      mimeType: String,
+      originalFilename: String,
     },
 
     // Verification and provenance
@@ -127,9 +130,10 @@ const radiologyRecordSchema = new mongoose.Schema(
         enum: ['not_analyzed', 'analyzing', 'completed', 'failed', 'unsupported_modality'],
         default: 'not_analyzed',
       },
-      model: String,              // e.g., "chexnet-v1.0" or "mock-chexnet-v1.0"
-      detectedModality: String,   // e.g., "chest_xray", "ct_scan", etc.
-      findings: [String],         // List of findings detected by AI
+      model: String,              // e.g., "TorchXRayVision-resnet50-res512-all"
+      pipelineVersion: String,
+      detectedModality: String,   // e.g., "chest_xray", "mri", etc.
+      findings: [mongoose.Schema.Types.Mixed], // List of finding objects detected by AI
       summary: String,            // Technical summary
       explanation: String,        // Patient-friendly explanation
       confidence: Number,         // Overall confidence score (0-1)

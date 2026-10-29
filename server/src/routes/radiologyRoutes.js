@@ -3,6 +3,7 @@ import multer from 'multer';
 import { authMiddleware, requireRole } from '../middleware/authentication.js';
 import RadiologyService from '../services/RadiologyService.js';
 import CloudinaryAdapter from '../adapters/CloudinaryAdapter.js';
+import RadiologyAIService from '../services/RadiologyAIService.js';
 import logger from '../utils/logger.js';
 
 const router = express.Router();
@@ -218,6 +219,20 @@ router.post('/upload-report', authMiddleware, authorize(['DOCTOR', 'RADIOLOGY_TE
     const validModalities = ['x_ray', 'ct_scan', 'mri', 'ultrasound', 'pet_scan', 'dexa_scan', 'other'];
     const normalizedModality = validModalities.includes(rawModality) ? rawModality : 'other';
 
+    // Save local copy for direct local deep-learning inference
+    let localPath = null;
+    try {
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const uploadDir = path.resolve('uploads/radiology');
+      await fs.mkdir(uploadDir, { recursive: true });
+      const safeFilename = `${Date.now()}-${req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+      localPath = path.join(uploadDir, safeFilename);
+      await fs.writeFile(localPath, req.file.buffer);
+    } catch (fsErr) {
+      logger.warn(`Could not save local radiology buffer: ${fsErr.message}`);
+    }
+
     // Upload file to Cloudinary with persistent storage reference
     const cloudinaryResult = await CloudinaryAdapter.uploadFile(req.file.buffer, {
       folder: 'radiology-reports',
@@ -244,6 +259,7 @@ router.post('/upload-report', authMiddleware, authorize(['DOCTOR', 'RADIOLOGY_TE
         fileSize: req.file.size,
         mimeType: req.file.mimetype,
         originalFilename: req.file.originalname,
+        localPath: localPath || undefined,
       },
       findings: '',
       impression: '',
@@ -278,6 +294,27 @@ router.post('/upload-report', authMiddleware, authorize(['DOCTOR', 'RADIOLOGY_TE
     logger.error('Error uploading radiology report:', error);
     res.status(error.message.includes('Not authorized') ? 403 : 500).json({
       error: error.message || 'Failed to upload radiology report',
+    });
+  }
+});
+
+/**
+ * GET /api/radiology/ai-service-status
+ * Get overall AI service status and capabilities
+ */
+router.get('/ai-service-status', authMiddleware, async (req, res) => {
+  try {
+    const status = RadiologyAIService.getServiceStatus();
+
+    res.json({
+      success: true,
+      data: status,
+    });
+  } catch (error) {
+    logger.error('Error getting AI service status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get AI service status',
     });
   }
 });
@@ -422,9 +459,6 @@ router.post('/:radiologyId/analyze-image', authMiddleware, async (req, res) => {
     const { radiologyId } = req.params;
     const { language = 'en' } = req.body;
 
-    // Import RadiologyAIService
-    const RadiologyAIService = (await import('../services/RadiologyAIService.js')).default;
-
     // Get radiology record first for authorization
     const radiologyRecord = await RadiologyService.getRadiologyRecord(radiologyId, {
       _id: req.user.id,
@@ -433,7 +467,8 @@ router.post('/:radiologyId/analyze-image', authMiddleware, async (req, res) => {
     });
 
     // Check if it's an image (not just a text report)
-    if (!radiologyRecord.imageReference?.cloudinaryUrl) {
+    const hasImage = !!(radiologyRecord.imageReference?.cloudinaryUrl || radiologyRecord.imageReference?.localPath);
+    if (!hasImage) {
       return res.status(400).json({
         success: false,
         error: 'No image attached to this radiology record. Only medical images can be analyzed.',
@@ -515,9 +550,6 @@ router.get('/:radiologyId/ai-status', authMiddleware, async (req, res) => {
       facilityId: req.user.facilityId,
     });
 
-    // Import RadiologyAIService
-    const RadiologyAIService = (await import('../services/RadiologyAIService.js')).default;
-
     // Get analysis status
     const status = await RadiologyAIService.getAnalysisStatus(radiologyId);
 
@@ -534,27 +566,7 @@ router.get('/:radiologyId/ai-status', authMiddleware, async (req, res) => {
   }
 });
 
-/**
- * GET /api/radiology/ai-service-status
- * Get overall AI service status and capabilities
- */
-router.get('/ai-service-status', authMiddleware, async (req, res) => {
-  try {
-    const RadiologyAIService = (await import('../services/RadiologyAIService.js')).default;
-    const status = RadiologyAIService.getServiceStatus();
 
-    res.json({
-      success: true,
-      data: status,
-    });
-  } catch (error) {
-    logger.error('Error getting AI service status:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to get AI service status',
-    });
-  }
-});
 
 /**
  * POST /api/radiology/:radiologyId/extract-text
