@@ -28,24 +28,29 @@ class AppointmentService {
   static async bookAppointment(appointmentData, requestingUser) {
     try {
       // 1. Verify patient exists and requesting user is the patient
-      const patient = await Patient.findById(appointmentData.patientId);
+      const rawPatientId = appointmentData.patientId;
+      let patient = await Patient.findById(rawPatientId);
       if (!patient) {
-        throw new Error(`Patient not found: ${appointmentData.patientId}`);
+        patient = await Patient.findOne({ userId: rawPatientId });
+      }
+      if (!patient) {
+        throw new Error(`Patient not found: ${rawPatientId}`);
       }
 
       // Patient can only book for themselves
+      const requestingUserId = (requestingUser?._id || requestingUser?.id)?.toString();
       if (
         requestingUser.role === 'PATIENT' &&
-        requestingUser._id.toString() !== patient.userId.toString()
+        requestingUserId !== patient.userId?.toString()
       ) {
         throw new Error('Patient can only book appointments for themselves');
       }
 
       // 2. Verify facility exists and is verified BEFORE checking provider
-      // This ensures facility-level authorization is enforced first
-      const facility = await Hospital.findById(appointmentData.hospitalId);
+      const hospitalId = appointmentData.hospitalId || appointmentData.facilityId;
+      const facility = await Hospital.findById(hospitalId);
       if (!facility) {
-        throw new Error(`Facility not found: ${appointmentData.hospitalId}`);
+        throw new Error(`Facility not found: ${hospitalId}`);
       }
 
       if (facility.verificationStatus !== 'verified') {
@@ -54,13 +59,20 @@ class AppointmentService {
         );
       }
 
-      // 3. Verify provider exists
-      const provider = await User.findById(appointmentData.providerId);
+      // 3. Verify provider exists (accept User._id or HealthcareProfessional._id)
+      let provider = await User.findById(appointmentData.providerId);
+      let professional = null;
+      if (provider) {
+        professional = await HealthcareProfessional.findOne({ userId: provider._id });
+      } else {
+        professional = await HealthcareProfessional.findById(appointmentData.providerId);
+        if (professional) {
+          provider = await User.findById(professional.userId);
+        }
+      }
       if (!provider) {
         throw new Error(`Provider not found: ${appointmentData.providerId}`);
       }
-
-      const professional = await HealthcareProfessional.findOne({ userId: provider._id });
       if (!professional) {
         throw new Error(`Professional profile not found for provider: ${provider._id}`);
       }
@@ -79,15 +91,20 @@ class AppointmentService {
         );
       }
 
-      // 5. Create appointment
+      // 5. Create appointment with both date aliases
+      const appointmentDate = appointmentData.appointmentDate || appointmentData.scheduledDateTime;
+      const reasonForVisit = appointmentData.reasonForVisit || appointmentData.reason || 'General Consultation';
+
       const appointment = new Appointment({
         patientId: patient._id,
         providerId: provider._id,
         hospitalId: facility._id,
-        appointmentDate: new Date(appointmentData.appointmentDate),
+        appointmentDate: new Date(appointmentDate),
+        scheduledDateTime: new Date(appointmentDate),
+        duration: Number(appointmentData.duration) || 30,
         appointmentType: appointmentData.appointmentType || 'consultation',
-        reasonForVisit: appointmentData.reasonForVisit,
-        notes: appointmentData.notes,
+        reasonForVisit,
+        notes: appointmentData.notes || '',
         status: 'scheduled',
       });
 
@@ -546,6 +563,133 @@ class AppointmentService {
       return appointment;
     } catch (error) {
       throw new Error(`Failed to update appointment status: ${error.message}`);
+    }
+  }
+
+  /**
+   * Calculate available appointment slots for a doctor at a facility on a specific date
+   * @param {Object} params - {doctorId, providerId, facilityId, hospitalId, date}
+   * @returns {Promise<Array<string>>} List of available HH:MM slot strings
+   */
+  static async getAvailableSlots({ doctorId, providerId, facilityId, hospitalId, date }) {
+    try {
+      const targetDoctorId = doctorId || providerId;
+      const targetFacilityId = facilityId || hospitalId;
+
+      if (!targetDoctorId || !targetFacilityId || !date) {
+        throw new Error('doctorId, facilityId, and date are required to get available slots');
+      }
+
+      const targetDate = new Date(date);
+      if (isNaN(targetDate.getTime())) {
+        throw new Error('Invalid date provided');
+      }
+
+      // Resolve doctor User._id and HealthcareProfessional._id
+      let provider = await User.findById(targetDoctorId);
+      let professional = null;
+      if (provider) {
+        professional = await HealthcareProfessional.findOne({ userId: provider._id });
+      } else {
+        professional = await HealthcareProfessional.findById(targetDoctorId);
+        if (professional) {
+          provider = await User.findById(professional.userId);
+        }
+      }
+
+      // Default working hours and slot duration
+      let startTime = '09:00';
+      let endTime = '17:00';
+      let breakStart = '13:00';
+      let breakEnd = '14:00';
+      let slotDuration = 30; // minutes
+
+      if (professional) {
+        const schedule = await DoctorSchedule.findOne({
+          professionalId: professional._id,
+          hospitalId: targetFacilityId,
+          status: 'active',
+        });
+        if (schedule && schedule.dailySchedule) {
+          startTime = schedule.dailySchedule.startTime || startTime;
+          endTime = schedule.dailySchedule.endTime || endTime;
+          breakStart = schedule.dailySchedule.breakStartTime || breakStart;
+          breakEnd = schedule.dailySchedule.breakEndTime || breakEnd;
+          slotDuration = schedule.appointmentDuration || slotDuration;
+        }
+      }
+
+      // Generate standard slots from startTime to endTime
+      const allSlots = [];
+      const [startH, startM] = startTime.split(':').map(Number);
+      const [endH, endM] = endTime.split(':').map(Number);
+      const [bStartH, bStartM] = (breakStart || '13:00').split(':').map(Number);
+      const [bEndH, bEndM] = (breakEnd || '14:00').split(':').map(Number);
+
+      let currentMinutes = startH * 60 + startM;
+      const endMinutes = endH * 60 + endM;
+      const breakStartMinutes = bStartH * 60 + bStartM;
+      const breakEndMinutes = bEndH * 60 + bEndM;
+
+      while (currentMinutes + slotDuration <= endMinutes) {
+        // Exclude slots during lunch break
+        if (!(currentMinutes >= breakStartMinutes && currentMinutes < breakEndMinutes)) {
+          const h = Math.floor(currentMinutes / 60);
+          const m = currentMinutes % 60;
+          allSlots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
+        }
+        currentMinutes += slotDuration;
+      }
+
+      // Query already booked appointments for this doctor at facility on target date
+      const dayStart = new Date(targetDate);
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(targetDate);
+      dayEnd.setHours(23, 59, 59, 999);
+
+      const query = {
+        hospitalId: targetFacilityId,
+        appointmentDate: { $gte: dayStart, $lte: dayEnd },
+        status: { $nin: ['cancelled', 'no_show'] },
+      };
+      if (provider) {
+        query.providerId = provider._id;
+      }
+
+      const existingAppointments = await Appointment.find(query);
+      const bookedSlots = new Set();
+
+      for (const apt of existingAppointments) {
+        if (apt.appointmentDate) {
+          const aptDate = new Date(apt.appointmentDate);
+          const h = aptDate.getHours().toString().padStart(2, '0');
+          const m = aptDate.getMinutes().toString().padStart(2, '0');
+          bookedSlots.add(`${h}:${m}`);
+        }
+        if (apt.startTime) {
+          bookedSlots.add(apt.startTime);
+        }
+      }
+
+      // If querying today, filter out times that have already passed
+      const now = new Date();
+      const isToday = now.getFullYear() === targetDate.getFullYear() &&
+                      now.getMonth() === targetDate.getMonth() &&
+                      now.getDate() === targetDate.getDate();
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+      const availableSlots = allSlots.filter((slot) => {
+        if (bookedSlots.has(slot)) return false;
+        if (isToday) {
+          const [h, m] = slot.split(':').map(Number);
+          if (h * 60 + m <= nowMinutes + 15) return false;
+        }
+        return true;
+      });
+
+      return availableSlots;
+    } catch (error) {
+      throw new Error(`Failed to calculate available slots: ${error.message}`);
     }
   }
 }

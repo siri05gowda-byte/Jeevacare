@@ -29,6 +29,11 @@ const appointmentSchema = new mongoose.Schema(
       index: true,
     },
 
+    scheduledDateTime: {
+      type: Date,
+      index: true,
+    },
+
     startTime: String,
 
     endTime: String,

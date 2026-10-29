@@ -23,39 +23,38 @@ const router = express.Router();
 const { authorize } = { authorize: requireRole };
 
 /**
- * POST /appointments/book
+ * POST /appointments/book or POST /appointments
  * Book a new appointment
- * 
- * Body: {
- *   patientId: string (UUID),
- *   providerId: string (UUID),
- *   facilityId: string (UUID),
- *   scheduledDateTime: ISO8601 date string,
- *   duration: number (minutes),
- *   reason: string,
- *   notes: string (optional)
- * }
  */
-router.post('/book', authMiddleware, async (req, res) => {
+router.post(['/', '/book'], authMiddleware, async (req, res) => {
   try {
-    const { patientId, providerId, facilityId, scheduledDateTime, duration, reason, notes } =
-      req.body;
+    const rawPatientId = req.body.patientId || (req.user.role === 'PATIENT' ? req.user.patientId || req.user._id : null);
+    const providerId = req.body.providerId || req.body.doctorId;
+    const facilityId = req.body.facilityId || req.body.hospitalId;
+    const scheduledDateTime = req.body.scheduledDateTime || req.body.appointmentDate;
+    const duration = Number(req.body.duration) || 30;
+    const reason = req.body.reason || req.body.reasonForVisit || req.body.appointmentType || 'General Consultation';
+    const notes = req.body.notes || '';
 
     // Validate required fields
-    if (!patientId || !providerId || !facilityId || !scheduledDateTime || !duration || !reason) {
+    if (!rawPatientId || !providerId || !facilityId || !scheduledDateTime || !reason) {
       return res.status(400).json({
-        error: 'Missing required fields: patientId, providerId, facilityId, scheduledDateTime, duration, reason',
+        success: false,
+        error: 'Missing required fields: patientId, providerId (or doctorId), facilityId (or hospitalId), scheduledDateTime (or appointmentDate), reason',
       });
     }
 
     const appointmentData = {
-      patientId,
+      patientId: rawPatientId,
       providerId,
       facilityId,
+      hospitalId: facilityId,
       scheduledDateTime: new Date(scheduledDateTime),
+      appointmentDate: new Date(scheduledDateTime),
       duration,
       reason,
-      notes: notes || '',
+      reasonForVisit: reason,
+      notes,
     };
 
     const appointment = await AppointmentService.bookAppointment(appointmentData, {
@@ -207,6 +206,42 @@ router.get('/doctor/:doctorId', authMiddleware, authorize('DOCTOR', 'HOSPITAL_AD
 });
 
 /**
+ * GET /appointments/available-slots
+ * Get available time slots for doctor at facility
+ */
+router.get('/available-slots', authMiddleware, async (req, res) => {
+  try {
+    const doctorId = req.query.doctorId || req.query.providerId;
+    const facilityId = req.query.facilityId || req.query.hospitalId;
+    const date = req.query.date;
+
+    if (!doctorId || !facilityId || !date) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required query parameters: doctorId, facilityId, date',
+      });
+    }
+
+    const slots = await AppointmentService.getAvailableSlots({
+      doctorId,
+      facilityId,
+      date,
+    });
+
+    res.json({
+      success: true,
+      data: slots,
+    });
+  } catch (error) {
+    logger?.error?.(`Available slots calculation error: ${error.message}`);
+    res.status(400).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+/**
  * GET /appointments/:appointmentId
  * Get appointment details
  */
@@ -233,21 +268,18 @@ router.get('/:appointmentId', authMiddleware, async (req, res) => {
 });
 
 /**
- * PATCH /appointments/:appointmentId/reschedule
+ * PATCH or POST /appointments/:appointmentId/reschedule
  * Reschedule an appointment
- * 
- * Body: {
- *   newScheduledDateTime: ISO8601 date string,
- *   reason: string (optional reschedule reason)
- * }
  */
-router.patch('/:appointmentId/reschedule', authMiddleware, async (req, res) => {
+const handleReschedule = async (req, res) => {
   try {
     const { appointmentId } = req.params;
-    const { newScheduledDateTime, reason } = req.body;
+    const newScheduledDateTime = req.body.newScheduledDateTime || req.body.appointmentDate || req.body.scheduledDateTime;
+    const reason = req.body.reason || req.body.reasonForVisit;
 
     if (!newScheduledDateTime) {
       return res.status(400).json({
+        success: false,
         error: 'Missing required field: newScheduledDateTime',
       });
     }
@@ -268,18 +300,21 @@ router.patch('/:appointmentId/reschedule', authMiddleware, async (req, res) => {
 
     // Create notification for patient about rescheduled appointment
     try {
-      await Notification.createNotification({
-        userId: appointment.patientId || appointment.patient,
-        type: 'appointment_updated',
-        title: 'Appointment Rescheduled',
-        message: `Your appointment has been rescheduled to ${new Date(newScheduledDateTime).toLocaleString()}${reason ? `. Reason: ${reason}` : '.'}`,
-        link: '/appointments',
-        metadata: {
-          appointmentId: appointment._id,
-          newScheduledDateTime,
-          reason,
-        },
-      });
+      const targetUserId = appointment?.patientId?.userId || appointment?.patientId || appointment?.patient;
+      if (targetUserId) {
+        await Notification.createNotification({
+          userId: targetUserId,
+          type: 'appointment_updated',
+          title: 'Appointment Rescheduled',
+          message: `Your appointment has been rescheduled to ${new Date(newScheduledDateTime).toLocaleString()}${reason ? `. Reason: ${reason}` : '.'}`,
+          link: '/appointments',
+          metadata: {
+            appointmentId: appointment._id,
+            newScheduledDateTime,
+            reason,
+          },
+        });
+      }
     } catch (notifError) {
       logger?.warn?.(`Failed to create reschedule notification: ${notifError.message}`);
     }
@@ -291,22 +326,23 @@ router.patch('/:appointmentId/reschedule', authMiddleware, async (req, res) => {
     });
   } catch (error) {
     res.status(error.message.includes('Not found') ? 404 : error.message.includes('Not authorized') ? 403 : 400).json({
+      success: false,
       error: error.message,
     });
   }
-});
+};
+
+router.patch('/:appointmentId/reschedule', authMiddleware, handleReschedule);
+router.post('/:appointmentId/reschedule', authMiddleware, handleReschedule);
 
 /**
- * DELETE /appointments/:appointmentId
+ * DELETE or POST /appointments/:appointmentId/cancel
  * Cancel an appointment
- * 
- * Query params:
- * - reason: optional cancellation reason
  */
-router.delete('/:appointmentId', authMiddleware, async (req, res) => {
+const handleCancel = async (req, res) => {
   try {
     const { appointmentId } = req.params;
-    const { reason } = req.query;
+    const reason = req.query.reason || req.body.reason;
 
     const result = await AppointmentService.cancelAppointment(appointmentId, {
       reason: reason || '',
@@ -320,18 +356,21 @@ router.delete('/:appointmentId', authMiddleware, async (req, res) => {
 
     // Create notification for patient about cancelled appointment
     try {
-      await Notification.createNotification({
-        userId: result.patientId || result.patient,
-        type: 'appointment_cancelled',
-        title: 'Appointment Cancelled',
-        message: `Your appointment has been cancelled${reason ? `. Reason: ${reason}` : '.'}`,
-        link: '/appointments',
-        metadata: {
-          appointmentId,
-          reason,
-          cancelledBy: req.user._id,
-        },
-      });
+      const targetUserId = result?.patientId?.userId || result?.patientId || result?.patient;
+      if (targetUserId) {
+        await Notification.createNotification({
+          userId: targetUserId,
+          type: 'appointment_cancelled',
+          title: 'Appointment Cancelled',
+          message: `Your appointment has been cancelled${reason ? `. Reason: ${reason}` : '.'}`,
+          link: '/appointments',
+          metadata: {
+            appointmentId,
+            reason,
+            cancelledBy: req.user._id,
+          },
+        });
+      }
     } catch (notifError) {
       logger?.warn?.(`Failed to create cancellation notification: ${notifError.message}`);
     }
@@ -343,20 +382,16 @@ router.delete('/:appointmentId', authMiddleware, async (req, res) => {
     });
   } catch (error) {
     res.status(error.message.includes('Not found') ? 404 : error.message.includes('Not authorized') ? 403 : 400).json({
+      success: false,
       error: error.message,
     });
   }
-});
+};
 
-/**
- * PATCH /appointments/:appointmentId/status
- * Update appointment status
- * 
- * Body: {
- *   status: string ('scheduled' | 'arrived' | 'in-progress' | 'completed' | 'cancelled' | 'no-show')
- * }
- */
-router.patch('/:appointmentId/status', authMiddleware, async (req, res) => {
+router.delete('/:appointmentId', authMiddleware, handleCancel);
+router.post('/:appointmentId/cancel', authMiddleware, handleCancel);
+
+const handleStatusUpdate = async (req, res) => {
   try {
     const { appointmentId } = req.params;
     const { status } = req.body;
@@ -364,6 +399,7 @@ router.patch('/:appointmentId/status', authMiddleware, async (req, res) => {
     const validStatuses = ['scheduled', 'arrived', 'in-progress', 'completed', 'cancelled', 'no-show'];
     if (!status || !validStatuses.includes(status)) {
       return res.status(400).json({
+        success: false,
         error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
       });
     }
@@ -386,9 +422,13 @@ router.patch('/:appointmentId/status', authMiddleware, async (req, res) => {
     });
   } catch (error) {
     res.status(error.message.includes('Not found') ? 404 : error.message.includes('Not authorized') ? 403 : 400).json({
+      success: false,
       error: error.message,
     });
   }
-});
+};
+
+router.patch('/:appointmentId/status', authMiddleware, handleStatusUpdate);
+router.put('/:appointmentId/status', authMiddleware, handleStatusUpdate);
 
 export default router;
