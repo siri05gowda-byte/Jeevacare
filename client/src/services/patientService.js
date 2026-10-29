@@ -160,4 +160,63 @@ export const patientService = {
     const response = await api.get(`/patients/${patientId}/audit-events`);
     return response;
   },
+
+  // ── Patient–Doctor Assignments ────────────────────────────────────────────
+
+  /**
+   * Assign a doctor to a patient at a facility.
+   * @param {string} patientId
+   * @param {{ doctorId, facilityId, isPrimary?, department?, notes? }} data
+   */
+  assignDoctor: async (patientId, data) => {
+    const response = await api.post(`/patients/${patientId}/assign-doctor`, data);
+    return response;
+  },
+
+  /**
+   * Remove a doctor's assignment from a patient.
+   * @param {string} patientId
+   * @param {string} doctorId
+   * @param {string} facilityId
+   */
+  removeAssignment: async (patientId, doctorId, facilityId) => {
+    const response = await api.delete(
+      `/patients/${patientId}/assign-doctor/${doctorId}?facilityId=${facilityId}`
+    );
+    return response;
+  },
+
+  /**
+   * Get all active patients assigned to the current authenticated doctor.
+   * @param {string|null} facilityId  Optional facility filter
+   */
+  getMyAssignedPatients: async (facilityId = null) => {
+    const url = facilityId
+      ? `/patients/assigned-to/me?facilityId=${facilityId}`
+      : '/patients/assigned-to/me';
+    const response = await api.get(url);
+    return response;
+  },
+
+  /**
+   * Get all active patients assigned to a specific doctor.
+   * @param {string} doctorId
+   * @param {string|null} facilityId
+   */
+  getAssignedPatients: async (doctorId, facilityId = null) => {
+    const url = facilityId
+      ? `/patients/assigned-to/${doctorId}?facilityId=${facilityId}`
+      : `/patients/assigned-to/${doctorId}`;
+    const response = await api.get(url);
+    return response;
+  },
+
+  /**
+   * Get all doctors assigned to a patient.
+   * @param {string} patientId
+   */
+  getAssignedDoctors: async (patientId) => {
+    const response = await api.get(`/patients/${patientId}/assigned-doctors`);
+    return response;
+  },
 };

@@ -9,6 +9,7 @@
 
 import Patient from '../models/Patient.js';
 import User from '../models/User.js';
+import HospitalStaff from '../models/HospitalStaff.js';
 import AuditService from './AuditService.js';
 import logger from '../utils/logger.js';
 
@@ -550,6 +551,188 @@ class PatientService {
     } catch (error) {
       logger.error(`Failed to check if patient exists: ${error.message}`);
       return false;
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // Patient–Doctor Assignment Methods
+  // ────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Assign a doctor to a patient within a facility.
+   * Roles allowed: DOCTOR, HOSPITAL_ADMIN, NURSE
+   * @param {string} patientId - Patient._id
+   * @param {{ doctorId, facilityId, isPrimary, department, notes }} data
+   * @param {object} requestingUser - { _id, role }
+   */
+  static async assignDoctorToPatient(patientId, { doctorId, facilityId, isPrimary = false, department, notes }, requestingUser) {
+    try {
+      const patient = await Patient.findById(patientId);
+      if (!patient) throw new Error('Patient not found');
+
+      // Verify doctor exists and has DOCTOR role
+      const doctor = await User.findById(doctorId);
+      if (!doctor || doctor.role !== 'DOCTOR') {
+        throw new Error('Doctor not found or user is not a DOCTOR');
+      }
+
+      // Verify doctor is affiliated with facility
+      const staffRecord = await HospitalStaff.findOne({
+        userId: doctorId,
+        hospitalId: facilityId,
+        associationStatus: 'active',
+      });
+      if (!staffRecord) {
+        throw new Error('Doctor is not affiliated with the specified facility');
+      }
+
+      // Prevent duplicate active assignment
+      const existingIdx = patient.assignedDoctors.findIndex(
+        (a) =>
+          a.doctorId.toString() === doctorId.toString() &&
+          a.facilityId.toString() === facilityId.toString() &&
+          a.status === 'active'
+      );
+      if (existingIdx !== -1) {
+        throw new Error('Doctor is already assigned to this patient at this facility');
+      }
+
+      // If this is primary, demote any existing primaries at same facility
+      if (isPrimary) {
+        patient.assignedDoctors.forEach((a) => {
+          if (a.facilityId.toString() === facilityId.toString() && a.status === 'active') {
+            a.isPrimary = false;
+          }
+        });
+      }
+
+      patient.assignedDoctors.push({
+        doctorId,
+        facilityId,
+        assignedAt: new Date(),
+        assignedBy: requestingUser._id,
+        isPrimary,
+        department,
+        notes,
+        status: 'active',
+      });
+
+      await patient.save();
+
+      await AuditService.logEvent({
+        actor: requestingUser._id,
+        actorRole: requestingUser.role,
+        action: 'patient_doctor_assigned',
+        resource: patientId,
+        resourceType: 'patient',
+        patient: patientId,
+        details: { doctorId, facilityId, isPrimary, department },
+      });
+
+      logger.info(`Doctor ${doctorId} assigned to patient ${patient.jeevaId} at facility ${facilityId}`);
+      return patient;
+    } catch (error) {
+      logger.error(`assignDoctorToPatient failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Remove (deactivate) a doctor's assignment to a patient at a given facility.
+   * @param {string} patientId
+   * @param {string} doctorId
+   * @param {string} facilityId
+   * @param {object} requestingUser
+   */
+  static async removeDoctorAssignment(patientId, doctorId, facilityId, requestingUser) {
+    try {
+      const patient = await Patient.findById(patientId);
+      if (!patient) throw new Error('Patient not found');
+
+      const assignment = patient.assignedDoctors.find(
+        (a) =>
+          a.doctorId.toString() === doctorId.toString() &&
+          a.facilityId.toString() === facilityId.toString() &&
+          a.status === 'active'
+      );
+      if (!assignment) {
+        throw new Error('Active assignment not found for this doctor/patient/facility combination');
+      }
+
+      assignment.status = 'inactive';
+      await patient.save();
+
+      await AuditService.logEvent({
+        actor: requestingUser._id,
+        actorRole: requestingUser.role,
+        action: 'patient_doctor_unassigned',
+        resource: patientId,
+        resourceType: 'patient',
+        patient: patientId,
+        details: { doctorId, facilityId },
+      });
+
+      logger.info(`Doctor ${doctorId} unassigned from patient ${patient.jeevaId} at facility ${facilityId}`);
+      return patient;
+    } catch (error) {
+      logger.error(`removeDoctorAssignment failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all active patients assigned to a doctor, optionally filtered by facility.
+   * @param {string} doctorId
+   * @param {string|null} facilityId
+   * @param {object} requestingUser
+   */
+  static async getAssignedPatientsForDoctor(doctorId, facilityId, requestingUser) {
+    try {
+      const filter = {
+        status: 'active',
+        'assignedDoctors': {
+          $elemMatch: {
+            doctorId,
+            status: 'active',
+            ...(facilityId ? { facilityId } : {}),
+          },
+        },
+      };
+
+      const patients = await Patient.find(filter)
+        .select('jeevaId personalIdentity status assignedDoctors facilities createdAt')
+        .populate('assignedDoctors.doctorId', 'profile email')
+        .populate('assignedDoctors.facilityId', 'name city')
+        .sort({ 'personalIdentity.lastName': 1 })
+        .exec();
+
+      return patients;
+    } catch (error) {
+      logger.error(`getAssignedPatientsForDoctor failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all active doctors assigned to a patient.
+   * @param {string} patientId
+   * @param {object} requestingUser
+   */
+  static async getAssignedDoctorsForPatient(patientId, requestingUser) {
+    try {
+      const patient = await Patient.findById(patientId)
+        .select('jeevaId personalIdentity assignedDoctors')
+        .populate('assignedDoctors.doctorId', 'profile email specialization medicalRegistrationNumber')
+        .populate('assignedDoctors.facilityId', 'name city')
+        .exec();
+
+      if (!patient) throw new Error('Patient not found');
+
+      const activeDoctors = patient.assignedDoctors.filter((a) => a.status === 'active');
+      return activeDoctors;
+    } catch (error) {
+      logger.error(`getAssignedDoctorsForPatient failed: ${error.message}`);
+      throw error;
     }
   }
 }

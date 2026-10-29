@@ -10,6 +10,7 @@ import PatientService from '../services/PatientService.js';
 import AuditService from '../services/AuditService.js';
 import Patient from '../models/Patient.js';
 import User from '../models/User.js';
+import HospitalStaff from '../models/HospitalStaff.js';
 import logger from '../utils/logger.js';
 
 const router = express.Router();
@@ -225,6 +226,66 @@ router.get(
         success: false,
         message: error.message,
       });
+    }
+  }
+);
+
+/**
+ * GET /api/v1/patients/assigned-to/me
+ * List all active patients assigned to the authenticated doctor.
+ * Optionally filter by facilityId query param.
+ * MUST appear before /:patientId to prevent shadowing.
+ * Accessible by: DOCTOR
+ */
+router.get(
+  '/assigned-to/me',
+  authMiddleware,
+  requireRole('DOCTOR'),
+  async (req, res) => {
+    try {
+      const doctorId = req.user._id;
+      const facilityId = req.query.facilityId || null;
+
+      const patients = await PatientService.getAssignedPatientsForDoctor(
+        doctorId,
+        facilityId,
+        req.user
+      );
+
+      res.json({ success: true, data: patients });
+    } catch (error) {
+      logger.error(`Failed to get assigned patients: ${error.message}`);
+      res.status(400).json({ success: false, message: error.message });
+    }
+  }
+);
+
+/**
+ * GET /api/v1/patients/assigned-to/:doctorId
+ * List all active patients assigned to a specific doctor.
+ * MUST appear before /:patientId.
+ * Accessible by: HOSPITAL_ADMIN, DOCTOR (own only), NURSE
+ */
+router.get(
+  '/assigned-to/:doctorId',
+  [param('doctorId').isMongoId().withMessage('Invalid doctor ID')],
+  handleValidationErrors,
+  authMiddleware,
+  requireRole('HOSPITAL_ADMIN', 'DOCTOR', 'NURSE'),
+  async (req, res) => {
+    try {
+      const { doctorId } = req.params;
+      // Doctors can only view their own assigned patients
+      if (req.user.role === 'DOCTOR' && req.user._id.toString() !== doctorId) {
+        return res.status(403).json({ success: false, message: 'Doctors can only view their own assigned patients' });
+      }
+
+      const facilityId = req.query.facilityId || null;
+      const patients = await PatientService.getAssignedPatientsForDoctor(doctorId, facilityId, req.user);
+      res.json({ success: true, data: patients });
+    } catch (error) {
+      logger.error(`Failed to get assigned patients for doctor: ${error.message}`);
+      res.status(400).json({ success: false, message: error.message });
     }
   }
 );
@@ -519,6 +580,115 @@ router.put(
         success: false,
         message: error.message,
       });
+    }
+  }
+);
+
+/**
+ * POST /api/v1/patients/:patientId/assign-doctor
+ * Assign a doctor to a patient at a specific facility.
+ * Accessible by: DOCTOR, HOSPITAL_ADMIN, NURSE
+ */
+router.post(
+  '/:patientId/assign-doctor',
+  [
+    param('patientId').isMongoId().withMessage('Invalid patient ID'),
+    body('doctorId').isMongoId().withMessage('Invalid doctor ID'),
+    body('facilityId').isMongoId().withMessage('Invalid facility ID'),
+    body('isPrimary').optional().isBoolean().withMessage('isPrimary must be boolean'),
+    body('department').optional().trim().notEmpty().withMessage('Department cannot be empty'),
+    body('notes').optional().trim(),
+  ],
+  handleValidationErrors,
+  authMiddleware,
+  requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'NURSE'),
+  async (req, res) => {
+    try {
+      const { patientId } = req.params;
+      const { doctorId, facilityId, isPrimary, department, notes } = req.body;
+
+      const patient = await PatientService.assignDoctorToPatient(
+        patientId,
+        { doctorId, facilityId, isPrimary, department, notes },
+        req.user
+      );
+
+      res.status(201).json({
+        success: true,
+        message: 'Doctor assigned to patient successfully',
+        data: patient.assignedDoctors.filter(
+          (a) => a.doctorId.toString() === doctorId && a.facilityId.toString() === facilityId && a.status === 'active'
+        ).slice(-1)[0],
+      });
+    } catch (error) {
+      logger.error(`Failed to assign doctor: ${error.message}`);
+      const status = error.message.includes('not found') ? 404
+        : error.message.includes('already assigned') ? 409
+        : error.message.includes('not affiliated') ? 403
+        : 400;
+      res.status(status).json({ success: false, message: error.message });
+    }
+  }
+);
+
+/**
+ * DELETE /api/v1/patients/:patientId/assign-doctor/:doctorId
+ * Remove (deactivate) a doctor's assignment.
+ * Accessible by: DOCTOR, HOSPITAL_ADMIN, NURSE
+ */
+router.delete(
+  '/:patientId/assign-doctor/:doctorId',
+  [
+    param('patientId').isMongoId().withMessage('Invalid patient ID'),
+    param('doctorId').isMongoId().withMessage('Invalid doctor ID'),
+    query('facilityId').isMongoId().withMessage('facilityId query param is required'),
+  ],
+  handleValidationErrors,
+  authMiddleware,
+  requireRole('DOCTOR', 'HOSPITAL_ADMIN', 'NURSE'),
+  async (req, res) => {
+    try {
+      const { patientId, doctorId } = req.params;
+      const { facilityId } = req.query;
+
+      await PatientService.removeDoctorAssignment(patientId, doctorId, facilityId, req.user);
+
+      res.json({ success: true, message: 'Doctor assignment removed successfully' });
+    } catch (error) {
+      logger.error(`Failed to remove doctor assignment: ${error.message}`);
+      const status = error.message.includes('not found') ? 404 : 400;
+      res.status(status).json({ success: false, message: error.message });
+    }
+  }
+);
+
+/**
+ * GET /api/v1/patients/:patientId/assigned-doctors
+ * Get all doctors currently assigned to a patient.
+ * Accessible by: PATIENT (own), DOCTOR, HOSPITAL_ADMIN, NURSE
+ */
+router.get(
+  '/:patientId/assigned-doctors',
+  [param('patientId').isMongoId().withMessage('Invalid patient ID')],
+  handleValidationErrors,
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const { patientId } = req.params;
+
+      // PATIENT: can only view own assigned doctors
+      if (req.user.role === 'PATIENT') {
+        const patient = await PatientService.getPatientByUserId(req.user._id);
+        if (!patient || patient._id.toString() !== patientId) {
+          return res.status(403).json({ success: false, message: 'Not authorized to view this patient\'s doctors' });
+        }
+      }
+
+      const doctors = await PatientService.getAssignedDoctorsForPatient(patientId, req.user);
+      res.json({ success: true, data: doctors });
+    } catch (error) {
+      logger.error(`Failed to get assigned doctors: ${error.message}`);
+      res.status(400).json({ success: false, message: error.message });
     }
   }
 );

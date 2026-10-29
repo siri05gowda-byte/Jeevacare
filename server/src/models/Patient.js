@@ -172,6 +172,41 @@ const patientSchema = new mongoose.Schema(
       },
     ],
 
+    // Patient-doctor assignments: per-facility, audited, role-aware
+    assignedDoctors: [
+      {
+        doctorId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+          required: true,
+        },
+        facilityId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Hospital',
+          required: true,
+        },
+        assignedAt: {
+          type: Date,
+          default: Date.now,
+        },
+        assignedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+        },
+        isPrimary: {
+          type: Boolean,
+          default: false,
+        },
+        department: String,
+        notes: String,
+        status: {
+          type: String,
+          enum: ['active', 'inactive', 'transferred', 'discharged'],
+          default: 'active',
+        },
+      },
+    ],
+
     // Audit Information
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
