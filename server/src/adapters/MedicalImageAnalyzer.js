@@ -12,6 +12,7 @@
 import logger from '../utils/logger.js';
 import config from '../config/index.js';
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
@@ -45,28 +46,55 @@ class MedicalImageAnalyzer {
 
   /**
    * Determine the appropriate Python executable to run.
-   * Checks process.env.PYTHON_PATH, then tries candidate binaries
-   * to find the interpreter with torch and torchxrayvision installed.
+   * Prioritizes:
+   * 1. Explicit process.env.PYTHON_PATH
+   * 2. Dedicated server/.venv virtual environment
+   * 3. System candidate interpreters with verified torch/torchxrayvision
    */
   async getPythonBinary() {
     if (this.pythonBinary) {
       return this.pythonBinary;
     }
 
+    const { execSync } = await import('child_process');
+    const isWin = process.platform === 'win32';
+    const serverDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+    const venvPythonPath = isWin
+      ? path.join(serverDir, '.venv', 'Scripts', 'python.exe')
+      : path.join(serverDir, '.venv', 'bin', 'python');
+
+    const candidates = [];
+
+    // 1. Explicit environment override
     if (process.env.PYTHON_PATH) {
-      this.pythonBinary = process.env.PYTHON_PATH;
-      return this.pythonBinary;
+      candidates.push(process.env.PYTHON_PATH);
     }
 
-    // Try candidate binaries to find the one with torch and torchxrayvision
-    const { execSync } = await import('child_process');
-    const candidates = process.platform === 'win32'
-      ? ['python', 'python3', 'py']
-      : ['python3', 'python'];
+    // 2. Dedicated project virtual environment
+    if (fsSync.existsSync(venvPythonPath)) {
+      candidates.push(venvPythonPath);
+    }
 
+    // Also check root-level .venv if running from repo root
+    const rootVenvPython = isWin
+      ? path.join(process.cwd(), '.venv', 'Scripts', 'python.exe')
+      : path.join(process.cwd(), '.venv', 'bin', 'python');
+    if (fsSync.existsSync(rootVenvPython) && !candidates.includes(rootVenvPython)) {
+      candidates.push(rootVenvPython);
+    }
+
+    // 3. System candidate binaries
+    const sysCandidates = isWin ? ['python', 'python3', 'py'] : ['python3', 'python'];
+    for (const bin of sysCandidates) {
+      if (!candidates.includes(bin)) {
+        candidates.push(bin);
+      }
+    }
+
+    // Pass 1: Find an interpreter that successfully imports torch and torchxrayvision
     for (const bin of candidates) {
       try {
-        execSync(`${bin} -c "import torch, torchxrayvision"`, { stdio: 'ignore', timeout: 5000 });
+        execSync(`"${bin}" -c "import torch, torchxrayvision"`, { stdio: 'ignore', timeout: 30000 });
         logger.info(`✓ Detected working Python interpreter with ML libraries: ${bin}`);
         this.pythonBinary = bin;
         return bin;
@@ -75,10 +103,16 @@ class MedicalImageAnalyzer {
       }
     }
 
-    // Secondary pass: check if candidate runs at all
+    // Pass 2: If none have torch yet, prefer dedicated venv interpreter over system PATH
+    if (fsSync.existsSync(venvPythonPath)) {
+      logger.warn(`Python virtualenv exists at ${venvPythonPath}, but torch/torchxrayvision not yet verified`);
+      this.pythonBinary = venvPythonPath;
+      return venvPythonPath;
+    }
+
     for (const bin of candidates) {
       try {
-        execSync(`${bin} --version`, { stdio: 'ignore', timeout: 3000 });
+        execSync(`"${bin}" --version`, { stdio: 'ignore', timeout: 3000 });
         logger.warn(`Python interpreter ${bin} found, but torch/torchxrayvision not yet verified`);
         this.pythonBinary = bin;
         return bin;
@@ -87,7 +121,7 @@ class MedicalImageAnalyzer {
       }
     }
 
-    this.pythonBinary = process.platform === 'win32' ? 'python' : 'python3';
+    this.pythonBinary = isWin ? 'python' : 'python3';
     return this.pythonBinary;
   }
 

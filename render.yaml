@@ -7,7 +7,7 @@ services:
     
     # Build configuration
     # Installs Node dependencies and pinned CPU-only PyTorch + TorchXRayVision ML packages
-    buildCommand: npm install && (pip install --no-cache-dir -r server/requirements.txt || pip3 install --no-cache-dir -r server/requirements.txt || python3 -m pip install --no-cache-dir -r server/requirements.txt) && (python3 -c "import torchxrayvision as xrv; xrv.models.get_model('resnet50-res512-all')" || python -c "import torchxrayvision as xrv; xrv.models.get_model('resnet50-res512-all')" || echo "Model pre-download complete/deferred")
+    buildCommand: npm install && node server/src/scripts/setupPythonEnv.js
     # Pre-deploy hook
     preDeployCommand: echo "Pre-deploy check complete"
     startCommand: cd server && npm start

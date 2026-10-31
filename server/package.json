@@ -15,7 +15,9 @@
     "seed:comprehensive": "node src/scripts/seedComprehensiveData.js",
     "seed:synthetic": "node src/scripts/seedSyntheticData.js",
     "credentials:pdf": "node src/scripts/generateCredentialsPDF.js",
-    "verify-db": "node src/scripts/verifyDatabase.js"
+    "verify-db": "node src/scripts/verifyDatabase.js",
+    "build:python": "node src/scripts/setupPythonEnv.js",
+    "postinstall": "node src/scripts/setupPythonEnv.js"
   },
   "dependencies": {
     "axios": "^1.6.0",

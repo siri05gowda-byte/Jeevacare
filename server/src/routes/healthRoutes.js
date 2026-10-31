@@ -3,6 +3,7 @@ import cloudinaryAdapter from '../adapters/CloudinaryAdapter.js';
 import aiServiceAdapter from '../adapters/AIServiceAdapter.js';
 import ocrAdapter from '../adapters/OCRAdapter.js';
 import ttsAdapter from '../adapters/TTSAdapter.js';
+import medicalImageAnalyzer from '../adapters/MedicalImageAnalyzer.js';
 import config from '../config/index.js';
 
 const router = express.Router();
@@ -33,6 +34,7 @@ router.get('/services', (req, res) => {
         aiService: aiServiceAdapter.getStatus(),
         ocr: ocrAdapter.getStatus(),
         tts: ttsAdapter.getStatus(),
+        medicalImageAI: medicalImageAnalyzer.getStatus(),
       },
       timestamp: new Date(),
     });
