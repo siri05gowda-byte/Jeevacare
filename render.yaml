@@ -18,6 +18,9 @@ services:
       - key: NODE_ENV
         scope: build_and_runtime
         value: staging
+      - key: PYTHON_VERSION
+        scope: build_and_runtime
+        value: 3.11.10
       - key: PORT
         scope: runtime
         value: 5000
