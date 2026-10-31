@@ -106,6 +106,11 @@ body {
     @apply btn bg-jeevacare-red text-white hover:bg-red-700 hover:shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
+  /* Alias for btn-danger */
+  .btn-error {
+    @apply btn bg-jeevacare-red text-white hover:bg-red-700 hover:shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
   .btn-warning {
     @apply btn bg-jeevacare-amber text-gray-900 hover:bg-amber-600 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
   }
@@ -128,7 +133,7 @@ body {
   }
 
   .card-compact {
-    @apply p-4;
+    @apply p-4 bg-white rounded-lg border border-gray-100;
   }
 
   .card-interactive {
@@ -142,6 +147,10 @@ body {
   /* Badges */
   .badge {
     @apply inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap;
+  }
+
+  .badge-primary {
+    @apply badge bg-jeevacare-blue text-white;
   }
 
   .badge-success {
@@ -162,6 +171,15 @@ body {
 
   .badge-neutral {
     @apply badge bg-gray-100 text-gray-800;
+  }
+
+  /* Alias for badge-danger */
+  .badge-error {
+    @apply badge bg-red-100 text-red-800;
+  }
+
+  .badge-sm {
+    @apply px-2 py-0.5 text-xs;
   }
 
   /* Forms */
@@ -198,7 +216,7 @@ body {
   }
 
   .form-textarea {
-    @apply form-input resize-vertical;
+    @apply form-input resize-y;
   }
 
   .form-select {
@@ -487,15 +505,30 @@ body {
   }
 
   .card {
-    @apply bg-gray-800 border-gray-700;
+    @apply bg-gray-800 border-gray-700 text-gray-100;
+  }
+
+  .card-compact {
+    @apply bg-gray-800 border-gray-700 text-gray-100;
   }
 
   .form-input {
-    @apply bg-gray-800 border-gray-600 text-gray-100 placeholder-gray-500;
+    @apply bg-gray-800 border-gray-600 text-gray-100 placeholder-gray-400;
+  }
+
+  /* Native select in dark mode */
+  select.form-input,
+  select.form-select,
+  .form-select {
+    @apply bg-gray-800 border-gray-600 text-gray-100;
   }
 
   .form-label {
     @apply text-gray-300;
+  }
+
+  .form-help {
+    @apply text-gray-400;
   }
 
   .table-th {
@@ -503,11 +536,15 @@ body {
   }
 
   .table-td {
-    @apply border-gray-700;
+    @apply border-gray-700 text-gray-200;
+  }
+
+  .table-tr-hover {
+    @apply hover:bg-gray-700;
   }
 
   .modal {
-    @apply bg-gray-800 border border-gray-700;
+    @apply bg-gray-800 border border-gray-700 text-gray-100;
   }
 
   .modal-header {
@@ -523,7 +560,7 @@ body {
   }
 
   .list-item {
-    @apply border-gray-700 hover:bg-gray-800;
+    @apply border-gray-700 hover:bg-gray-700;
   }
 
   .alert-success {
@@ -564,6 +601,18 @@ body {
 
   .empty-state-description {
     @apply text-gray-400;
+  }
+
+  .badge-neutral {
+    @apply bg-gray-700 text-gray-200;
+  }
+
+  .badge-primary {
+    @apply bg-blue-800 text-blue-100;
+  }
+
+  code {
+    @apply bg-gray-700 text-gray-200;
   }
 }
 

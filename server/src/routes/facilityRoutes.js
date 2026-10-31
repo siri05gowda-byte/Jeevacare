@@ -15,6 +15,7 @@ import {
 } from '../middleware/facilityRBAC.js';
 import FacilityService from '../services/FacilityService.js';
 import Hospital from '../models/Hospital.js';
+import HospitalStaff from '../models/HospitalStaff.js';
 import User from '../models/User.js';
 import AuditService from '../services/AuditService.js';
 import logger from '../utils/logger.js';
@@ -35,6 +36,89 @@ const handleValidationErrors = (req, res, next) => {
   }
   next();
 };
+
+/**
+ * GET /api/v1/facilities
+ * List all active/verified facilities (for appointment booking dropdown)
+ * Accessible by: authenticated users
+ */
+router.get(
+  '/',
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const facilities = await Hospital.find({
+        status: { $in: ['active', 'verified'] },
+      })
+        .select('_id name facilityId facilityType address contactInfo verificationStatus')
+        .sort({ name: 1 })
+        .lean();
+
+      res.json({
+        success: true,
+        data: facilities.map((f) => ({
+          id: f._id,
+          _id: f._id,
+          name: f.name,
+          facilityId: f.facilityId,
+          type: f.facilityType,
+          location: [f.address?.city, f.address?.state].filter(Boolean).join(', ') || 'India',
+          address: f.address,
+          contact: f.contactInfo,
+          verificationStatus: f.verificationStatus,
+        })),
+      });
+    } catch (error) {
+      logger.error(`Failed to list facilities: ${error.message}`);
+      res.status(500).json({ success: false, message: 'Failed to list facilities' });
+    }
+  }
+);
+
+/**
+ * GET /api/v1/facilities/:facilityId/doctors
+ * Get all active doctors affiliated with a facility (for appointment booking).
+ * MUST be before /:facilityId to avoid shadowing.
+ * Accessible by: authenticated users
+ */
+router.get(
+  '/:facilityId/doctors',
+  [param('facilityId').isMongoId().withMessage('Invalid facility ID')],
+  handleValidationErrors,
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const { facilityId } = req.params;
+      const HospitalStaffModel = (await import('../models/HospitalStaff.js')).default;
+
+      const staffRecords = await HospitalStaffModel.find({
+        hospitalId: facilityId,
+        role: 'doctor',
+        associationStatus: 'active',
+      })
+        .populate('userId', 'profile email role')
+        .lean();
+
+      const doctors = staffRecords
+        .filter((s) => s.userId)
+        .map((s) => ({
+          id: s.userId._id,
+          _id: s.userId._id,
+          userId: s.userId._id,
+          name: `${s.userId.profile?.firstName || ''} ${s.userId.profile?.lastName || ''}`.trim() || 'Doctor',
+          email: s.userId.email,
+          speciality: s.specialization || s.department?.name || 'General Practice',
+          department: s.department?.name,
+          staffId: s._id,
+        }));
+
+      res.json({ success: true, data: doctors });
+    } catch (error) {
+      logger.error(`Failed to get facility doctors: ${error.message}`);
+      res.status(500).json({ success: false, message: 'Failed to get facility doctors' });
+    }
+  }
+);
 
 /**
  * POST /api/v1/facilities/register

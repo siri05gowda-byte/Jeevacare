@@ -68,7 +68,7 @@ router.post(['/', '/book'], authMiddleware, async (req, res) => {
     if (process.env.NODE_ENV !== 'test') {
       try {
         await Notification.createNotification({
-          userId: patientId,
+          userId: appointmentData.patientId || rawPatientId,
           type: 'appointment_created',
           title: 'Appointment Scheduled',
           message: `Your appointment has been scheduled for ${new Date(scheduledDateTime).toLocaleString()}. Reason: ${reason}`,

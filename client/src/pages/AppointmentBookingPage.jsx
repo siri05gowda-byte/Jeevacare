@@ -1,20 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { Calendar, Clock, MapPin, User, FileText, AlertCircle, CheckCircle, CheckCircle2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import PageContainer from '../components/Layout/PageContainer';
 import SectionTitle from '../components/Layout/SectionTitle';
 import LoadingSkeleton from '../components/State/LoadingSkeleton';
 import EmptyState from '../components/State/EmptyState';
-import { useToast } from '../components/State/Toast';
+import { useToast, ToastContainer } from '../components/State/Toast';
 import { appointmentService } from '../services/appointmentService';
+import api from '../services/api';
 
 /**
  * AppointmentBookingPage
- * Allows patients to search for and book appointments with healthcare providers
+ * 
+ * Complete patient appointment booking flow.
+ * Step 1: Select facility → doctor → date → slot → reason
+ * Step 2: Review & confirm
+ * Step 3: Booking confirmation with appointment ID
  */
 export default function AppointmentBookingPage() {
   const { user } = useAuthStore();
-  const { success, error: showError } = useToast();
+  const navigate = useNavigate();
+  const { toasts, success, error: showError, remove } = useToast();
 
   // Booking form state
   const [step, setStep] = useState(1); // 1: Search, 2: Confirm, 3: Success
@@ -25,507 +32,505 @@ export default function AppointmentBookingPage() {
   const [facilityId, setFacilityId] = useState('');
   const [doctorId, setDoctorId] = useState('');
   const [appointmentDate, setAppointmentDate] = useState('');
-  const [appointmentTime, setAppointmentTime] = useState('09:00');
+  const [appointmentTime, setAppointmentTime] = useState('');
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
 
-  // Search results
+  // Data lists
   const [facilities, setFacilities] = useState([]);
   const [doctors, setDoctors] = useState([]);
   const [availableSlots, setAvailableSlots] = useState([]);
+  const [isLoadingFacilities, setIsLoadingFacilities] = useState(true);
+  const [isLoadingDoctors, setIsLoadingDoctors] = useState(false);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
 
-  // Booked appointment
+  // Confirmed appointment
   const [bookedAppointment, setBookedAppointment] = useState(null);
 
-  const patientId = user?._id || user?.id;
-  const token = user?.token || localStorage.getItem('token');
+  // ── Load facilities on mount ───────────────────────────────────────────────
 
-  /**
-   * Fetch facilities from real API
-   */
   useEffect(() => {
     const loadFacilities = async () => {
+      setIsLoadingFacilities(true);
       try {
-        const response = await fetch('/api/v1/facilities', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          setFacilities(Array.isArray(data.data) ? data.data : []);
+        const response = await api.get('/facilities');
+        if (response?.success && Array.isArray(response?.data)) {
+          setFacilities(response.data);
         } else {
-          console.warn('Failed to load facilities, using empty list');
           setFacilities([]);
         }
       } catch (err) {
         console.error('Failed to load facilities:', err);
         setFacilities([]);
+      } finally {
+        setIsLoadingFacilities(false);
       }
     };
-    
-    if (token) {
-      loadFacilities();
-    }
-  }, [token]);
 
-  /**
-   * Fetch doctors for selected facility from real API
-   */
+    loadFacilities();
+  }, []);
+
+  // ── Load doctors when facility changes ────────────────────────────────────
+
   const loadDoctorsForFacility = async (fId) => {
+    if (!fId) return;
+    setIsLoadingDoctors(true);
+    setDoctors([]);
+    setDoctorId('');
+    setAvailableSlots([]);
     try {
-      const response = await fetch(`/api/v1/facilities/${fId}/doctors`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setDoctors(Array.isArray(data.data) ? data.data : []);
+      const response = await api.get(`/facilities/${fId}/doctors`);
+      if (response?.success && Array.isArray(response?.data)) {
+        setDoctors(response.data);
       } else {
-        console.warn('Failed to load doctors for facility');
         setDoctors([]);
       }
-      setDoctorId('');
     } catch (err) {
       console.error('Failed to load doctors:', err);
       setDoctors([]);
+    } finally {
+      setIsLoadingDoctors(false);
     }
   };
 
-  /**
-   * Handle facility selection
-   */
   const handleFacilityChange = (e) => {
     const fId = e.target.value;
     setFacilityId(fId);
-    if (fId) {
-      loadDoctorsForFacility(fId);
-    }
+    setAppointmentDate('');
+    setAppointmentTime('');
+    setAvailableSlots([]);
+    if (fId) loadDoctorsForFacility(fId);
   };
 
-  /**
-   * Handle doctor selection - fetch available slots
-   */
   const handleDoctorChange = (e) => {
-    const dId = e.target.value;
-    setDoctorId(dId);
+    setDoctorId(e.target.value);
+    setAppointmentDate('');
+    setAppointmentTime('');
+    setAvailableSlots([]);
   };
 
-  /**
-   * Load available appointment slots from real API
-   */
-  const loadAvailableSlots = async () => {
-    if (!doctorId || !facilityId || !appointmentDate) {
-      showError('Please select facility, doctor, and date');
-      return;
-    }
+  // ── Load available slots ──────────────────────────────────────────────────
 
+  const loadAvailableSlots = async (date) => {
+    if (!doctorId || !facilityId || !date) return;
+    setIsLoadingSlots(true);
+    setAvailableSlots([]);
+    setAppointmentTime('');
     try {
-      setIsLoading(true);
-      const response = await fetch(
-        `/api/v1/appointments/available-slots?providerId=${doctorId}&facilityId=${facilityId}&date=${appointmentDate}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }
+      const response = await api.get(
+        `/appointments/available-slots?providerId=${doctorId}&facilityId=${facilityId}&date=${date}`
       );
-
-      if (response.ok) {
-        const data = await response.json();
-        const slots = Array.isArray(data.data) ? data.data : [
-          '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-          '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
-        ];
-        setAvailableSlots(slots);
-        setAppointmentTime(slots[0]); // Default to first slot
-      } else {
-        // Fallback to default slots if API fails
-        const defaultSlots = [
-          '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-          '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
-        ];
-        setAvailableSlots(defaultSlots);
-        setAppointmentTime(defaultSlots[0]);
-      }
+      const slots = Array.isArray(response?.data) && response.data.length > 0
+        ? response.data
+        : [
+            '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+            '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
+          ];
+      setAvailableSlots(slots);
+      setAppointmentTime(slots[0]);
     } catch (err) {
-      showError('Failed to load available slots');
-      // Fallback to default slots
       const defaultSlots = [
         '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
         '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
       ];
       setAvailableSlots(defaultSlots);
+      setAppointmentTime(defaultSlots[0]);
     } finally {
-      setIsLoading(false);
+      setIsLoadingSlots(false);
     }
   };
 
-  /**
-   * Proceed to confirmation step
-   */
+  const handleDateChange = (e) => {
+    const date = e.target.value;
+    setAppointmentDate(date);
+    if (date) loadAvailableSlots(date);
+  };
+
+  // ── Proceed to confirmation step ──────────────────────────────────────────
+
   const handleProceedToConfirm = () => {
-    if (!facilityId || !doctorId || !appointmentDate || !reason) {
-      setError('Please fill in all required fields');
+    if (!facilityId || !doctorId || !appointmentDate || !appointmentTime || !reason.trim()) {
+      setError('Please fill in all required fields: facility, doctor, date, time, and reason.');
       return;
     }
     setError(null);
     setStep(2);
   };
 
-  /**
-   * Book appointment
-   */
+  // ── Book appointment ──────────────────────────────────────────────────────
+
   const handleBookAppointment = async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      // Combine date and time
-      const [year, month, day] = appointmentDate.split('-');
-      const [hour, minute] = appointmentTime.split(':');
-      const scheduledDateTime = new Date(year, parseInt(month) - 1, day, hour, minute);
+      const [year, month, day] = appointmentDate.split('-').map(Number);
+      const [hour, minute] = appointmentTime.split(':').map(Number);
+      const scheduledDateTime = new Date(year, month - 1, day, hour, minute);
+
+      const patientId = user?._id || user?.id;
 
       const appointmentData = {
         patientId,
         providerId: doctorId,
         facilityId,
+        hospitalId: facilityId,
         scheduledDateTime: scheduledDateTime.toISOString(),
-        duration: 30, // Default 30 minutes
-        reason,
-        notes,
+        duration: 30,
+        reason: reason.trim(),
+        notes: notes.trim(),
       };
 
-      const response = await fetch('/api/v1/appointments/book', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(appointmentData),
-      });
+      const response = await api.post('/appointments/book', appointmentData);
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to book appointment');
+      if (response?.success || response?.data?._id) {
+        setBookedAppointment(response.data);
+        setStep(3);
+        success('Appointment booked successfully!');
+      } else {
+        throw new Error(response?.error || response?.message || 'Failed to book appointment');
       }
-
-      const data = await response.json();
-      setBookedAppointment(data.data);
-      setStep(3);
-      success('Appointment booked successfully!');
     } catch (err) {
-      setError(err.message);
-      showError(err.message);
+      const msg = err.response?.data?.error || err.response?.data?.message || err.message || 'Booking failed';
+      setError(msg);
+      showError(msg);
     } finally {
       setIsLoading(false);
     }
   };
 
-  /**
-   * Reset form for new booking
-   */
+  // ── Reset form ────────────────────────────────────────────────────────────
+
   const handleNewBooking = () => {
     setStep(1);
     setFacilityId('');
     setDoctorId('');
     setAppointmentDate('');
-    setAppointmentTime('09:00');
+    setAppointmentTime('');
     setReason('');
     setNotes('');
     setError(null);
     setBookedAppointment(null);
+    setAvailableSlots([]);
+    setDoctors([]);
   };
+
+  // ── Derived lookups ───────────────────────────────────────────────────────
+
+  const selectedFacility = facilities.find((f) => (f.id || f._id)?.toString() === facilityId);
+  const selectedDoctor = doctors.find((d) => (d.id || d._id)?.toString() === doctorId);
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <PageContainer>
-      <SectionTitle icon={Calendar} title="Book an Appointment" />
+      <SectionTitle icon={<Calendar size={32} />} title="Book an Appointment" description="Schedule a visit with your healthcare provider" />
+      <ToastContainer toasts={toasts} onRemove={remove} position="bottom-right" />
 
-      {/* Step 1: Search & Select */}
+      {/* Step indicator */}
+      <div className="flex items-center gap-2 mb-8 max-w-2xl mx-auto">
+        {[1, 2, 3].map((s) => (
+          <React.Fragment key={s}>
+            <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold transition-colors ${
+              s < step ? 'bg-jeevacare-green text-white' :
+              s === step ? 'bg-jeevacare-blue text-white' :
+              'bg-gray-200 text-gray-500'
+            }`}>
+              {s < step ? <CheckCircle size={16} /> : s}
+            </div>
+            {s < 3 && <div className={`flex-1 h-0.5 transition-colors ${s < step ? 'bg-jeevacare-green' : 'bg-gray-200'}`} />}
+          </React.Fragment>
+        ))}
+      </div>
+
+      {/* ── Step 1: Search & Select ── */}
       {step === 1 && (
         <div className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-lg shadow-md p-6 space-y-6">
+          <div className="card space-y-6">
             <h2 className="text-xl font-semibold text-gray-900">Select Healthcare Provider</h2>
 
-            {/* Facility Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <MapPin size={16} className="inline mr-2" />
-                Healthcare Facility *
+            {/* Facility */}
+            <div className="form-group">
+              <label className="form-label">
+                <MapPin size={14} className="inline mr-1.5" />
+                Healthcare Facility <span className="text-jeevacare-red ml-0.5">*</span>
               </label>
-              <select
-                value={facilityId}
-                onChange={handleFacilityChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">Select a facility...</option>
-                {facilities.map((facility) => (
-                  <option key={facility.id} value={facility.id}>
-                    {facility.name} ({facility.location})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Doctor Selection */}
-            {facilityId && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <User size={16} className="inline mr-2" />
-                  Healthcare Provider *
-                </label>
+              {isLoadingFacilities ? (
+                <div className="form-input flex items-center gap-2 text-gray-500">
+                  <div className="animate-spin w-4 h-4 border-2 border-jeevacare-blue border-t-transparent rounded-full" />
+                  Loading facilities…
+                </div>
+              ) : (
                 <select
-                  value={doctorId}
-                  onChange={handleDoctorChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  value={facilityId}
+                  onChange={handleFacilityChange}
+                  className="form-select"
+                  aria-label="Select a healthcare facility"
                 >
-                  <option value="">Select a provider...</option>
-                  {doctors.map((doctor) => (
-                    <option key={doctor.id} value={doctor.id}>
-                      {doctor.name} - {doctor.speciality}
+                  <option value="">Select a facility…</option>
+                  {facilities.map((facility) => (
+                    <option key={facility.id || facility._id} value={facility.id || facility._id}>
+                      {facility.name}{facility.location ? ` — ${facility.location}` : ''}
                     </option>
                   ))}
                 </select>
+              )}
+              {!isLoadingFacilities && facilities.length === 0 && (
+                <p className="form-help text-amber-700">No facilities available. Contact your administrator.</p>
+              )}
+            </div>
+
+            {/* Doctor */}
+            {facilityId && (
+              <div className="form-group">
+                <label className="form-label">
+                  <User size={14} className="inline mr-1.5" />
+                  Healthcare Provider <span className="text-jeevacare-red ml-0.5">*</span>
+                </label>
+                {isLoadingDoctors ? (
+                  <div className="form-input flex items-center gap-2 text-gray-500">
+                    <div className="animate-spin w-4 h-4 border-2 border-jeevacare-blue border-t-transparent rounded-full" />
+                    Loading doctors…
+                  </div>
+                ) : (
+                  <select
+                    value={doctorId}
+                    onChange={handleDoctorChange}
+                    className="form-select"
+                    aria-label="Select a doctor"
+                  >
+                    <option value="">Select a provider…</option>
+                    {doctors.map((doctor) => (
+                      <option key={doctor.id || doctor._id} value={doctor.id || doctor._id}>
+                        Dr. {doctor.name} — {doctor.speciality}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {!isLoadingDoctors && doctors.length === 0 && facilityId && (
+                  <p className="form-help text-amber-700">No doctors available at this facility.</p>
+                )}
               </div>
             )}
 
-            {/* Appointment Date */}
+            {/* Date */}
             {doctorId && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <Calendar size={16} className="inline mr-2" />
-                  Preferred Date *
+              <div className="form-group">
+                <label className="form-label">
+                  <Calendar size={14} className="inline mr-1.5" />
+                  Preferred Date <span className="text-jeevacare-red ml-0.5">*</span>
                 </label>
                 <input
                   type="date"
                   value={appointmentDate}
-                  onChange={(e) => setAppointmentDate(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  onChange={handleDateChange}
+                  className="form-input"
                   min={new Date().toISOString().split('T')[0]}
+                  aria-label="Select appointment date"
                 />
               </div>
             )}
 
-            {/* Appointment Time */}
+            {/* Time slot */}
             {appointmentDate && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <Clock size={16} className="inline mr-2" />
-                  Preferred Time *
+              <div className="form-group">
+                <label className="form-label">
+                  <Clock size={14} className="inline mr-1.5" />
+                  Available Time Slot <span className="text-jeevacare-red ml-0.5">*</span>
                 </label>
-                <select
-                  value={appointmentTime}
-                  onChange={(e) => setAppointmentTime(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">Select a time slot...</option>
-                  {['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'].map((time) => (
-                    <option key={time} value={time}>
-                      {time}
-                    </option>
-                  ))}
-                </select>
+                {isLoadingSlots ? (
+                  <div className="form-input flex items-center gap-2 text-gray-500">
+                    <div className="animate-spin w-4 h-4 border-2 border-jeevacare-blue border-t-transparent rounded-full" />
+                    Loading available slots…
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-4 gap-2">
+                    {availableSlots.map((slot) => (
+                      <button
+                        key={slot}
+                        type="button"
+                        onClick={() => setAppointmentTime(slot)}
+                        className={`py-2 text-sm font-medium rounded-lg border transition-all ${
+                          appointmentTime === slot
+                            ? 'bg-jeevacare-blue text-white border-jeevacare-blue shadow-sm'
+                            : 'bg-white text-gray-700 border-gray-300 hover:border-jeevacare-blue hover:text-jeevacare-blue'
+                        }`}
+                      >
+                        {slot}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Reason for Appointment */}
+            {/* Reason */}
             {appointmentTime && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <FileText size={16} className="inline mr-2" />
-                  Reason for Visit *
+              <div className="form-group">
+                <label className="form-label">
+                  <FileText size={14} className="inline mr-1.5" />
+                  Reason for Visit <span className="text-jeevacare-red ml-0.5">*</span>
                 </label>
                 <textarea
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
-                  placeholder="Brief description of your visit reason..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  rows="3"
+                  placeholder="Briefly describe the reason for your visit…"
+                  className="form-textarea"
+                  rows={3}
+                  aria-label="Reason for visit"
                 />
               </div>
             )}
 
-            {/* Additional Notes */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Additional Notes (Optional)
-              </label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Any additional information for your provider..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                rows="2"
-              />
-            </div>
-
-            {/* Error message */}
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex gap-2">
-                <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-red-700">{error}</p>
+            {/* Additional notes */}
+            {appointmentTime && (
+              <div className="form-group">
+                <label className="form-label">Additional Notes (optional)</label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Any additional information for your provider…"
+                  className="form-textarea"
+                  rows={2}
+                  aria-label="Additional notes"
+                />
               </div>
             )}
 
-            {/* Proceed button */}
-            <div className="flex gap-4 pt-4">
-              <button
-                onClick={handleProceedToConfirm}
-                disabled={!facilityId || !doctorId || !appointmentDate || !appointmentTime || !reason || isLoading}
-                className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? 'Processing...' : 'Review Appointment'}
-              </button>
-            </div>
+            {/* Validation error */}
+            {error && (
+              <div className="alert alert-error">
+                <AlertCircle size={18} className="flex-shrink-0" />
+                <span className="text-sm">{error}</span>
+              </div>
+            )}
+
+            <button
+              onClick={handleProceedToConfirm}
+              disabled={!facilityId || !doctorId || !appointmentDate || !appointmentTime || !reason.trim() || isLoading}
+              className="btn btn-primary w-full"
+            >
+              Review Appointment
+            </button>
           </div>
         </div>
       )}
 
-      {/* Step 2: Confirmation */}
+      {/* ── Step 2: Confirmation ── */}
       {step === 2 && (
         <div className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-lg shadow-md p-6 space-y-6">
+          <div className="card space-y-6">
             <h2 className="text-xl font-semibold text-gray-900">Confirm Your Appointment</h2>
 
-            {/* Appointment Summary */}
-            <div className="bg-gray-50 rounded-lg p-6 space-y-4">
-              <div className="flex justify-between items-start">
-                <span className="text-gray-600">Facility:</span>
-                <span className="font-medium">{facilities.find((f) => f.id === facilityId)?.name}</span>
-              </div>
-              <div className="flex justify-between items-start">
-                <span className="text-gray-600">Provider:</span>
-                <span className="font-medium">{doctors.find((d) => d.id === doctorId)?.name}</span>
-              </div>
-              <div className="flex justify-between items-start">
-                <span className="text-gray-600">Speciality:</span>
-                <span className="font-medium">{doctors.find((d) => d.id === doctorId)?.speciality}</span>
-              </div>
-              <div className="flex justify-between items-start">
-                <span className="text-gray-600">Date & Time:</span>
-                <span className="font-medium">
-                  {new Date(`${appointmentDate}T${appointmentTime}`).toLocaleString('en-US', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </span>
-              </div>
-              <div className="flex justify-between items-start">
-                <span className="text-gray-600">Duration:</span>
-                <span className="font-medium">30 minutes</span>
-              </div>
-              <div className="border-t pt-4 flex justify-between items-start">
-                <span className="text-gray-600">Reason:</span>
-                <span className="font-medium text-right max-w-xs">{reason}</span>
-              </div>
-              {notes && (
-                <div className="border-t pt-4 flex justify-between items-start">
-                  <span className="text-gray-600">Notes:</span>
-                  <span className="text-right max-w-xs">{notes}</span>
-                </div>
-              )}
+            <div className="bg-gray-50 rounded-lg p-6 space-y-3 border border-gray-200">
+              <dl className="divide-y divide-gray-200 space-y-0">
+                {[
+                  { label: 'Facility', value: selectedFacility?.name },
+                  { label: 'Provider', value: selectedDoctor ? `Dr. ${selectedDoctor.name}` : doctorId },
+                  { label: 'Speciality', value: selectedDoctor?.speciality },
+                  {
+                    label: 'Date & Time',
+                    value: new Date(`${appointmentDate}T${appointmentTime}`).toLocaleString('en-US', {
+                      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+                      hour: '2-digit', minute: '2-digit',
+                    }),
+                  },
+                  { label: 'Duration', value: '30 minutes' },
+                  { label: 'Reason', value: reason },
+                  ...(notes ? [{ label: 'Notes', value: notes }] : []),
+                ].map(({ label, value }) => value ? (
+                  <div key={label} className="flex justify-between items-start py-3 first:pt-0 last:pb-0">
+                    <dt className="text-sm text-gray-600 flex-shrink-0 mr-4">{label}</dt>
+                    <dd className="text-sm font-medium text-gray-900 text-right">{value}</dd>
+                  </div>
+                ) : null)}
+              </dl>
             </div>
 
-            {/* Error message */}
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex gap-2">
-                <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-red-700">{error}</p>
+              <div className="alert alert-error">
+                <AlertCircle size={18} className="flex-shrink-0" />
+                <span className="text-sm">{error}</span>
               </div>
             )}
 
-            {/* Action buttons */}
-            <div className="flex gap-4 pt-4">
-              <button
-                onClick={() => setStep(1)}
-                disabled={isLoading}
-                className="flex-1 px-6 py-3 bg-gray-200 text-gray-900 rounded-lg font-medium hover:bg-gray-300 transition-colors disabled:opacity-50"
-              >
+            <div className="flex gap-3">
+              <button onClick={() => setStep(1)} disabled={isLoading} className="btn btn-secondary flex-1">
                 Back
               </button>
-              <button
-                onClick={handleBookAppointment}
-                disabled={isLoading}
-                className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? 'Booking...' : 'Confirm & Book'}
+              <button onClick={handleBookAppointment} disabled={isLoading} className="btn btn-success flex-1">
+                {isLoading ? (
+                  <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2" />Booking…</>
+                ) : (
+                  'Confirm & Book'
+                )}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Step 3: Success */}
+      {/* ── Step 3: Success ── */}
       {step === 3 && bookedAppointment && (
         <div className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-lg shadow-md p-6 space-y-6">
+          <div className="card space-y-6">
             <div className="text-center">
-              <CheckCircle size={48} className="text-green-600 mx-auto mb-4" />
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle size={40} className="text-jeevacare-green" />
+              </div>
               <h2 className="text-2xl font-semibold text-gray-900">Appointment Booked!</h2>
               <p className="text-gray-600 mt-2">Your appointment has been successfully scheduled.</p>
             </div>
 
-            {/* Booking Details */}
-            <div className="bg-green-50 border border-green-200 rounded-lg p-6 space-y-3">
+            <div className="alert-success rounded-lg p-5 space-y-2">
               <h3 className="font-semibold text-green-900">Booking Details</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-green-700">Appointment ID:</span>
-                  <span className="font-mono text-green-900">{bookedAppointment._id?.substring(0, 12)}...</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-green-700">Status:</span>
-                  <span className="font-medium text-green-900">{bookedAppointment.status || 'Scheduled'}</span>
-                </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-green-700">Appointment ID:</span>
+                <span className="font-mono text-green-900">{bookedAppointment._id?.substring(0, 16)}…</span>
               </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-green-700">Status:</span>
+                <span className="font-medium text-green-900">{bookedAppointment.status || 'Scheduled'}</span>
+              </div>
+              {bookedAppointment.scheduledDateTime && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-green-700">Scheduled for:</span>
+                  <span className="font-medium text-green-900">
+                    {new Date(bookedAppointment.scheduledDateTime).toLocaleString('en-US', {
+                      weekday: 'short', month: 'short', day: 'numeric',
+                      hour: '2-digit', minute: '2-digit',
+                    })}
+                  </span>
+                </div>
+              )}
             </div>
 
-            {/* Next Steps */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <div className="alert-info rounded-lg p-5">
               <h3 className="font-semibold text-blue-900 mb-3">What to Do Next</h3>
               <ul className="space-y-2 text-sm text-blue-900">
-                <li className="flex gap-2">
-                  <CheckCircle2 size={18} className="text-blue-600 flex-shrink-0" />
-                  <span>Check your email for confirmation and appointment details</span>
-                </li>
-                <li className="flex gap-2">
-                  <CheckCircle2 size={18} className="text-blue-600 flex-shrink-0" />
-                  <span>Arrive 10-15 minutes early on the appointment day</span>
-                </li>
-                <li className="flex gap-2">
-                  <CheckCircle2 size={18} className="text-blue-600 flex-shrink-0" />
-                  <span>Bring your JeevaCare ID and insurance card if applicable</span>
-                </li>
-                <li className="flex gap-2">
-                  <CheckCircle2 size={18} className="text-blue-600 flex-shrink-0" />
-                  <span>Contact the facility if you need to reschedule or cancel</span>
-                </li>
+                {[
+                  'Check your email for confirmation and appointment details',
+                  'Arrive 10–15 minutes early on the appointment day',
+                  'Bring your JeevaCare ID and any relevant documents',
+                  'Contact the facility if you need to reschedule or cancel',
+                ].map((tip) => (
+                  <li key={tip} className="flex gap-2">
+                    <CheckCircle2 size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
+                    <span>{tip}</span>
+                  </li>
+                ))}
               </ul>
             </div>
 
-            {/* Action buttons */}
-            <div className="flex gap-4 pt-4">
+            <div className="flex gap-3">
               <button
-                onClick={() => window.location.href = '/patient'}
-                className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                onClick={() => navigate('/appointments')}
+                className="btn btn-primary flex-1"
               >
-                Back to Dashboard
+                View My Appointments
               </button>
-              <button
-                onClick={handleNewBooking}
-                className="flex-1 px-6 py-3 bg-gray-200 text-gray-900 rounded-lg font-medium hover:bg-gray-300 transition-colors"
-              >
-                Book Another Appointment
+              <button onClick={handleNewBooking} className="btn btn-secondary flex-1">
+                Book Another
               </button>
             </div>
           </div>
