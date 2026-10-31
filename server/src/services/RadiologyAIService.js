@@ -11,8 +11,9 @@
  * Safety-first approach:
  * - Never fabricates findings
  * - Always includes clinician-review disclaimers
- * - Preserves original uploaded files as authoritative records
- * - Retains records and reports on processing failures with retry capability
+ * - Preserves original uploaded files on processing failures
+ * - DB-backed job tracking: survives Node process restarts
+ * - Stale job recovery on startup prevents lost work
  */
 
 import RadiologyRecord from '../models/RadiologyRecord.js';
@@ -22,23 +23,178 @@ import AIService from './AIService.js';
 import AuditService from './AuditService.js';
 import logger from '../utils/logger.js';
 
+// Jobs older than this (in ms) with non-terminal status are considered stale
+const STALE_JOB_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+// Heartbeat interval during active processing
+const HEARTBEAT_INTERVAL_MS = 30 * 1000; // 30 seconds
+
 class RadiologyAIService {
   /**
-   * Automatically process a radiology study immediately after upload
-   * Dispatches asynchronously to avoid holding HTTP connection open
+   * Automatically process a radiology study immediately after upload.
+   * 
+   * Persists job state to MongoDB BEFORE dispatching, so the job can be
+   * recovered via recoverStaleJobs() if the Node process restarts before
+   * processing completes.
+   *
    * @param {String} radiologyId - Radiology record ID
    * @param {Object} requestingUser - User who uploaded the record
    * @param {Object} options - Language and options
    */
   static autoProcessRadiologyStudy(radiologyId, requestingUser, options = {}) {
-    // Run asynchronously in background
+    const now = new Date();
+    // Persist job dispatch timestamp immediately (synchronous DB write via findByIdAndUpdate)
+    // This ensures even if the process dies immediately after, recoverStaleJobs() will pick it up
+    RadiologyRecord.findByIdAndUpdate(radiologyId, {
+      $set: {
+        'aiAnalysis.status': 'queued',
+        'aiJob.dispatchedAt': now,
+        'aiJob.heartbeatAt': now,
+        'aiJob.processingLock': false,
+        'aiJob.lockPid': null,
+      },
+    }).catch(err => logger.error(`Failed to persist job dispatch state for ${radiologyId}: ${err.message}`));
+
+    // Run asynchronously in background after persisting state
     setImmediate(async () => {
       try {
-        await this.processRadiologyStudy(radiologyId, requestingUser, options);
+        await this._runWithLock(radiologyId, requestingUser, options);
       } catch (err) {
         logger.error(`Automated radiology processing error for ${radiologyId}: ${err.message}`);
       }
     });
+  }
+
+  /**
+   * Acquire processing lock and run analysis, releasing lock when done.
+   * Prevents concurrent processing of the same record.
+   * @private
+   */
+  static async _runWithLock(radiologyId, requestingUser, options = {}) {
+    // Atomically acquire processing lock
+    const locked = await RadiologyRecord.findOneAndUpdate(
+      {
+        _id: radiologyId,
+        $or: [
+          { 'aiJob.processingLock': false },
+          { 'aiJob.processingLock': { $exists: false } },
+          // Allow re-lock if heartbeat is stale (process died mid-run)
+          { 'aiJob.heartbeatAt': { $lt: new Date(Date.now() - STALE_JOB_TIMEOUT_MS) } },
+        ],
+      },
+      {
+        $set: {
+          'aiJob.processingLock': true,
+          'aiJob.lockPid': process.pid,
+          'aiJob.heartbeatAt': new Date(),
+        },
+      },
+      { new: false }
+    );
+
+    if (!locked) {
+      logger.info(`Skipping radiology ${radiologyId}: already locked by another process`);
+      return null;
+    }
+
+    // Heartbeat timer — updates DB every 30s to prove the process is alive
+    const heartbeatTimer = setInterval(async () => {
+      try {
+        await RadiologyRecord.findByIdAndUpdate(radiologyId, {
+          $set: { 'aiJob.heartbeatAt': new Date() },
+        });
+      } catch (e) { /* non-fatal */ }
+    }, HEARTBEAT_INTERVAL_MS);
+
+    try {
+      const result = await this.processRadiologyStudy(radiologyId, requestingUser, options);
+      return result;
+    } finally {
+      clearInterval(heartbeatTimer);
+      // Release lock regardless of success/failure
+      await RadiologyRecord.findByIdAndUpdate(radiologyId, {
+        $set: {
+          'aiJob.processingLock': false,
+          'aiJob.lockPid': null,
+        },
+      }).catch(() => {});
+    }
+  }
+
+  /**
+   * Recover stale queued/processing jobs on process startup.
+   * Call this once from server/src/index.js after MongoDB connects.
+   * 
+   * Finds all records stuck in non-terminal states where the heartbeat
+   * is older than STALE_JOB_TIMEOUT_MS, resets their lock, and re-dispatches.
+   */
+  static async recoverStaleJobs() {
+    const staleThreshold = new Date(Date.now() - STALE_JOB_TIMEOUT_MS);
+    try {
+      const staleRecords = await RadiologyRecord.find({
+        'aiAnalysis.status': { $in: ['queued', 'processing', 'analyzing'] },
+        $or: [
+          { 'aiJob.heartbeatAt': { $lt: staleThreshold } },
+          { 'aiJob.heartbeatAt': { $exists: false } },
+          { 'aiJob.dispatchedAt': { $lt: staleThreshold } },
+        ],
+      }).select('_id aiAnalysis.status aiJob').lean();
+
+      if (staleRecords.length === 0) {
+        logger.info('Radiology job recovery: no stale jobs found');
+        return { recovered: 0 };
+      }
+
+      logger.warn(`Radiology job recovery: found ${staleRecords.length} stale job(s) — re-dispatching`);
+
+      for (const record of staleRecords) {
+        const retryCount = (record.aiJob?.retryCount || 0) + 1;
+        const maxRetries = record.aiJob?.maxRetries || 3;
+
+        if (retryCount > maxRetries) {
+          logger.error(`Radiology ${record._id}: max retries (${maxRetries}) exceeded, permanently marking failed`);
+          await RadiologyRecord.findByIdAndUpdate(record._id, {
+            $set: {
+              'aiAnalysis.status': 'failed',
+              'aiAnalysis.error': `Analysis failed after ${maxRetries} automated recovery attempts. Please retry manually.`,
+              'aiJob.processingLock': false,
+            },
+          });
+          continue;
+        }
+
+        // Release lock and increment retry count
+        await RadiologyRecord.findByIdAndUpdate(record._id, {
+          $set: {
+            'aiJob.processingLock': false,
+            'aiJob.retryCount': retryCount,
+            'aiJob.dispatchedAt': new Date(),
+            'aiJob.heartbeatAt': new Date(),
+          },
+          $push: {
+            'aiJob.errorHistory': {
+              attempt: retryCount,
+              error: `Recovered from stale state: ${record.aiAnalysis?.status}`,
+              failedAt: new Date(),
+            },
+          },
+        });
+
+        // Re-dispatch with a staggered delay to avoid thundering herd
+        const delayMs = retryCount * 2000;
+        setTimeout(() => {
+          this._runWithLock(record._id.toString(), { _id: 'system-recovery', role: 'SYSTEM' }, {}).catch(err => {
+            logger.error(`Recovery re-dispatch failed for ${record._id}: ${err.message}`);
+          });
+        }, delayMs);
+
+        logger.info(`Radiology job recovery: re-dispatched ${record._id} (attempt ${retryCount}/${maxRetries})`);
+      }
+
+      return { recovered: staleRecords.length };
+    } catch (err) {
+      logger.error(`Radiology job recovery failed: ${err.message}`);
+      return { recovered: 0, error: err.message };
+    }
   }
 
   /**

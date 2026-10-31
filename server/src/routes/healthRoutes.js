@@ -16,9 +16,45 @@ router.get('/', (req, res) => {
   res.json({
     success: true,
     message: 'JeevaCare API v1 is healthy',
-    build: '2026-10-24-v3-upload-fix',
+    build: process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || '4a5c57b-recovery',
+    commit: process.env.RENDER_GIT_COMMIT || null,
     timestamp: new Date(),
   });
+});
+
+/**
+ * GET /api/v1/health/python
+ * Diagnostic endpoint for Python environment and TorchXRayVision worker status
+ */
+router.get('/python', async (req, res) => {
+  try {
+    const { execSync } = await import('child_process');
+    const diagnostic = {
+      platform: process.platform,
+      analyzerStatus: medicalImageAnalyzer.getStatus(),
+    };
+    try {
+      const pythonBin = await medicalImageAnalyzer.getPythonBinary();
+      diagnostic.selectedBinary = pythonBin;
+      diagnostic.pythonVersion = execSync(`"${pythonBin}" --version`, { encoding: 'utf8', timeout: 5000 }).trim();
+      diagnostic.torchTest = execSync(`"${pythonBin}" -c "import torch, torchxrayvision; print('torch:', torch.__version__, 'txrv:', torchxrayvision.__version__)"`, { encoding: 'utf8', timeout: 30000 }).trim();
+      diagnostic.importsOk = true;
+    } catch (binErr) {
+      diagnostic.importsOk = false;
+      diagnostic.error = binErr.message;
+      diagnostic.stderr = binErr.stderr?.toString();
+    }
+    res.json({
+      success: true,
+      diagnostic,
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
 });
 
 /**

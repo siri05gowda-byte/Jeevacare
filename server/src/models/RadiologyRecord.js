@@ -165,6 +165,44 @@ const radiologyRecordSchema = new mongoose.Schema(
       error: String               // Error message if analysis failed
     },
 
+    // ─── Background Job Recovery Tracking ─────────────────────────────────────
+    // Allows recovery of stale queued/processing jobs after process restart.
+    // Never blocks or removes the uploaded study file.
+    aiJob: {
+      // Absolute wall-clock time the job was dispatched. Used to detect stale
+      // jobs on process startup (jobs > STALE_JOB_TIMEOUT_MS with non-terminal
+      // status are considered abandoned and re-queued automatically).
+      dispatchedAt: Date,
+      // Last time the job heartbeat was updated during active processing
+      heartbeatAt: Date,
+      // Monotonically increasing retry count for this record's analysis
+      retryCount: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      // Maximum retries before permanently marking as failed
+      maxRetries: {
+        type: Number,
+        default: 3,
+      },
+      // Cumulative error log across retries
+      errorHistory: [
+        {
+          attempt: Number,
+          error: String,
+          failedAt: Date,
+        },
+      ],
+      // Whether this record is currently locked for processing (prevents concurrent execution)
+      processingLock: {
+        type: Boolean,
+        default: false,
+      },
+      // Node process ID that last acquired the lock (informational only)
+      lockPid: Number,
+    },
+
     // Image quality assessment
     qualityAssessment: {
       score: {

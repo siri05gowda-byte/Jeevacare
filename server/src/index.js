@@ -153,6 +153,20 @@ const startServer = async () => {
       } catch (bootErr) {
         logger.warn(`Startup demo bootstrap warning: ${bootErr.message}`);
       }
+
+      // Recover any stale or interrupted radiology AI jobs after restart
+      try {
+        const RadiologyAIService = (await import('./services/RadiologyAIService.js')).default;
+        RadiologyAIService.recoverStaleJobs().then(res => {
+          if (res?.recovered > 0) {
+            logger.info(`✓ Recovered ${res.recovered} stale radiology AI job(s)`);
+          }
+        }).catch(err => {
+          logger.warn(`Radiology AI job recovery warning: ${err.message}`);
+        });
+      } catch (recErr) {
+        logger.warn(`Failed to initialize job recovery: ${recErr.message}`);
+      }
     }
 
     // Start server

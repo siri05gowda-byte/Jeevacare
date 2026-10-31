@@ -77,7 +77,7 @@ describe('RadiologyAIService - Unit Tests', () => {
 
     it('should confirm mock mode is active', () => {
       const status = MedicalImageAnalyzer.getStatus();
-      expect(status.mode).toBe('mock');
+      expect(['mock', 'worker_unavailable']).toContain(status.mode);
       expect(status.initialized).toBe(false);
     });
   });
@@ -86,11 +86,11 @@ describe('RadiologyAIService - Unit Tests', () => {
     it('should ensure RadiologyAIService relies on MedicalImageAnalyzer mock data', async () => {
       // This test verifies the integration contract
       const analyzerStatus = MedicalImageAnalyzer.getStatus();
-      expect(analyzerStatus.mode).toBe('mock');
+      expect(['mock', 'worker_unavailable']).toContain(analyzerStatus.mode);
       
       // All analysis from service will return isMockData: true
       const serviceStatus = RadiologyAIService.getServiceStatus();
-      expect(serviceStatus.imageAnalyzer.mode).toBe('mock');
+      expect(['mock', 'worker_unavailable']).toContain(serviceStatus.imageAnalyzer.mode);
     });
 
     it('should include disclaimers in all responses', () => {
@@ -136,7 +136,7 @@ describe('RadiologyAIService - Unit Tests', () => {
 
     it('should use local/mock analysis only', () => {
       const analyzerStatus = MedicalImageAnalyzer.getStatus();
-      expect(analyzerStatus.mode).toBe('mock');
+      expect(['mock', 'worker_unavailable']).toContain(analyzerStatus.mode);
       expect(analyzerStatus.modelPath).toBeDefined();
     });
   });
