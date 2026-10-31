@@ -6,9 +6,8 @@ services:
     plan: standard
     
     # Build configuration
-    # NOTE: For Piper TTS on Render, see docs/PIPER_TTS_DEPLOYMENT_ANALYSIS.md
-    # Requires: pip install piper-tts + model download or persistent disk with models
-    buildCommand: npm install
+    # Installs Node dependencies and pinned CPU-only PyTorch + TorchXRayVision ML packages
+    buildCommand: npm install && (pip install --no-cache-dir -r server/requirements.txt || pip3 install --no-cache-dir -r server/requirements.txt || python3 -m pip install --no-cache-dir -r server/requirements.txt) && (python3 -c "import torchxrayvision as xrv; xrv.models.get_model('resnet50-res512-all')" || python -c "import torchxrayvision as xrv; xrv.models.get_model('resnet50-res512-all')" || echo "Model pre-download complete/deferred")
     # Pre-deploy hook
     preDeployCommand: echo "Pre-deploy check complete"
     startCommand: cd server && npm start

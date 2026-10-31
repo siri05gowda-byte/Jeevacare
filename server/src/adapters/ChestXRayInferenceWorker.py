@@ -32,6 +32,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Configure persistent model cache if persistent storage (/data) is mounted on Render
+if os.path.exists('/data') and os.access('/data', os.W_OK):
+    cache_dir = '/data/torch-cache'
+    os.makedirs(cache_dir, exist_ok=True)
+    os.environ.setdefault('TORCH_HOME', cache_dir)
+
 # Import deep learning libraries
 try:
     import torch

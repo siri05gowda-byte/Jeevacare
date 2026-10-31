@@ -30,6 +30,8 @@ class MedicalImageAnalyzer {
     this.requestIdCounter = 0;
     this.pythonWorkerPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'ChestXRayInferenceWorker.py');
     this.initPromise = null;
+    this.lastWorkerError = null;
+    this.pythonBinary = null;
 
     if (this.enabled) {
       this.initializeWorker().catch(err => {
@@ -39,6 +41,54 @@ class MedicalImageAnalyzer {
     } else {
       logger.info('Medical Image AI explicitly disabled via environment configuration');
     }
+  }
+
+  /**
+   * Determine the appropriate Python executable to run.
+   * Checks process.env.PYTHON_PATH, then tries candidate binaries
+   * to find the interpreter with torch and torchxrayvision installed.
+   */
+  async getPythonBinary() {
+    if (this.pythonBinary) {
+      return this.pythonBinary;
+    }
+
+    if (process.env.PYTHON_PATH) {
+      this.pythonBinary = process.env.PYTHON_PATH;
+      return this.pythonBinary;
+    }
+
+    // Try candidate binaries to find the one with torch and torchxrayvision
+    const { execSync } = await import('child_process');
+    const candidates = process.platform === 'win32'
+      ? ['python', 'python3', 'py']
+      : ['python3', 'python'];
+
+    for (const bin of candidates) {
+      try {
+        execSync(`${bin} -c "import torch, torchxrayvision"`, { stdio: 'ignore', timeout: 5000 });
+        logger.info(`✓ Detected working Python interpreter with ML libraries: ${bin}`);
+        this.pythonBinary = bin;
+        return bin;
+      } catch (e) {
+        // Continue searching
+      }
+    }
+
+    // Secondary pass: check if candidate runs at all
+    for (const bin of candidates) {
+      try {
+        execSync(`${bin} --version`, { stdio: 'ignore', timeout: 3000 });
+        logger.warn(`Python interpreter ${bin} found, but torch/torchxrayvision not yet verified`);
+        this.pythonBinary = bin;
+        return bin;
+      } catch (e) {
+        // Continue searching
+      }
+    }
+
+    this.pythonBinary = process.platform === 'win32' ? 'python' : 'python3';
+    return this.pythonBinary;
   }
 
   /**
@@ -52,9 +102,10 @@ class MedicalImageAnalyzer {
     this.initPromise = (async () => {
       try {
         await fs.access(this.pythonWorkerPath);
-        logger.info(`Starting Python inference worker: ${this.pythonWorkerPath}`);
+        const pythonBin = await this.getPythonBinary();
+        logger.info(`Starting Python inference worker via [${pythonBin}]: ${this.pythonWorkerPath}`);
 
-        this.workerProcess = spawn('python', [this.pythonWorkerPath], {
+        this.workerProcess = spawn(pythonBin, [this.pythonWorkerPath], {
           stdio: ['pipe', 'pipe', 'pipe'],
           detached: false,
         });
@@ -80,6 +131,7 @@ class MedicalImageAnalyzer {
         this.workerProcess.stderr.on('data', (data) => {
           const text = data.toString().trim();
           if (text) {
+            this.lastWorkerError = text;
             logger.info(`[PythonWorker] ${text}`);
           }
         });
@@ -97,6 +149,7 @@ class MedicalImageAnalyzer {
         if (statusCheck && statusCheck.ready) {
           this.workerReady = true;
           this.initialized = true;
+          this.lastWorkerError = null;
           logger.info('✅ Python TorchXRayVision worker verified and ready');
         } else {
           throw new Error('Worker status check did not return ready state');
@@ -300,19 +353,50 @@ class MedicalImageAnalyzer {
       // Ensure Python worker is available
       const workerReady = await this.ensureWorker();
 
-      if (workerReady && modalityInfo.modality === 'chest_xray') {
+      if (!workerReady) {
+        const errorDetail = this.lastWorkerError 
+          ? `Worker process error: ${this.lastWorkerError}` 
+          : 'TorchXRayVision worker is unavailable. Verify that PyTorch dependencies (torch, torchvision, torchxrayvision) are installed.';
+        logger.error(`Chest X-ray deep learning analysis unavailable: ${errorDetail}`);
+        
+        return {
+          success: false,
+          status: 'worker_unavailable',
+          isMockData: false,
+          error: errorDetail,
+          modality: modalityInfo.modality,
+          model: 'TorchXRayVision-resnet50-res512-all',
+          recommendations: [
+            'Ensure Python dependencies are installed on the server environment (pip install -r server/requirements.txt)',
+            'Image preserved in persistent storage for manual radiologist evaluation',
+          ],
+          disclaimers: this.getDisclaimers(),
+        };
+      }
+
+      if (modalityInfo.modality === 'chest_xray') {
         try {
           logger.info(`Running real TorchXRayVision inference for: ${typeof image === 'string' ? image.slice(0, 80) : 'image-buffer'}`);
           return await this.inferWithWorker(image, options.language || 'en');
         } catch (workerError) {
           logger.error(`Worker inference execution error: ${workerError.message}`);
-          return this.createMockAnalysis(modalityInfo.modality, options.language || 'en');
+          return {
+            success: false,
+            status: 'inference_failed',
+            isMockData: false,
+            error: `TorchXRayVision inference execution failed: ${workerError.message}`,
+            modality: modalityInfo.modality,
+            model: 'TorchXRayVision-resnet50-res512-all',
+            recommendations: [
+              'Manual review by an authorized clinician required',
+              'Image preserved in persistent record',
+            ],
+            disclaimers: this.getDisclaimers(),
+          };
         }
       }
 
-      // If worker could not be spawned, fall back to clearly labeled mock analysis
-      logger.warn('Deep learning inference worker is currently unavailable; falling back to mock analysis');
-      return this.createMockAnalysis(modalityInfo.modality, options.language || 'en');
+      return this.createUnsupportedModalityResponse(modalityInfo);
     } catch (error) {
       logger.error(`Medical image analysis error: ${error.message}`);
       return this.createErrorResponse(error);
@@ -543,8 +627,10 @@ class MedicalImageAnalyzer {
       initialized: isRealReady,
       model: isRealReady ? 'TorchXRayVision-resnet50-res512-all' : 'mock-placeholder',
       device: this.device,
+      pythonBinary: this.pythonBinary || (process.platform === 'win32' ? 'python' : 'python3'),
+      lastError: this.lastWorkerError,
       supportedModalities: this.supportedModalities,
-      mode: isRealReady ? 'production_real_inference' : 'mock',
+      mode: isRealReady ? 'production_real_inference' : 'worker_unavailable',
       workerPath: this.pythonWorkerPath,
       modelPath: this.modelPath || 'torchxrayvision:resnet50-res512-all',
     };

@@ -43,8 +43,11 @@ describe('DocumentService — Document Upload & Management', () => {
     }
   });
 
-  beforeEach(async () => {
-    if (!dbConnected) return;
+  beforeEach(async (context) => {
+    if (!dbConnected) {
+      context.skip();
+      return;
+    }
     // Create test user with unique email
     const uniqueEmail = `test-${Date.now()}-${Math.random()}@example.com`;
     const user = new User({
