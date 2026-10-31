@@ -1,5 +1,5 @@
 import React from 'react';
-import { Beaker, Stethoscope, FileText, File, Paperclip, AlertCircle, Lock, Syringe } from 'lucide-react';
+import { Beaker, Stethoscope, FileText, File, Paperclip, AlertCircle, Lock, Syringe, Sparkles } from 'lucide-react';
 import VerificationBadge from './VerificationBadge';
 
 export default function DocumentCard({ 
@@ -72,6 +72,40 @@ export default function DocumentCard({
     }
   };
 
+  const getAiBadge = () => {
+    if (type !== 'radiology' || !data.aiAnalysis?.status) return null;
+    const status = data.aiAnalysis.status;
+    if (status === 'completed') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <Sparkles size={12} className="text-emerald-600" /> AI Analyzed
+        </span>
+      );
+    }
+    if (['queued', 'processing', 'analyzing'].includes(status)) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 animate-pulse">
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-ping" /> Analyzing AI...
+        </span>
+      );
+    }
+    if (status === 'unsupported_modality') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
+          Report Reviewed
+        </span>
+      );
+    }
+    if (status === 'failed') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700 border border-red-200">
+          Analysis Pending
+        </span>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="card hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between mb-4">
@@ -83,7 +117,10 @@ export default function DocumentCard({
             <p className="text-xs text-gray-500 mt-2">{formatDate(getDate())}</p>
           </div>
         </div>
-        <VerificationBadge status={data.verificationStatus} />
+        <div className="flex flex-col items-end gap-1.5">
+          <VerificationBadge status={data.verificationStatus} />
+          {getAiBadge()}
+        </div>
       </div>
 
       {(data.flaggedAsSensitive || data.isCritical || data.hasCriticalFindings) && (

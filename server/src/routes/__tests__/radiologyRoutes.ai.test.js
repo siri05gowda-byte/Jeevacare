@@ -1,6 +1,34 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
+
+// Must mock heavy adapters BEFORE importing any service that instantiates them at module load.
+// MedicalImageAnalyzer calls execSync('python -c "import torch..."') in its constructor,
+// which blocks the test process for 30 s per candidate unless mocked.
+vi.mock('../../adapters/MedicalImageAnalyzer.js', () => ({
+  default: {
+    analyzeImage: vi.fn().mockResolvedValue({
+      success: true,
+      status: 'completed',
+      pathologies: {},
+      confidence: 0.85,
+      isMockData: false,
+    }),
+    isWorkerReady: vi.fn().mockReturnValue(true),
+    getServiceStatus: vi.fn().mockReturnValue({ available: true, healthy: true }),
+  },
+}));
+
+vi.mock('../../adapters/OCRAdapter.js', () => ({
+  default: {
+    extractText: vi.fn().mockResolvedValue({ extractedText: 'Mock OCR text', confidence: 0.9 }),
+  },
+}));
+
+vi.mock('../../services/AuditService.js', () => ({
+  default: { logEvent: vi.fn().mockResolvedValue({}) },
+}));
+
 import radiologyRoutes from '../radiologyRoutes.js';
 import RadiologyAIService from '../../services/RadiologyAIService.js';
 import RadiologyService from '../../services/RadiologyService.js';
@@ -44,6 +72,34 @@ vi.mock('../../services/GoogleSheetsService.js', () => ({
     recordMedicalReport: vi.fn().mockResolvedValue({}),
   },
 }));
+
+// Mock RadiologyAIService entirely so autoProcessRadiologyStudy doesn't spawn Python
+vi.mock('../../services/RadiologyAIService.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    default: {
+      ...actual.default,
+      autoProcessRadiologyStudy: vi.fn(),
+      processRadiologyStudy: vi.fn(),
+      retryAnalysis: vi.fn(),
+      getAnalysisStatus: vi.fn(),
+      analyzeRadiologyImage: vi.fn(),
+      getServiceStatus: vi.fn(),
+    },
+  };
+});
+
+// Mock RadiologyService DB operations
+vi.mock('../../services/RadiologyService.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    default: {
+      ...actual.default,
+      getRadiologyRecord: vi.fn(),
+      createRadiologyRecord: vi.fn(),
+    },
+  };
+});
 
 const app = express();
 app.use(express.json());
@@ -270,6 +326,42 @@ describe('Radiology AI Routes', () => {
 
       await request(app)
         .get('/api/radiology/rad123/ai-status')
+        .expect(401);
+    });
+  });
+
+  describe('POST /api/radiology/:radiologyId/retry-ai', () => {
+    it('should re-initiate AI analysis on a radiology record', async () => {
+      const mockRetryResult = {
+        success: true,
+        data: {
+          radiologyId: 'rad123',
+          status: 'queued',
+          message: 'AI analysis queued for asynchronous processing',
+        },
+      };
+
+      vi.spyOn(RadiologyAIService, 'retryAnalysis').mockResolvedValue(mockRetryResult);
+
+      const response = await request(app)
+        .post('/api/radiology/rad123/retry-ai')
+        .send({ language: 'en' })
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.message).toContain('re-initiated');
+      expect(RadiologyAIService.retryAnalysis).toHaveBeenCalledWith(
+        'rad123',
+        expect.objectContaining({ _id: 'user123' }),
+        { language: 'en' }
+      );
+    });
+
+    it('should require authentication for retry', async () => {
+      authError = { status: 401, message: 'Unauthorized' };
+
+      await request(app)
+        .post('/api/radiology/rad123/retry-ai')
         .expect(401);
     });
   });

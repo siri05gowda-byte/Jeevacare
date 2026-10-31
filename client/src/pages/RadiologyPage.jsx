@@ -15,7 +15,8 @@ import {
   Building2,
   FileCheck,
   Upload,
-  Download
+  Download,
+  Loader
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import DocumentCard from '../components/DocumentCard';
@@ -77,25 +78,36 @@ export default function RadiologyPage() {
     return user?._id || user?.id;
   }, [user]);
 
-  const loadRadiologyRecords = useCallback(async () => {
+  const loadRadiologyRecords = useCallback(async (options = {}) => {
     try {
-      setLoading(true);
+      if (!options.silent) setLoading(true);
       setError(null);
 
       const patientId = await resolvePatientId();
       if (!patientId) {
-        setError('Unable to resolve patient identity. Please try logging in again.');
-        setRadiologyRecords([]);
+        if (!options.silent) {
+          setError('Unable to resolve patient identity. Please try logging in again.');
+          setRadiologyRecords([]);
+        }
         return;
       }
 
       const records = await radiologyService.getPatientRadiologyRecords(patientId);
       setRadiologyRecords(records || []);
+
+      // Keep selectedRecord in sync if open
+      setSelectedRecord(prev => {
+        if (!prev) return null;
+        const matching = (records || []).find(r => r._id === prev._id);
+        return matching || prev;
+      });
     } catch (err) {
       console.error('Failed to load radiology records:', err);
-      setError(err.message || 'Failed to load radiology records');
+      if (!options.silent) {
+        setError(err.message || 'Failed to load radiology records');
+      }
     } finally {
-      setLoading(false);
+      if (!options.silent) setLoading(false);
     }
   }, [resolvePatientId]);
 
@@ -104,6 +116,21 @@ export default function RadiologyPage() {
       loadRadiologyRecords();
     }
   }, [user, loadRadiologyRecords]);
+
+  // Automatic polling when any record is actively being analyzed
+  useEffect(() => {
+    const hasPendingAnalysis = radiologyRecords.some(r =>
+      ['queued', 'processing', 'analyzing'].includes(r.aiAnalysis?.status)
+    );
+
+    if (!hasPendingAnalysis) return;
+
+    const intervalId = setInterval(() => {
+      loadRadiologyRecords({ silent: true });
+    }, 3000);
+
+    return () => clearInterval(intervalId);
+  }, [radiologyRecords, loadRadiologyRecords]);
 
   // Generate AI Explanation for selected study
   const generateAiExplanation = useCallback(async (record, language) => {
@@ -292,7 +319,7 @@ export default function RadiologyPage() {
         radiologistLicense: '',
       });
       setShowUploadModal(false);
-      setUploadSuccess('Radiology report uploaded successfully. AI analysis is available on-demand via "Explain with AI".');
+      setUploadSuccess('Radiology report uploaded successfully. Automatic AI analysis has been initiated.');
 
       // Refresh records to update the list and statistics
       await loadRadiologyRecords();
@@ -491,14 +518,34 @@ export default function RadiologyPage() {
                   </button>
                 </div>
               )}
-              {/* Quick AI Explanation CTA overlay button */}
+              {/* Quick AI status/report CTA button */}
               <div className="absolute top-4 right-24 sm:right-28">
                 <button
                   onClick={() => setSelectedRecord(record)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-md transition-colors"
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md transition-colors border ${
+                    ['queued', 'processing', 'analyzing'].includes(record.aiAnalysis?.status)
+                      ? 'text-blue-700 bg-blue-50 hover:bg-blue-100 border-blue-200 animate-pulse'
+                      : record.aiAnalysis?.status === 'completed'
+                      ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200'
+                      : 'text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border-indigo-200'
+                  }`}
                 >
-                  <Brain size={14} className="text-indigo-600" />
-                  <span>Explain with AI</span>
+                  {['queued', 'processing', 'analyzing'].includes(record.aiAnalysis?.status) ? (
+                    <>
+                      <Loader size={14} className="animate-spin text-blue-600" />
+                      <span>Analyzing...</span>
+                    </>
+                  ) : record.aiAnalysis?.status === 'completed' ? (
+                    <>
+                      <Sparkles size={14} className="text-emerald-600" />
+                      <span>AI Report</span>
+                    </>
+                  ) : (
+                    <>
+                      <Brain size={14} className="text-indigo-600" />
+                      <span>View Analysis</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>

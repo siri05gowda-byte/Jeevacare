@@ -1,301 +1,375 @@
 /**
  * Radiology AI Service
  * 
- * Orchestrates medical image analysis for radiology records.
- * Integrates MedicalImageAnalyzer for image processing.
- * Handles multi-language explanations and safety checks.
+ * Orchestrates automated medical study analysis for radiology records.
+ * Integrates:
+ * 1. TorchXRayVision (ResNet50) for chest radiograph deep learning inference
+ * 2. Groq LLM for grounded clinical explanations & patient summaries
+ * 3. Tesseract OCR for written document and PDF report text extraction
+ * 4. Structured unsupported-modality handling for CT/MRI/Ultrasound
  * 
  * Safety-first approach:
  * - Never fabricates findings
- * - Always includes disclaimers
- * - Preserves original images as authoritative
- * - Labels AI outputs clearly
- * - Handles unsupported modalities gracefully
+ * - Always includes clinician-review disclaimers
+ * - Preserves original uploaded files as authoritative records
+ * - Retains records and reports on processing failures with retry capability
  */
 
 import RadiologyRecord from '../models/RadiologyRecord.js';
 import MedicalImageAnalyzer from '../adapters/MedicalImageAnalyzer.js';
-import CloudinaryAdapter from '../adapters/CloudinaryAdapter.js';
+import OCRAdapter from '../adapters/OCRAdapter.js';
 import AIService from './AIService.js';
 import AuditService from './AuditService.js';
 import logger from '../utils/logger.js';
-import axios from 'axios';
 
 class RadiologyAIService {
   /**
-   * Analyze medical image from radiology record
+   * Automatically process a radiology study immediately after upload
+   * Dispatches asynchronously to avoid holding HTTP connection open
    * @param {String} radiologyId - Radiology record ID
-   * @param {Object} requestingUser - User requesting analysis
-   * @param {Object} options - Analysis options (language, etc.)
-   * @returns {Promise<Object>} Analysis results
+   * @param {Object} requestingUser - User who uploaded the record
+   * @param {Object} options - Language and options
    */
-  static async analyzeRadiologyImage(radiologyId, requestingUser, options = {}) {
-    try {
-      const language = options.language || 'en';
-
-      // Get radiology record
-      const radiologyRecord = await RadiologyRecord.findById(radiologyId);
-      if (!radiologyRecord) {
-        throw new Error(`Radiology record not found: ${radiologyId}`);
-      }
-
-      // Check if image exists
-      const imageInput = radiologyRecord.imageReference?.localPath || radiologyRecord.imageReference?.cloudinaryUrl;
-      if (!imageInput) {
-        throw new Error('No image attached to this radiology record');
-      }
-
-      // Check if already analyzed (unless force re-analysis requested)
-      if (radiologyRecord.aiAnalysis?.status === 'completed' && !options.force) {
-        logger.info(`Returning cached AI analysis for radiology ${radiologyId}`);
-        return {
-          success: true,
-          cached: true,
-          analysis: radiologyRecord.aiAnalysis,
-          disclaimers: MedicalImageAnalyzer.getDisclaimers()
-        };
-      }
-
-      // Mark as analyzing
-      await RadiologyRecord.findByIdAndUpdate(radiologyId, {
-        'aiAnalysis.status': 'analyzing',
-        'aiAnalysis.model': MedicalImageAnalyzer.getStatus().model,
-      });
-
-      logger.info(`Starting AI analysis for radiology ${radiologyId}`);
-
-      // Detect modality if not already known
-      const detectedModality = await this._detectModalityFromRecord(radiologyRecord);
-
-      const mimeType = radiologyRecord.imageReference?.mimeType;
-
-      // Run image analysis
-      const analysisResult = await MedicalImageAnalyzer.analyzeImage(imageInput, {
-        metadata: {
-          mimeType,
-          filename: radiologyRecord.imageReference?.originalFilename,
-          modalityType: radiologyRecord.modalityType,
-          bodyPart: radiologyRecord.bodyPart
-        },
-        detectedModality,
-        language
-      });
-
-      // Determine final status
-      let finalStatus = 'completed';
-      if (!analysisResult.success) {
-        finalStatus = analysisResult.status === 'unsupported_modality' ? 'unsupported_modality' : 'failed';
-      }
-
-      // Update radiology record with results
-      const aiAnalysisData = {
-        status: finalStatus,
-        model: analysisResult.model || MedicalImageAnalyzer.getStatus().model,
-        pipelineVersion: analysisResult.pipelineVersion || '2.0.0-torchxrayvision',
-        detectedModality: detectedModality.modality,
-        findings: analysisResult.findings || [],
-        summary: analysisResult.summary || '',
-        explanation: analysisResult.patientFriendlyExplanation || '',
-        confidence: analysisResult.confidence || 0,
-        limitations: analysisResult.limitations || [],
-        disclaimers: analysisResult.disclaimers || MedicalImageAnalyzer.getDisclaimers(),
-        analyzedAt: new Date(),
-        language,
-        isMockData: analysisResult.isMockData || false,
-        metadata: analysisResult.metadata || {}
-      };
-
-      await RadiologyRecord.findByIdAndUpdate(radiologyId, {
-        aiAnalysis: aiAnalysisData
-      });
-
-      // Audit log
-      await AuditService.logEvent({
-        action: 'radiology_ai_analysis',
-        actor: requestingUser._id,
-        actorRole: requestingUser.role,
-        resource: radiologyId,
-        resourceType: 'radiology',
-        patient: radiologyRecord.patientId,
-        hospital: radiologyRecord.facilityId,
-        status: finalStatus === 'completed' ? 'success' : 'partial',
-        details: {
-          modalityType: radiologyRecord.modalityType,
-          detectedModality: detectedModality.modality,
-          analysisStatus: finalStatus,
-          model: aiAnalysisData.model,
-          confidence: aiAnalysisData.confidence,
-          isMockData: aiAnalysisData.isMockData
-        },
-        sensitivityLevel: 'high'
-      });
-
-      logger.info(`AI analysis completed for radiology ${radiologyId}: ${finalStatus}`);
-
-      return {
-        success: analysisResult.success,
-        cached: false,
-        analysis: aiAnalysisData,
-        disclaimers: aiAnalysisData.disclaimers,
-        message: analysisResult.message || 'Analysis completed successfully'
-      };
-
-    } catch (error) {
-      logger.error(`Radiology AI analysis error: ${error.message}`);
-
-      // Update record with error status
+  static autoProcessRadiologyStudy(radiologyId, requestingUser, options = {}) {
+    // Run asynchronously in background
+    setImmediate(async () => {
       try {
-        await RadiologyRecord.findByIdAndUpdate(radiologyId, {
-          'aiAnalysis.status': 'failed',
-          'aiAnalysis.error': error.message
-        });
-      } catch (updateError) {
-        logger.error(`Failed to update error status: ${updateError.message}`);
+        await this.processRadiologyStudy(radiologyId, requestingUser, options);
+      } catch (err) {
+        logger.error(`Automated radiology processing error for ${radiologyId}: ${err.message}`);
       }
-
-      throw new Error(`Failed to analyze radiology image: ${error.message}`);
-    }
+    });
   }
 
   /**
-   * Get AI analysis status for a radiology record
-   * @param {String} radiologyId
-   * @returns {Promise<Object>} Status information
+   * Complete unified processing for any radiology study (image, report, or cross-sectional study)
+   * @param {String} radiologyId - Radiology record ID
+   * @param {Object} requestingUser - User initiating or retrying analysis
+   * @param {Object} options - Options (language, force)
+   * @returns {Promise<Object>} Analysis result
    */
-  static async getAnalysisStatus(radiologyId) {
-    try {
-      const radiologyRecord = await RadiologyRecord.findById(radiologyId).select('aiAnalysis');
-      if (!radiologyRecord) {
-        throw new Error(`Radiology record not found: ${radiologyId}`);
-      }
+  static async processRadiologyStudy(radiologyId, requestingUser, options = {}) {
+    const language = options.language || 'en';
 
-      const aiAnalysis = radiologyRecord.aiAnalysis || {
-        status: 'not_analyzed'
-      };
+    // 1. Fetch radiology record
+    const radiologyRecord = await RadiologyRecord.findById(radiologyId);
+    if (!radiologyRecord) {
+      throw new Error(`Radiology record not found: ${radiologyId}`);
+    }
 
+    // Check if already completed unless force requested
+    if (radiologyRecord.aiAnalysis?.status === 'completed' && !options.force) {
+      logger.info(`Returning cached AI analysis for radiology ${radiologyId}`);
       return {
         success: true,
-        status: aiAnalysis.status,
-        hasAnalysis: aiAnalysis.status === 'completed',
-        isMockData: aiAnalysis.isMockData || false,
-        analyzedAt: aiAnalysis.analyzedAt,
-        model: aiAnalysis.model,
-        confidence: aiAnalysis.confidence
+        cached: true,
+        analysis: radiologyRecord.aiAnalysis,
+        disclaimers: MedicalImageAnalyzer.getDisclaimers(),
+      };
+    }
+
+    // 2. Set status to processing
+    await RadiologyRecord.findByIdAndUpdate(radiologyId, {
+      'aiAnalysis.status': 'processing',
+      'aiAnalysis.error': null,
+    });
+
+    logger.info(`Initiating automated AI processing for radiology record: ${radiologyId} (modality: ${radiologyRecord.modalityType}, bodyPart: ${radiologyRecord.bodyPart})`);
+
+    try {
+      const mimeType = (radiologyRecord.imageReference?.mimeType || '').toLowerCase();
+      const originalFilename = (radiologyRecord.imageReference?.originalFilename || '').toLowerCase();
+      const isPdf = mimeType.includes('pdf') || originalFilename.endsWith('.pdf');
+      const isImage = mimeType.startsWith('image/') || originalFilename.endsWith('.png') || originalFilename.endsWith('.jpg') || originalFilename.endsWith('.jpeg') || originalFilename.endsWith('.tif') || originalFilename.endsWith('.tiff') || mimeType.includes('dicom');
+
+      const detectedModality = await this._detectModalityFromRecord(radiologyRecord);
+
+      let aiAnalysisData = null;
+
+      // =========================================================================
+      // PATHWAY A: Chest X-ray Image (Deep Learning with TorchXRayVision + Groq)
+      // =========================================================================
+      if (!isPdf && isImage && detectedModality.modality === 'chest_xray') {
+        logger.info(`Routing radiology ${radiologyId} to Pathway A: TorchXRayVision Chest X-Ray inference`);
+
+        const imageInput = radiologyRecord.imageReference?.localPath || radiologyRecord.imageReference?.cloudinaryUrl;
+        if (!imageInput) {
+          throw new Error('No image reference found for chest radiograph analysis');
+        }
+
+        // Run real deep learning inference via TorchXRayVision worker
+        const imageResult = await MedicalImageAnalyzer.analyzeImage(imageInput, {
+          metadata: {
+            mimeType,
+            filename: radiologyRecord.imageReference?.originalFilename,
+            modalityType: radiologyRecord.modalityType,
+            bodyPart: radiologyRecord.bodyPart,
+          },
+          detectedModality,
+          language,
+        });
+
+        if (!imageResult.success) {
+          throw new Error(imageResult.error || 'TorchXRayVision deep learning inference returned unsuccessful');
+        }
+
+        // Pass actual model findings to Groq LLM for grounded clinical explanation
+        const llmContext = {
+          pathway: 'chest_xray',
+          studyType: 'Chest X-Ray (Radiograph)',
+          bodyPart: radiologyRecord.bodyPart || 'Chest',
+          clinicalIndication: radiologyRecord.clinicalIndication || '',
+          findings: imageResult.findings || [],
+          allScores: imageResult.allPathologies || {},
+        };
+
+        const llmResult = await AIService.generateRadiologyExplanation(llmContext, { language });
+
+        aiAnalysisData = {
+          status: 'completed',
+          provider: 'TorchXRayVision + Groq',
+          model: imageResult.model || 'TorchXRayVision-resnet50-res512-all',
+          pipelineVersion: imageResult.pipelineVersion || '2.0.0-torchxrayvision',
+          detectedModality: 'chest_xray',
+          studyType: 'Chest X-Ray (Radiograph)',
+          findings: imageResult.findings || [],
+          allPathologies: imageResult.allPathologies || {},
+          whatWasObserved: llmResult.whatWasObserved || [],
+          potentialAbnormalities: llmResult.potentialAbnormalities || [],
+          normalFindings: llmResult.normalFindings || [],
+          summary: llmResult.summary || imageResult.summary || '',
+          explanation: llmResult.clinicalExplanation || imageResult.patientFriendlyExplanation || '',
+          clinicalExplanation: llmResult.clinicalExplanation || '',
+          recommendations: llmResult.recommendations || [],
+          importantCaveats: llmResult.importantCaveats || [],
+          requiresDoctorReview: true,
+          confidence: imageResult.confidence || 0,
+          limitations: imageResult.limitations || [],
+          disclaimers: imageResult.disclaimers || MedicalImageAnalyzer.getDisclaimers(),
+          analyzedAt: new Date(),
+          language,
+          isMockData: imageResult.isMockData || false,
+          metadata: {
+            ...(imageResult.metadata || {}),
+            pathway: 'chest_xray_deep_learning',
+            analysisModel: imageResult.model,
+          },
+        };
+      }
+
+      // =========================================================================
+      // PATHWAY C: Written Radiology Report / PDF Document (OCR + Groq LLM)
+      // =========================================================================
+      else if (isPdf || (!isImage && radiologyRecord.imageReference?.cloudinaryUrl)) {
+        logger.info(`Routing radiology ${radiologyId} to Pathway C: OCR text extraction + Groq clinical analysis`);
+
+        let extractedText = radiologyRecord.ocrData?.extractedText || '';
+        let ocrConfidence = radiologyRecord.ocrData?.confidence || 0.9;
+
+        // Perform OCR extraction if not yet extracted
+        if (!extractedText && (radiologyRecord.imageReference?.cloudinaryUrl || radiologyRecord.imageReference?.localPath)) {
+          const fileInput = radiologyRecord.imageReference.localPath || radiologyRecord.imageReference.cloudinaryUrl;
+          try {
+            const ocrResult = await OCRAdapter.extractText(null, {
+              documentType: radiologyRecord.modalityType,
+              isUrl: !radiologyRecord.imageReference.localPath,
+              url: radiologyRecord.imageReference.cloudinaryUrl,
+            });
+
+            extractedText = ocrResult?.text || '';
+            ocrConfidence = ocrResult?.confidence || 0.85;
+
+            // Save OCR extraction to record
+            await RadiologyRecord.findByIdAndUpdate(radiologyId, {
+              ocrStatus: 'extracted',
+              ocrData: {
+                extractedText,
+                confidence: ocrConfidence,
+                extractedAt: new Date(),
+              },
+            });
+          } catch (ocrErr) {
+            logger.warn(`OCR extraction notice for ${radiologyId}: ${ocrErr.message}`);
+          }
+        }
+
+        // Generate clinical explanation from extracted text
+        const llmContext = {
+          pathway: 'ocr_report',
+          studyType: `${(radiologyRecord.modalityType || 'Radiology').toUpperCase().replace('_', ' ')} Report`,
+          modality: radiologyRecord.modalityType || 'document_report',
+          clinicalIndication: radiologyRecord.clinicalIndication || '',
+          extractedText: extractedText || radiologyRecord.findings || radiologyRecord.impression || 'Medical report document attached for review.',
+        };
+
+        const llmResult = await AIService.generateRadiologyExplanation(llmContext, { language });
+
+        aiAnalysisData = {
+          status: 'completed',
+          provider: 'Tesseract OCR + Groq',
+          model: AIService.getStatus()?.model || 'Groq LLM',
+          pipelineVersion: '2.0.0-ocr-llm',
+          detectedModality: radiologyRecord.modalityType || 'document_report',
+          studyType: llmResult.studyType || `${radiologyRecord.modalityType.toUpperCase()} Report`,
+          findings: [],
+          whatWasObserved: llmResult.whatWasObserved || [],
+          potentialAbnormalities: llmResult.potentialAbnormalities || [],
+          normalFindings: llmResult.normalFindings || [],
+          summary: llmResult.summary || 'Written report text extracted and analyzed.',
+          explanation: llmResult.clinicalExplanation || '',
+          clinicalExplanation: llmResult.clinicalExplanation || '',
+          recommendations: llmResult.recommendations || [],
+          importantCaveats: llmResult.importantCaveats || [],
+          requiresDoctorReview: true,
+          confidence: ocrConfidence,
+          limitations: [
+            'OCR extraction reflects textual content of the physical or PDF document',
+            'Original document remains the authoritative source record',
+          ],
+          disclaimers: MedicalImageAnalyzer.getDisclaimers(),
+          analyzedAt: new Date(),
+          language,
+          isMockData: false,
+          metadata: {
+            pathway: 'ocr_document_extraction',
+            textLength: extractedText.length,
+          },
+        };
+      }
+
+      // =========================================================================
+      // PATHWAY B: Other Medical Images (CT, MRI, Ultrasound, PET, Non-Chest X-ray)
+      // =========================================================================
+      else {
+        logger.info(`Routing radiology ${radiologyId} to Pathway B: Specialized cross-sectional study (unsupported automated vision)`);
+
+        const modalityLabel = (radiologyRecord.modalityType || 'other').toUpperCase().replace('_', ' ');
+
+        const llmContext = {
+          pathway: 'unsupported_modality',
+          studyType: `${modalityLabel} Study`,
+          modality: radiologyRecord.modalityType,
+          bodyPart: radiologyRecord.bodyPart,
+        };
+
+        const llmResult = await AIService.generateRadiologyExplanation(llmContext, { language });
+
+        aiAnalysisData = {
+          status: 'unsupported_modality',
+          provider: 'JeevaCare Clinical Protocol',
+          model: 'licensed_radiologist_review',
+          pipelineVersion: '2.0.0-clinical-review',
+          detectedModality: radiologyRecord.modalityType || 'other',
+          studyType: `${modalityLabel} (${radiologyRecord.bodyPart || 'General'})`,
+          findings: [],
+          whatWasObserved: [
+            `Modality identified: ${modalityLabel}`,
+            `Anatomical region: ${radiologyRecord.bodyPart || 'Unspecified'}`,
+            'Image data securely preserved in persistent Cloudinary storage',
+          ],
+          potentialAbnormalities: [],
+          normalFindings: [],
+          summary: `Automated AI vision analysis is specialized for chest radiographs. Manual radiologist evaluation is required for ${modalityLabel}.`,
+          explanation: llmResult.clinicalExplanation || 'Automated deep learning analysis for cross-sectional studies (such as CT and MRI), ultrasound, and specialized imaging requires specialized multi-slice diagnostic workstations and is not currently automated. Your complete medical imaging files are safely preserved for direct clinician review.',
+          clinicalExplanation: llmResult.clinicalExplanation || '',
+          recommendations: [
+            'Schedule a consultation with your referring physician to review the radiologist impression',
+            'Bring prior imaging studies for comparative analysis if available',
+          ],
+          importantCaveats: [
+            'No automated findings fabricated for unsupported modalities',
+            'Diagnostic cross-sectional studies require specialist radiologist interpretation',
+          ],
+          requiresDoctorReview: true,
+          confidence: 0,
+          limitations: [
+            'Deep learning computer vision worker is trained exclusively on chest radiographs',
+            'CT, MRI, and ultrasound interpretation must be performed by human radiologists',
+          ],
+          disclaimers: MedicalImageAnalyzer.getDisclaimers(),
+          analyzedAt: new Date(),
+          language,
+          isMockData: false,
+          metadata: {
+            pathway: 'unsupported_modality_preservation',
+          },
+        };
+      }
+
+      // 3. Persist results to MongoDB
+      await RadiologyRecord.findByIdAndUpdate(radiologyId, {
+        aiAnalysis: aiAnalysisData,
+      });
+
+      // 4. Audit Log
+      try {
+        await AuditService.logEvent({
+          action: 'radiology_ai_analysis',
+          actor: requestingUser?._id || requestingUser?.id || radiologyRecord.createdBy,
+          actorRole: requestingUser?.role || 'SYSTEM',
+          resource: radiologyId,
+          resourceType: 'radiology',
+          patient: radiologyRecord.patientId,
+          hospital: radiologyRecord.facilityId || radiologyRecord.hospitalId,
+          status: aiAnalysisData.status === 'completed' ? 'success' : 'partial',
+          details: {
+            modalityType: radiologyRecord.modalityType,
+            analysisStatus: aiAnalysisData.status,
+            provider: aiAnalysisData.provider,
+            model: aiAnalysisData.model,
+          },
+          sensitivityLevel: 'high',
+        });
+      } catch (auditErr) {
+        logger.warn(`Audit log error in radiology AI processing: ${auditErr.message}`);
+      }
+
+      logger.info(`Automated AI analysis completed for radiology ${radiologyId}: ${aiAnalysisData.status}`);
+
+      return {
+        success: aiAnalysisData.status === 'completed',
+        status: aiAnalysisData.status,
+        analysis: aiAnalysisData,
+        message: 'Radiology AI analysis completed successfully',
       };
 
     } catch (error) {
-      logger.error(`Error getting analysis status: ${error.message}`);
+      logger.error(`AI analysis failed for radiology ${radiologyId}: ${error.message}`);
+
+      // Persist failure state so user sees actionable retry state rather than hanging
+      try {
+        await RadiologyRecord.findByIdAndUpdate(radiologyId, {
+          'aiAnalysis.status': 'failed',
+          'aiAnalysis.error': error.message || 'AI processing encountered an unexpected error',
+        });
+      } catch (dbErr) {
+        logger.error(`Failed to record AI error state in MongoDB: ${dbErr.message}`);
+      }
+
       throw error;
     }
   }
 
   /**
-   * Translate AI explanation to another language
-   * @param {String} radiologyId
-   * @param {String} targetLanguage
-   * @returns {Promise<Object>} Translated explanation
+   * Compatibility wrapper for existing analyzeRadiologyImage calls
    */
-  static async translateExplanation(radiologyId, targetLanguage) {
-    try {
-      const radiologyRecord = await RadiologyRecord.findById(radiologyId);
-      if (!radiologyRecord) {
-        throw new Error(`Radiology record not found: ${radiologyId}`);
-      }
-
-      if (!radiologyRecord.aiAnalysis || !radiologyRecord.aiAnalysis.explanation) {
-        throw new Error('No AI explanation available to translate');
-      }
-
-      const currentLanguage = radiologyRecord.aiAnalysis.language || 'en';
-      
-      if (currentLanguage === targetLanguage) {
-        return {
-          success: true,
-          explanation: radiologyRecord.aiAnalysis.explanation,
-          language: targetLanguage,
-          cached: true
-        };
-      }
-
-      // Use AIService for translation
-      const translation = await AIService.translateText(
-        radiologyRecord.aiAnalysis.explanation,
-        targetLanguage,
-        currentLanguage
-      );
-
-      return {
-        success: true,
-        explanation: translation.translated,
-        originalLanguage: currentLanguage,
-        targetLanguage,
-        translatedAt: new Date(),
-        disclaimers: MedicalImageAnalyzer.getDisclaimers()
-      };
-
-    } catch (error) {
-      logger.error(`Translation error: ${error.message}`);
-      throw new Error(`Failed to translate explanation: ${error.message}`);
-    }
+  static async analyzeRadiologyImage(radiologyId, requestingUser, options = {}) {
+    return this.processRadiologyStudy(radiologyId, requestingUser, options);
   }
 
   /**
-   * Detect modality from radiology record metadata
-   * @private
+   * Retry AI analysis for a failed or un-analyzed radiology study
    */
-  static async _detectModalityFromRecord(radiologyRecord) {
-    const recordedModality = radiologyRecord.modalityType;
-    const bodyPart = radiologyRecord.bodyPart;
-
-    // Map database modality types to analyzer modality types
-    if (recordedModality === 'x_ray' && bodyPart && bodyPart.toLowerCase().includes('chest')) {
-      return {
-        modality: 'chest_xray',
-        confidence: 0.9,
-        supported: true,
-        reason: 'Detected from record metadata'
-      };
-    }
-
-    if (recordedModality === 'x_ray') {
-      return {
-        modality: 'x_ray_other',
-        confidence: 0.8,
-        supported: false,
-        reason: 'X-ray analysis limited to chest X-rays only'
-      };
-    }
-
-    if (recordedModality === 'ct_scan') {
-      return {
-        modality: 'ct_scan',
-        confidence: 0.9,
-        supported: false,
-        reason: 'CT scan analysis not yet implemented'
-      };
-    }
-
-    if (recordedModality === 'mri') {
-      return {
-        modality: 'mri',
-        confidence: 0.9,
-        supported: false,
-        reason: 'MRI analysis not yet implemented'
-      };
-    }
-
-    return {
-      modality: recordedModality || 'unknown',
-      confidence: 0.5,
-      supported: false,
-      reason: 'Modality not yet supported for AI analysis'
-    };
+  static async retryAnalysis(radiologyId, requestingUser, options = {}) {
+    return this.processRadiologyStudy(radiologyId, requestingUser, {
+      ...options,
+      force: true,
+    });
   }
 
   /**
    * Get AI analysis status for a radiology record
    * @param {String} radiologyId - Record ID
-   * @returns {Promise<Object>} Status object or aiAnalysis document
    */
   static async getAnalysisStatus(radiologyId) {
     const record = await RadiologyRecord.findById(radiologyId).select('aiAnalysis');
@@ -313,6 +387,118 @@ class RadiologyAIService {
   }
 
   /**
+   * Translate AI explanation to another language
+   */
+  static async translateExplanation(radiologyId, targetLanguage) {
+    const radiologyRecord = await RadiologyRecord.findById(radiologyId);
+    if (!radiologyRecord) {
+      throw new Error(`Radiology record not found: ${radiologyId}`);
+    }
+
+    if (!radiologyRecord.aiAnalysis || !radiologyRecord.aiAnalysis.explanation) {
+      throw new Error('No AI explanation available to translate');
+    }
+
+    const currentLanguage = radiologyRecord.aiAnalysis.language || 'en';
+    if (currentLanguage === targetLanguage) {
+      return {
+        success: true,
+        explanation: radiologyRecord.aiAnalysis.explanation,
+        language: targetLanguage,
+        cached: true,
+      };
+    }
+
+    const translation = await AIService.translateText(
+      radiologyRecord.aiAnalysis.explanation,
+      targetLanguage,
+      currentLanguage
+    );
+
+    return {
+      success: true,
+      explanation: translation.translated,
+      originalLanguage: currentLanguage,
+      targetLanguage,
+      translatedAt: new Date(),
+      disclaimers: MedicalImageAnalyzer.getDisclaimers(),
+    };
+  }
+
+  /**
+   * Detect modality from radiology record metadata
+   * @private
+   */
+  static async _detectModalityFromRecord(radiologyRecord) {
+    const recordedModality = (radiologyRecord.modalityType || '').toLowerCase();
+    const bodyPart = (radiologyRecord.bodyPart || '').toLowerCase();
+    const filename = (radiologyRecord.imageReference?.originalFilename || '').toLowerCase();
+    const mimeType = (radiologyRecord.imageReference?.mimeType || '').toLowerCase();
+
+    // Check if PDF document
+    if (mimeType.includes('pdf') || filename.endsWith('.pdf')) {
+      return {
+        modality: 'document_pdf',
+        supported: true,
+        reason: 'Written PDF report detected; routed to OCR text extraction and clinical summarization',
+      };
+    }
+
+    // Check if Chest X-Ray
+    if (recordedModality === 'x_ray' && (bodyPart.includes('chest') || bodyPart.includes('thorax') || bodyPart.includes('lung') || filename.includes('chest') || filename.includes('cxr'))) {
+      return {
+        modality: 'chest_xray',
+        confidence: 0.95,
+        supported: true,
+        reason: 'Chest radiograph detected; supported by TorchXRayVision ResNet50 deep learning pipeline',
+      };
+    }
+
+    if (recordedModality === 'x_ray') {
+      return {
+        modality: 'bone_xray',
+        confidence: 0.85,
+        supported: false,
+        reason: `X-ray of ${radiologyRecord.bodyPart || 'non-chest anatomical region'} detected. TorchXRayVision is trained exclusively on chest radiographs.`,
+      };
+    }
+
+    if (recordedModality === 'ct_scan') {
+      return {
+        modality: 'ct_scan',
+        confidence: 0.95,
+        supported: false,
+        reason: 'CT scan analysis requires multi-slice radiologist workstation interpretation.',
+      };
+    }
+
+    if (recordedModality === 'mri') {
+      return {
+        modality: 'mri',
+        confidence: 0.95,
+        supported: false,
+        reason: 'MRI analysis requires specialized multi-sequence radiologist interpretation.',
+      };
+    }
+
+    if (recordedModality === 'ultrasound') {
+      return {
+        modality: 'ultrasound',
+        confidence: 0.90,
+        supported: false,
+        reason: 'Ultrasound interpretation requires dynamic operator correlation.',
+      };
+    }
+
+    return {
+      modality: recordedModality || 'unknown',
+      confidence: 0.5,
+      supported: false,
+      reason: 'Specialized imaging study preserved for physician review.',
+    };
+  }
+
+  /**
    * Get service status and capabilities
    */
   static getServiceStatus() {
@@ -323,14 +509,15 @@ class RadiologyAIService {
       healthy: true,
       mode: analyzerStatus.mode,
       imageAnalyzer: analyzerStatus,
-      supportedModalities: MedicalImageAnalyzer.getSupportedModalities(),
+      supportedModalities: ['chest_xray', 'document_pdf'],
       capabilities: {
         imageAnalysis: MedicalImageAnalyzer.isReady(),
         textExplanation: AIService.isReady(),
         translation: AIService.isReady(),
-        multiLanguage: true
+        ocrExtraction: true,
+        automaticProcessing: true,
       },
-      supportedLanguages: ['en', 'hi', 'kn', 'te', 'ta', 'ml']
+      supportedLanguages: ['en', 'hi', 'kn', 'te', 'ta', 'ml'],
     };
   }
 }

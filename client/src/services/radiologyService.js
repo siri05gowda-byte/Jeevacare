@@ -196,6 +196,18 @@ export const getRadiologyAIServiceStatus = async () => {
   return response.data;
 };
 
+/**
+ * Retry automatic AI analysis on a radiology record
+ * @param {string} radiologyId - Radiology record ID
+ * @param {Object} options - Retry options
+ * @param {string} options.language - Target language (en, hi, kn, te, ta, ml)
+ * @returns {Promise<Object>} Analysis retry response
+ */
+export const retryRadiologyAnalysis = async (radiologyId, options = {}) => {
+  const response = await api.post(`/radiology/${radiologyId}/retry-ai`, options);
+  return response.data;
+};
+
 export default {
   getPatientRadiologyRecords,
   getRadiologyRecord,
@@ -210,4 +222,5 @@ export default {
   analyzeRadiologyImage,
   getRadiologyAIStatus,
   getRadiologyAIServiceStatus,
+  retryRadiologyAnalysis,
 };

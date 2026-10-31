@@ -68,6 +68,7 @@ class RadiologyService {
         imageReference: radiologyData.imageReference,
         verificationStatus,
         createdBy: requestingUser._id,
+        aiAnalysis: radiologyData.aiAnalysis || { status: 'queued' },
       });
 
       // Check if critical findings mentioned

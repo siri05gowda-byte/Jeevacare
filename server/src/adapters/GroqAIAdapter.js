@@ -162,6 +162,191 @@ class GroqAIAdapter {
   }
 
   /**
+   * Generate comprehensive, grounded radiology explanation matching JeevaCare standard schema
+   * @param {Object} context - Modality, pathway, predictions or OCR text, metadata
+   * @param {Object} options - Language and generation options
+   */
+  async generateRadiologyExplanation(context, options = {}) {
+    const language = options.language || 'en';
+    const pathway = context.pathway || 'chest_xray';
+
+    // Build fallback response if Groq is not configured or fails
+    const fallbackResponse = this._buildFallbackRadiologyExplanation(context, language);
+
+    if (!this.isConfigured) {
+      logger.info('Groq API not configured, returning structured fallback radiology explanation');
+      return fallbackResponse;
+    }
+
+    try {
+      const prompt = this.buildRadiologyExplanationPrompt(context, language);
+
+      logger.info(`Groq: Generating structured radiology analysis for pathway [${pathway}] in ${language}`);
+
+      const response = await this.callGroqAPI(prompt, {
+        temperature: 0.2, // Low temperature for clinical accuracy
+        response_format: {
+          type: 'json_schema',
+          json_schema: {
+            name: 'RadiologyAnalysisExplanation',
+            schema: this.getRadiologyExplanationSchema(),
+          },
+        },
+      });
+
+      const parsed = this.validateAndParseResponse(response, 'radiology_explanation');
+
+      return {
+        studyType: parsed.studyType || context.studyType || 'Radiology Study',
+        modality: parsed.modality || context.modality || 'other',
+        summary: parsed.summary || fallbackResponse.summary,
+        whatWasObserved: Array.isArray(parsed.whatWasObserved) && parsed.whatWasObserved.length > 0 
+          ? parsed.whatWasObserved 
+          : fallbackResponse.whatWasObserved,
+        potentialAbnormalities: Array.isArray(parsed.potentialAbnormalities) 
+          ? parsed.potentialAbnormalities 
+          : fallbackResponse.potentialAbnormalities,
+        normalFindings: Array.isArray(parsed.normalFindings) 
+          ? parsed.normalFindings 
+          : fallbackResponse.normalFindings,
+        clinicalExplanation: parsed.clinicalExplanation || fallbackResponse.clinicalExplanation,
+        recommendations: Array.isArray(parsed.recommendations) && parsed.recommendations.length > 0
+          ? parsed.recommendations
+          : fallbackResponse.recommendations,
+        importantCaveats: Array.isArray(parsed.importantCaveats) && parsed.importantCaveats.length > 0
+          ? parsed.importantCaveats
+          : fallbackResponse.importantCaveats,
+        requiresDoctorReview: true,
+        analysisProvider: `Groq (${this.model})`,
+        analysisModel: this.model,
+        analysisStatus: 'completed',
+      };
+    } catch (error) {
+      logger.warn(`Groq radiology explanation failed (${error.message}); utilizing grounded deterministic fallback`);
+      return fallbackResponse;
+    }
+  }
+
+  /**
+   * Deterministic fallback radiology explanation grounded in actual inputs
+   */
+  _buildFallbackRadiologyExplanation(context, language = 'en') {
+    const pathway = context.pathway || 'chest_xray';
+
+    if (pathway === 'chest_xray') {
+      const findings = context.findings || [];
+      const hasAbnormal = findings.length > 0;
+      const abnormalNames = findings.map(f => `${f.pathology} (estimated ${(f.confidence * 100).toFixed(1)}%)`);
+
+      const allScores = context.allScores || {};
+      const normalList = Object.entries(allScores)
+        .filter(([k, v]) => !findings.some(f => f.pathology === k || f.rawPathology === k))
+        .map(([k, v]) => `${k} (negative/low probability ${(v * 100).toFixed(1)}%)`);
+
+      return {
+        studyType: 'Chest X-Ray (Radiograph)',
+        modality: 'chest_xray',
+        summary: hasAbnormal
+          ? `Automated TorchXRayVision deep learning screening detected findings exceeding the clinical reporting threshold: ${abnormalNames.join(', ')}.`
+          : 'Automated TorchXRayVision deep learning screening evaluated all 18 chest pathologies; none exceeded the clinical reporting threshold (30%).',
+        whatWasObserved: [
+          'Evaluated lung fields, cardiomediastinal contour, and pleural spaces',
+          hasAbnormal 
+            ? `Deep learning screening model flagged patterns for: ${findings.map(f => f.pathology).join(', ')}`
+            : 'No focal consolidation, pneumothorax, or large pleural effusion patterns detected',
+          `18 separate chest pathologies evaluated via TorchXRayVision ResNet50`,
+        ],
+        potentialAbnormalities: findings.map(f => ({
+          pathology: f.pathology,
+          confidence: f.confidence,
+          severity: f.severity || (f.confidence > 0.6 ? 'moderate' : 'mild'),
+          description: `Machine learning probability score of ${(f.confidence * 100).toFixed(1)}% for ${f.pathology}. Warranting clinical correlation.`,
+        })),
+        normalFindings: normalList.slice(0, 6).map(n => ({
+          pathology: n.split(' ')[0],
+          description: n,
+        })),
+        clinicalExplanation: hasAbnormal
+          ? `The automated neural network identified features that correlate with ${findings.map(f => f.pathology).join(' and ')}. In clinical imaging, these patterns can indicate inflammation, fluid accumulation, or tissue density variations. Because these are computational probability estimates and not definitive diagnoses, a licensed physician or radiologist must examine the original study in clinical context.`
+          : 'The automated neural network did not detect features exceeding the reporting threshold for pneumonia, pneumothorax, pulmonary edema, cardiomegaly, or other tested chest conditions. This supports an initial screening impression of clear lung fields, subject to definitive physician evaluation.',
+        recommendations: [
+          'Share these results with your healthcare provider during your consultation',
+          'Discuss any symptoms you may be experiencing, such as cough, fever, or shortness of breath',
+          'Do not discontinue or modify any prescribed medications based on automated screening results',
+        ],
+        importantCaveats: [
+          'TorchXRayVision is an automated clinical decision-support model, not a standalone diagnostic device',
+          'Confidence scores reflect algorithmic pattern similarity, not absolute disease probabilities',
+          'Only a licensed radiologist or physician can provide a definitive medical interpretation',
+        ],
+        requiresDoctorReview: true,
+        analysisProvider: 'TorchXRayVision (Local ResNet50)',
+        analysisModel: 'resnet50-res512-all',
+        analysisStatus: 'completed',
+      };
+    }
+
+    if (pathway === 'ocr_report') {
+      const text = context.extractedText || '';
+      const textPreview = text.slice(0, 300);
+
+      return {
+        studyType: context.studyType || 'Written Radiology Report',
+        modality: context.modality || 'document_report',
+        summary: text
+          ? `Text extracted successfully from radiology report (${text.length} characters).`
+          : 'Document uploaded; no structured clinical text was detected during OCR extraction.',
+        whatWasObserved: [
+          `Document text extracted via Optical Character Recognition (Tesseract)`,
+          textPreview ? `Report excerpt: "${textPreview.replace(/\n+/g, ' ').slice(0, 150)}..."` : 'Text parsing complete',
+        ],
+        potentialAbnormalities: [],
+        normalFindings: [],
+        clinicalExplanation: text
+          ? 'The uploaded medical report contains written findings and clinical impressions from the examining facility. Please review the extracted document text alongside your consulting physician.'
+          : 'The document has been securely stored in your patient profile for physician review.',
+        recommendations: [
+          'Review the original signed radiology report with your treating physician',
+          'Keep a copy of this study in your lifelong JeevaCare health record',
+        ],
+        importantCaveats: [
+          'OCR text extraction may contain typographical variances from original physical prints',
+          'The original scanned or digital document remains the authoritative medical record',
+        ],
+        requiresDoctorReview: true,
+        analysisProvider: 'Tesseract OCR',
+        analysisModel: 'tesseract-v5',
+        analysisStatus: 'completed',
+      };
+    }
+
+    return {
+      studyType: context.studyType || 'Specialized Medical Study',
+      modality: context.modality || 'unsupported',
+      summary: `Automated AI vision analysis is specialized for chest radiographs. Manual radiologist evaluation is required for ${context.studyType || 'this modality'}.`,
+      whatWasObserved: [
+        `Modality: ${context.studyType || 'Non-chest study'}`,
+        'Original study file securely saved to persistent patient record',
+      ],
+      potentialAbnormalities: [],
+      normalFindings: [],
+      clinicalExplanation: 'Automated deep learning analysis for cross-sectional studies (such as CT and MRI), ultrasound, and specialized imaging requires specialized multi-slice diagnostic workstations and is not currently automated. Your complete medical imaging files are safely preserved for direct clinician review.',
+      recommendations: [
+        'Schedule a consultation with your referring physician to review the radiologist impression',
+        'Bring any prior comparison studies to your appointment',
+      ],
+      importantCaveats: [
+        'Zero automated findings fabricated for unsupported modalities',
+        'Direct specialist radiologist interpretation required',
+      ],
+      requiresDoctorReview: true,
+      analysisProvider: 'JeevaCare Imaging Protocol',
+      analysisModel: 'manual_radiologist_review',
+      analysisStatus: 'unsupported_modality',
+    };
+  }
+
+  /**
    * Call Groq API with structured response format
    */
   async callGroqAPI(userPrompt, options = {}) {
@@ -314,6 +499,130 @@ Generate JSON with:
   }
 
   /**
+   * Build prompt for standardized radiology analysis
+   */
+  buildRadiologyExplanationPrompt(context, language = 'en') {
+    const langNotice = language !== 'en' ? `\nIMPORTANT: Provide all explanations, summaries, and recommendations in ${language}.` : '';
+
+    if (context.pathway === 'chest_xray') {
+      return `You are an expert medical AI assistant for JeevaCare. A patient's chest radiograph (X-ray) was evaluated by the TorchXRayVision ResNet-50 deep learning model.
+Analyze the quantitative predictions and clinical context below, and generate an evidence-grounded, patient-friendly clinical explanation.${langNotice}
+
+STUDY DETAILS:
+- Study Type: Chest X-Ray (Radiograph)
+- Anatomical Region: ${context.bodyPart || 'Chest'}
+- Clinical Indication: ${context.clinicalIndication || 'Routine chest radiograph evaluation'}
+- AI Model Used: TorchXRayVision ResNet50 (resnet50-res512-all)
+- Positive Findings (confidence >= 30%): ${JSON.stringify(context.findings || [])}
+- Complete Evaluated Pathologies: ${JSON.stringify(context.allScores || {})}
+
+STRICT INSTRUCTIONS:
+1. Base all statements strictly on the provided model outputs. Do NOT fabricate findings not listed above.
+2. In 'summary', provide a 1-2 sentence overview of whether findings were detected.
+3. In 'whatWasObserved', list the evaluated anatomical features and detected patterns.
+4. In 'potentialAbnormalities', list findings with probabilities >= 30% and explain what each pattern could indicate.
+5. In 'normalFindings', list the pathologies that were negative or low probability (< 30%).
+6. In 'clinicalExplanation', explain the clinical significance in empathetic, understandable language while noting that these are machine-learning probability estimates, not definitive medical diagnoses.
+7. In 'recommendations', provide actionable questions and next steps for the patient to discuss with their doctor.
+8. In 'importantCaveats', state that TorchXRayVision is a decision-support tool and physician review is mandatory.
+9. Always set 'requiresDoctorReview' to true.`;
+    }
+
+    if (context.pathway === 'ocr_report') {
+      return `You are an expert medical AI assistant for JeevaCare. A patient uploaded a written radiology report / medical document.
+Analyze the extracted OCR clinical text below, and generate an evidence-grounded, patient-friendly clinical explanation.${langNotice}
+
+STUDY DETAILS:
+- Study Type: ${context.studyType || 'Written Radiology Report'}
+- Modality: ${context.modality || 'Document Report'}
+- Clinical Indication: ${context.clinicalIndication || 'Diagnostic evaluation'}
+- Extracted Report Text:
+"""
+${context.extractedText || 'No text extracted'}
+"""
+
+STRICT INSTRUCTIONS:
+1. Ground every statement strictly in the extracted text. Preserve medical units, measurements, and clinical negations.
+2. In 'summary', provide a clear 1-2 sentence overview of the study objective and main conclusion.
+3. In 'whatWasObserved', list specific clinical observations documented in the report.
+4. In 'potentialAbnormalities', list any abnormal findings, lesions, or critical impressions documented.
+5. In 'normalFindings', list anatomical structures reported as normal or unremarkable.
+6. In 'clinicalExplanation', translate complex radiological terminology into patient-friendly language.
+7. In 'recommendations', provide actionable follow-up items and questions for the physician.
+8. In 'importantCaveats', state that the original signed report is authoritative.
+9. Always set 'requiresDoctorReview' to true.`;
+    }
+
+    return `You are an expert medical AI assistant for JeevaCare. A medical study of type ${context.studyType || 'Specialized Medical Study'} was uploaded.${langNotice}
+Explain clearly to the patient why automated computer vision is specialized for chest radiographs and how their cross-sectional study is securely stored for licensed radiologist evaluation.`;
+  }
+
+  /**
+   * JSON schema for standardized radiology analysis
+   */
+  getRadiologyExplanationSchema() {
+    return {
+      type: 'object',
+      properties: {
+        studyType: { type: 'string' },
+        modality: { type: 'string' },
+        summary: { type: 'string' },
+        whatWasObserved: {
+          type: 'array',
+          items: { type: 'string' },
+        },
+        potentialAbnormalities: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              pathology: { type: 'string' },
+              confidence: { type: 'number' },
+              severity: { type: 'string' },
+              description: { type: 'string' },
+            },
+            required: ['pathology'],
+            additionalProperties: true,
+          },
+        },
+        normalFindings: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              pathology: { type: 'string' },
+              description: { type: 'string' },
+            },
+            required: ['pathology'],
+            additionalProperties: true,
+          },
+        },
+        clinicalExplanation: { type: 'string' },
+        recommendations: {
+          type: 'array',
+          items: { type: 'string' },
+        },
+        importantCaveats: {
+          type: 'array',
+          items: { type: 'string' },
+        },
+        requiresDoctorReview: { type: 'boolean' },
+      },
+      required: [
+        'studyType',
+        'modality',
+        'summary',
+        'whatWasObserved',
+        'clinicalExplanation',
+        'recommendations',
+        'importantCaveats',
+        'requiresDoctorReview',
+      ],
+      additionalProperties: false,
+    };
+  }
+
+  /**
    * JSON schema for medical summary
    */
   getMedicalSummarySchema() {
@@ -429,6 +738,10 @@ Generate JSON with:
     } else if (type === 'translation') {
       if (!response.translated || typeof response.translated !== 'string') {
         throw new Error('Invalid translation: missing or invalid translated field');
+      }
+    } else if (type === 'radiology_explanation') {
+      if (!response.summary || typeof response.summary !== 'string') {
+        throw new Error('Invalid radiology explanation: missing summary');
       }
     }
 

@@ -127,15 +127,28 @@ const radiologyRecordSchema = new mongoose.Schema(
     aiAnalysis: {
       status: {
         type: String,
-        enum: ['not_analyzed', 'analyzing', 'completed', 'failed', 'unsupported_modality'],
+        enum: ['not_analyzed', 'queued', 'processing', 'analyzing', 'completed', 'failed', 'unsupported_modality'],
         default: 'not_analyzed',
       },
+      provider: String,           // e.g., "TorchXRayVision + Groq", "Tesseract OCR + Groq"
       model: String,              // e.g., "TorchXRayVision-resnet50-res512-all"
       pipelineVersion: String,
       detectedModality: String,   // e.g., "chest_xray", "mri", etc.
+      studyType: String,
       findings: [mongoose.Schema.Types.Mixed], // List of finding objects detected by AI
+      allPathologies: mongoose.Schema.Types.Mixed, // Key-value map of all evaluated pathology scores
+      whatWasObserved: [String],
+      potentialAbnormalities: [mongoose.Schema.Types.Mixed],
+      normalFindings: [mongoose.Schema.Types.Mixed],
       summary: String,            // Technical summary
       explanation: String,        // Patient-friendly explanation
+      clinicalExplanation: String,
+      recommendations: [String],
+      importantCaveats: [String],
+      requiresDoctorReview: {
+        type: Boolean,
+        default: true,
+      },
       confidence: Number,         // Overall confidence score (0-1)
       limitations: [String],      // Known limitations of this analysis
       disclaimers: [String],      // Safety disclaimers

@@ -118,6 +118,49 @@ class AIService {
   }
 
   /**
+   * Generate standardized radiology analysis explanation
+   */
+  async generateRadiologyExplanation(radiologyContext, options = {}) {
+    try {
+      if (!this.adapter) {
+        throw new Error('No AI adapter initialized');
+      }
+
+      logger.info(
+        `AIService: Generating radiology explanation (${this.adapter.getStatus?.()?.provider || 'AI Adapter'})`
+      );
+
+      if (typeof this.adapter.generateRadiologyExplanation === 'function') {
+        return await this.adapter.generateRadiologyExplanation(radiologyContext, options);
+      }
+
+      // Fallback if adapter does not implement generateRadiologyExplanation (e.g., test mocks)
+      const simple = await this.adapter.generateSimpleExplanation(radiologyContext, options);
+      return {
+        studyType: radiologyContext.studyType || 'Radiology Study',
+        modality: radiologyContext.modality || 'other',
+        summary: simple.explanation || 'Radiology evaluation completed.',
+        whatWasObserved: simple.keyPoints || [],
+        potentialAbnormalities: [],
+        normalFindings: [],
+        clinicalExplanation: simple.explanation || '',
+        recommendations: ['Consult treating clinician for evaluation'],
+        importantCaveats: ['Informational AI assistance only'],
+        requiresDoctorReview: true,
+        analysisProvider: this.adapter.getStatus?.()?.provider || 'AI',
+        analysisModel: this.adapter.getStatus?.()?.model || 'model',
+        analysisStatus: 'completed',
+      };
+    } catch (error) {
+      logger.error(`AIService radiology explanation error: ${error.message}`);
+      if (error instanceof ExternalServiceError) {
+        throw error;
+      }
+      throw new ExternalServiceError('AIService', error.message);
+    }
+  }
+
+  /**
    * Validate medical summary structure
    */
   validateMedicalSummary(summary) {

@@ -264,6 +264,10 @@ router.post('/upload-report', authMiddleware, authorize(['DOCTOR', 'RADIOLOGY_TE
       findings: '',
       impression: '',
       recommendation: '',
+      aiAnalysis: {
+        status: 'queued',
+        analyzedAt: null,
+      },
     };
 
     const radiologyRecord = await RadiologyService.createRadiologyRecord(radiologyData, {
@@ -276,6 +280,13 @@ router.post('/upload-report', authMiddleware, authorize(['DOCTOR', 'RADIOLOGY_TE
 
     logger.info(`Radiology report uploaded: ${radiologyRecord._id} by user ${req.user.id}`);
 
+    // Automatically trigger AI analysis pipeline asynchronously
+    RadiologyAIService.autoProcessRadiologyStudy(radiologyRecord._id, {
+      _id: req.user.id || req.user._id,
+      role: req.user.role,
+      facilityId: req.user.facilityId || resolvedHospitalId,
+    }, { language: req.body.language || 'en' });
+
     // Sync metadata to Google Sheets boundary (secondary asynchronous sync)
     try {
       const GoogleSheetsService = (await import('../services/GoogleSheetsService.js')).default;
@@ -287,8 +298,8 @@ router.post('/upload-report', authMiddleware, authorize(['DOCTOR', 'RADIOLOGY_TE
     res.status(201).json({
       success: true,
       data: radiologyRecord,
-      message: 'Radiology report uploaded successfully. AI analysis is pending on-demand.',
-      aiStatus: 'pending_on_demand',
+      message: 'Radiology report uploaded successfully. Automatic AI analysis has been initiated.',
+      aiStatus: 'queued',
     });
   } catch (error) {
     logger.error('Error uploading radiology report:', error);
@@ -558,6 +569,37 @@ router.get('/:radiologyId/ai-status', authMiddleware, async (req, res) => {
     res.status(error.message.includes('not found') ? 404 : error.message.includes('Not authorized') ? 403 : 500).json({
       success: false,
       error: error.message || 'Failed to get analysis status',
+    });
+  }
+});
+
+/**
+ * POST /api/radiology/:radiologyId/retry-ai
+ * Retry automatic AI analysis on a radiology record
+ */
+router.post('/:radiologyId/retry-ai', authMiddleware, async (req, res) => {
+  try {
+    const { radiologyId } = req.params;
+    const { language = 'en' } = req.body;
+
+    const requestingUser = {
+      _id: req.user.id || req.user._id,
+      role: req.user.role,
+      facilityId: req.user.facilityId,
+    };
+
+    const result = await RadiologyAIService.retryAnalysis(radiologyId, requestingUser, { language });
+
+    res.json({
+      success: true,
+      data: result,
+      message: 'Radiology AI analysis re-initiated successfully',
+    });
+  } catch (error) {
+    logger.error('Error retrying radiology AI analysis:', error);
+    res.status(error.message.includes('not found') ? 404 : error.message.includes('Not authorized') ? 403 : 500).json({
+      success: false,
+      error: error.message || 'Failed to retry AI analysis',
     });
   }
 });
