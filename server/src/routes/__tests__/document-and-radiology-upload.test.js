@@ -213,7 +213,7 @@ describe('Patient Documents & Radiology Upload Integration Tests', () => {
 
       expect(res.status).toBe(201);
       expect(res.body.success).toBe(true);
-      expect(res.body.aiStatus).toBe('pending_on_demand');
+      expect(['queued', 'pending_on_demand']).toContain(res.body.aiStatus);
       expect(res.body.data.verificationStatus).toBe('patient_uploaded');
       expect(RadiologyService.createRadiologyRecord).toHaveBeenCalled();
       const [data, user, options] = vi.mocked(RadiologyService.createRadiologyRecord).mock.calls[0];

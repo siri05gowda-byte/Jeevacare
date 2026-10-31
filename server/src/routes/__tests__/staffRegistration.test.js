@@ -122,8 +122,8 @@ describe('Staff Registration Workflow', () => {
       const fs = await import('fs/promises');
       const content = await fs.readFile('server/src/routes/hospitalAdminRoutes.js', 'utf-8');
 
-      expect(content).toContain('requireRole(\'SYSTEM_ADMIN\')');
-      expect(content).toContain(''/create-hospital');
+      expect(content).toContain("requireRole('SYSTEM_ADMIN')");
+      expect(content).toContain('/create-hospital');
     });
 
     it('should enforce authMiddleware on registration endpoints', async () => {

@@ -21,8 +21,11 @@ class MedicalImageAnalyzer {
   constructor() {
     this.initialized = false;
     this.modelPath = config.medicalImageAI?.modelPath || null;
+    const isTestEnv = !!(process.env.VITEST || process.env.NODE_ENV === 'test');
     // Enabled unless explicitly disabled with MEDICAL_IMAGE_AI_ENABLED=false
-    this.enabled = process.env.MEDICAL_IMAGE_AI_ENABLED !== 'false';
+    // In test environment, disabled unless explicitly opted into via RUN_REAL_ML_IN_TESTS=true
+    this.enabled = process.env.RUN_REAL_ML_IN_TESTS === 'true' ||
+      (!isTestEnv && process.env.MEDICAL_IMAGE_AI_ENABLED !== 'false');
     this.device = config.medicalImageAI?.device || 'cpu';
     this.supportedModalities = ['chest_xray'];
     this.workerProcess = null;
@@ -40,7 +43,7 @@ class MedicalImageAnalyzer {
         this.workerReady = false;
       });
     } else {
-      logger.info('Medical Image AI explicitly disabled via environment configuration');
+      logger.info('Medical Image AI operating in mock/disabled mode');
     }
   }
 
@@ -49,78 +52,42 @@ class MedicalImageAnalyzer {
    * Prioritizes:
    * 1. Explicit process.env.PYTHON_PATH
    * 2. Dedicated server/.venv virtual environment
-   * 3. System candidate interpreters with verified torch/torchxrayvision
+   * 3. Root-level .venv virtual environment
+   * 4. System default interpreter (python3 / python)
    */
   async getPythonBinary() {
     if (this.pythonBinary) {
       return this.pythonBinary;
     }
 
-    const { execSync } = await import('child_process');
     const isWin = process.platform === 'win32';
     const serverDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
     const venvPythonPath = isWin
       ? path.join(serverDir, '.venv', 'Scripts', 'python.exe')
       : path.join(serverDir, '.venv', 'bin', 'python');
 
-    const candidates = [];
-
     // 1. Explicit environment override
     if (process.env.PYTHON_PATH) {
-      candidates.push(process.env.PYTHON_PATH);
+      this.pythonBinary = process.env.PYTHON_PATH;
+      return this.pythonBinary;
     }
 
     // 2. Dedicated project virtual environment
     if (fsSync.existsSync(venvPythonPath)) {
-      candidates.push(venvPythonPath);
+      this.pythonBinary = venvPythonPath;
+      return this.pythonBinary;
     }
 
-    // Also check root-level .venv if running from repo root
+    // 3. Root-level .venv if running from workspace root
     const rootVenvPython = isWin
       ? path.join(process.cwd(), '.venv', 'Scripts', 'python.exe')
       : path.join(process.cwd(), '.venv', 'bin', 'python');
-    if (fsSync.existsSync(rootVenvPython) && !candidates.includes(rootVenvPython)) {
-      candidates.push(rootVenvPython);
+    if (fsSync.existsSync(rootVenvPython)) {
+      this.pythonBinary = rootVenvPython;
+      return this.pythonBinary;
     }
 
-    // 3. System candidate binaries
-    const sysCandidates = isWin ? ['python', 'python3', 'py'] : ['python3', 'python'];
-    for (const bin of sysCandidates) {
-      if (!candidates.includes(bin)) {
-        candidates.push(bin);
-      }
-    }
-
-    // Pass 1: Find an interpreter that successfully imports torch and torchxrayvision
-    for (const bin of candidates) {
-      try {
-        execSync(`"${bin}" -c "import torch, torchxrayvision"`, { stdio: 'ignore', timeout: 30000 });
-        logger.info(`✓ Detected working Python interpreter with ML libraries: ${bin}`);
-        this.pythonBinary = bin;
-        return bin;
-      } catch (e) {
-        // Continue searching
-      }
-    }
-
-    // Pass 2: If none have torch yet, prefer dedicated venv interpreter over system PATH
-    if (fsSync.existsSync(venvPythonPath)) {
-      logger.warn(`Python virtualenv exists at ${venvPythonPath}, but torch/torchxrayvision not yet verified`);
-      this.pythonBinary = venvPythonPath;
-      return venvPythonPath;
-    }
-
-    for (const bin of candidates) {
-      try {
-        execSync(`"${bin}" --version`, { stdio: 'ignore', timeout: 3000 });
-        logger.warn(`Python interpreter ${bin} found, but torch/torchxrayvision not yet verified`);
-        this.pythonBinary = bin;
-        return bin;
-      } catch (e) {
-        // Continue searching
-      }
-    }
-
+    // 4. System fallback
     this.pythonBinary = isWin ? 'python' : 'python3';
     return this.pythonBinary;
   }
@@ -664,7 +631,7 @@ class MedicalImageAnalyzer {
       pythonBinary: this.pythonBinary || (process.platform === 'win32' ? 'python' : 'python3'),
       lastError: this.lastWorkerError,
       supportedModalities: this.supportedModalities,
-      mode: isRealReady ? 'production_real_inference' : 'worker_unavailable',
+      mode: isRealReady ? 'production_real_inference' : (this.enabled ? 'worker_unavailable' : 'mock'),
       workerPath: this.pythonWorkerPath,
       modelPath: this.modelPath || 'torchxrayvision:resnet50-res512-all',
     };
