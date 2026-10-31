@@ -256,6 +256,35 @@ router.post(
 );
 
 /**
+ * Get patient's documents
+ * GET /api/v1/documents/patient/:patientId
+ */
+router.get(
+  '/patient/:patientId',
+  authMiddleware,
+  [
+    param('patientId').isMongoId().withMessage('Invalid patient ID'),
+    query('type')
+      .optional()
+      .isIn([
+        'discharge_summary',
+        'lab_result',
+        'radiology_report',
+        'prescription',
+        'vaccination_record',
+        'imaging',
+        'medical_record',
+        'other',
+      ]),
+    query('status')
+      .optional()
+      .isIn(['patient_uploaded', 'verified', 'pending_verification']),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+
+/**
  * Get document by ID
  * GET /api/v1/documents/:documentId
  */
@@ -381,35 +410,6 @@ router.get(
     }
   }
 );
-
-/**
- * Get patient's documents
- * GET /api/v1/documents/patient/:patientId
- */
-router.get(
-  '/patient/:patientId',
-  authMiddleware,
-  [
-    param('patientId').isMongoId().withMessage('Invalid patient ID'),
-    query('type')
-      .optional()
-      .isIn([
-        'discharge_summary',
-        'lab_result',
-        'radiology_report',
-        'prescription',
-        'vaccination_record',
-        'imaging',
-        'medical_record',
-        'other',
-      ]),
-    query('status')
-      .optional()
-      .isIn(['patient_uploaded', 'verified', 'pending_verification']),
-  ],
-  async (req, res) => {
-    try {
-      const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
       }
