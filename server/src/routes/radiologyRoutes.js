@@ -320,6 +320,41 @@ router.get('/ai-service-status', authMiddleware, async (req, res) => {
 });
 
 /**
+ * GET /api/radiology/patient/:patientId
+ * Get all radiology records for a patient.
+ * MUST be before /:radiologyId to prevent 'patient' being matched as a radiologyId.
+ */
+router.get('/patient/:patientId', authMiddleware, async (req, res) => {
+  try {
+    const { patientId } = req.params;
+    const { modalityType, bodyPart, hasCriticalFindings, dateFrom, dateTo } = req.query;
+
+    const filters = {};
+    if (modalityType) filters.modalityType = modalityType;
+    if (bodyPart) filters.bodyPart = bodyPart;
+    if (hasCriticalFindings !== undefined) filters.hasCriticalFindings = hasCriticalFindings === 'true';
+    if (dateFrom) filters.dateFrom = dateFrom;
+    if (dateTo) filters.dateTo = dateTo;
+
+    const records = await RadiologyService.getPatientRadiologyRecords(patientId, {
+      _id: req.user.id,
+      role: req.user.role,
+      facilityId: req.user.facilityId,
+    }, filters);
+
+    res.json({
+      success: true,
+      data: records,
+      count: records.length,
+    });
+  } catch (error) {
+    res.status(error.message.includes('Not authorized') ? 403 : 400).json({
+      error: error.message,
+    });
+  }
+});
+
+/**
  * GET /api/radiology/:radiologyId
  * Get radiology record details
  */
@@ -409,45 +444,6 @@ router.get('/:radiologyId/download', authMiddleware, async (req, res) => {
   }
 });
 
-/**
- * GET /api/radiology/patient/:patientId
- * Get all radiology records for a patient
- * Query params:
- * - modalityType: optional (x_ray|ct_scan|mri|ultrasound|pet_scan|dexa_scan|other)
- * - bodyPart: optional
- * - hasCriticalFindings: optional (true/false)
- * - dateFrom: optional ISO8601
- * - dateTo: optional ISO8601
- */
-router.get('/patient/:patientId', authMiddleware, async (req, res) => {
-  try {
-    const { patientId } = req.params;
-    const { modalityType, bodyPart, hasCriticalFindings, dateFrom, dateTo } = req.query;
-
-    const filters = {};
-    if (modalityType) filters.modalityType = modalityType;
-    if (bodyPart) filters.bodyPart = bodyPart;
-    if (hasCriticalFindings !== undefined) filters.hasCriticalFindings = hasCriticalFindings === 'true';
-    if (dateFrom) filters.dateFrom = dateFrom;
-    if (dateTo) filters.dateTo = dateTo;
-
-    const records = await RadiologyService.getPatientRadiologyRecords(patientId, {
-      _id: req.user.id,
-      role: req.user.role,
-      facilityId: req.user.facilityId,
-    }, filters);
-
-    res.json({
-      success: true,
-      data: records,
-      count: records.length,
-    });
-  } catch (error) {
-    res.status(error.message.includes('Not authorized') ? 403 : 400).json({
-      error: error.message,
-    });
-  }
-});
 
 /**
  * POST /api/radiology/:radiologyId/analyze-image

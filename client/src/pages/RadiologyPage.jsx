@@ -26,8 +26,7 @@ import RadiologyAIAnalyzer from '../components/RadiologyAIAnalyzer';
 import aiService from '../services/aiService';
 import ttsService from '../services/ttsService';
 import radiologyService from '../services/radiologyService';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+import api from '../services/api';
 
 export default function RadiologyPage() {
   const { user } = useAuthStore();
@@ -61,24 +60,17 @@ export default function RadiologyPage() {
   const [uploadError, setUploadError] = useState(null);
   const [uploadSuccess, setUploadSuccess] = useState(null);
 
-  const resolvePatientId = useCallback(async (token) => {
+  const resolvePatientId = useCallback(async () => {
     if (user?.profile?.patientId) return user.profile.patientId;
     if (user?.patientId) return user.patientId;
 
     if (user?.role === 'PATIENT') {
       try {
-        const res = await fetch(`${API_BASE_URL}/patients/profile`, {
-          headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        if (res.ok) {
-          const profileData = await res.json();
-          if (profileData?.data?._id) return profileData.data._id;
-        }
+        const response = await api.get('/patients/profile');
+        const patient = response?.data || response;
+        if (patient?._id) return patient._id;
       } catch (err) {
-        console.warn('Could not query /patients/profile for patientId resolution:', err);
+        console.warn('Could not resolve patientId via /patients/profile:', err);
       }
     }
 
@@ -89,33 +81,16 @@ export default function RadiologyPage() {
     try {
       setLoading(true);
       setError(null);
-      
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setError('Authentication required');
-        return;
-      }
 
-      const patientId = await resolvePatientId(token);
+      const patientId = await resolvePatientId();
       if (!patientId) {
         setError('Unable to resolve patient identity. Please try logging in again.');
         setRadiologyRecords([]);
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}/radiology/patient/${patientId}`, {
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      setRadiologyRecords(data.data || []);
+      const records = await radiologyService.getPatientRadiologyRecords(patientId);
+      setRadiologyRecords(records || []);
     } catch (err) {
       console.error('Failed to load radiology records:', err);
       setError(err.message || 'Failed to load radiology records');
@@ -284,8 +259,7 @@ export default function RadiologyPage() {
     setUploadLoading(true);
 
     try {
-      const token = localStorage.getItem('token');
-      const patientId = await resolvePatientId(token);
+      const patientId = await resolvePatientId();
       if (!patientId) {
         throw new Error('Unable to resolve patient identity. Please refresh the page and try again.');
       }
