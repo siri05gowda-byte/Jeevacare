@@ -259,7 +259,13 @@ router.post(
  */
 router.post(
   '/login',
-  [body('email').isEmail().normalizeEmail(), body('password').notEmpty()],
+  [
+    body('email').optional().trim(),
+    body('username').optional().trim(),
+    body('identifier').optional().trim(),
+    body('jeevaId').optional().trim(),
+    body('password').notEmpty().withMessage('Password is required'),
+  ],
   async (req, res, next) => {
     try {
       const errors = validationResult(req);
@@ -267,10 +273,24 @@ router.post(
         return next(new ValidationError('Validation failed', errors.array()));
       }
 
-      const { email, password } = req.body;
+      const rawIdentifier = req.body.email || req.body.username || req.body.identifier || req.body.jeevaId;
+      if (!rawIdentifier || typeof rawIdentifier !== 'string' || !rawIdentifier.trim()) {
+        return next(new ValidationError('Email, username, or Jeeva ID is required'));
+      }
 
-      // Find user by email
-      const user = await User.findOne({ email }).select('+passwordHash');
+      const identifier = rawIdentifier.trim();
+      const normalizedEmail = identifier.toLowerCase();
+      const normalizedJeevaId = identifier.toUpperCase();
+      const { password } = req.body;
+
+      // Find user by email (case-insensitive) or JeevaId
+      const user = await User.findOne({
+        $or: [
+          { email: normalizedEmail },
+          { jeevaId: normalizedJeevaId },
+          { jeevaId: identifier },
+        ],
+      }).select('+passwordHash');
 
       if (!user) {
         await AuditService.logAuthenticationEvent({

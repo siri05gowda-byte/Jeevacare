@@ -244,22 +244,26 @@ export async function bootstrapDemoHospitalsAndAccounts() {
           },
           verificationStatus: 'verified',
           status: 'active',
+          auditMetadata: { loginAttempts: 0, lockedUntil: null },
         });
         await user.save();
         logger.info(`  ✓ Created hospital admin: ${aConfig.firstName} ${aConfig.lastName} (${aConfig.email})`);
       } else {
+        user.status = 'active';
+        user.verificationStatus = 'verified';
+        if (!user.auditMetadata) user.auditMetadata = {};
+        user.auditMetadata.loginAttempts = 0;
+        user.auditMetadata.lockedUntil = null;
+        if (!user.profile?.hospitalId) {
+          user.profile = user.profile || {};
+          user.profile.hospitalId = hospital._id;
+        }
         const matches = await user.comparePassword(expectedPassword);
         if (!matches) {
           user.passwordHash = expectedPassword;
-          user.status = 'active';
-          user.verificationStatus = 'verified';
-          if (!user.profile?.hospitalId) {
-            user.profile = user.profile || {};
-            user.profile.hospitalId = hospital._id;
-          }
-          await user.save();
           logger.info(`  ✓ Repaired password hash for hospital admin: ${aConfig.email}`);
         }
+        await user.save();
       }
 
       // Link HospitalStaff
@@ -313,22 +317,26 @@ export async function bootstrapDemoHospitalsAndAccounts() {
           },
           verificationStatus: 'verified',
           status: 'active',
+          auditMetadata: { loginAttempts: 0, lockedUntil: null },
         });
         await user.save();
         logger.info(`  ✓ Created doctor: Dr. ${docConfig.firstName} ${docConfig.lastName} (${docConfig.specialization})`);
       } else {
+        user.status = 'active';
+        user.verificationStatus = 'verified';
+        if (!user.auditMetadata) user.auditMetadata = {};
+        user.auditMetadata.loginAttempts = 0;
+        user.auditMetadata.lockedUntil = null;
+        if (!user.profile?.hospitalId) {
+          user.profile = user.profile || {};
+          user.profile.hospitalId = targetHospital._id;
+        }
         const matches = await user.comparePassword(expectedPassword);
         if (!matches) {
           user.passwordHash = expectedPassword;
-          user.status = 'active';
-          user.verificationStatus = 'verified';
-          if (!user.profile?.hospitalId) {
-            user.profile = user.profile || {};
-            user.profile.hospitalId = targetHospital._id;
-          }
-          await user.save();
           logger.info(`  ✓ Repaired password hash for doctor: ${docConfig.email}`);
         }
+        await user.save();
       }
 
       // HospitalStaff association for target hospital
@@ -401,7 +409,8 @@ export async function bootstrapDemoHospitalsAndAccounts() {
     const setupPatients = async (patientsList, hospital, primaryDoctorUser) => {
       for (const pConfig of patientsList) {
         let user = await User.findOne({ email: pConfig.email }).select('+passwordHash');
-        const expectedPassword = getDemoPassword(pConfig.firstName, pConfig.lastName);
+        // Synchronized with DEMO_CREDENTIALS.json: documented password for patients is 'Patient@123'
+        const expectedPassword = pConfig.password || 'Patient@123';
         if (!user) {
           user = new User({
             email: pConfig.email,
@@ -414,17 +423,21 @@ export async function bootstrapDemoHospitalsAndAccounts() {
             },
             verificationStatus: 'verified',
             status: 'active',
+            auditMetadata: { loginAttempts: 0, lockedUntil: null },
           });
           await user.save();
         } else {
-          const matches = await user.comparePassword(expectedPassword);
-          if (!matches) {
+          user.status = 'active';
+          user.verificationStatus = 'verified';
+          if (!user.auditMetadata) user.auditMetadata = {};
+          user.auditMetadata.loginAttempts = 0;
+          user.auditMetadata.lockedUntil = null;
+          const directMatch = (typeof user.passwordHash === 'string') && await bcryptjs.compare(expectedPassword, user.passwordHash);
+          if (!directMatch) {
             user.passwordHash = expectedPassword;
-            user.status = 'active';
-            user.verificationStatus = 'verified';
-            await user.save();
             logger.info(`  ✓ Repaired password hash for patient: ${pConfig.email}`);
           }
+          await user.save();
         }
 
         // Check or create Patient profile for this user
@@ -564,36 +577,120 @@ export async function bootstrapDemoHospitalsAndAccounts() {
         },
         verificationStatus: 'verified',
         status: 'active',
+        auditMetadata: { loginAttempts: 0, lockedUntil: null },
       });
       await sysAdmin.save();
       logger.info('  ✓ Created system administrator: admin@jeevacare.demo');
       GoogleSheetsService.recordUser(sysAdmin, { role: 'SYSTEM_ADMIN' }).catch(() => {});
     } else {
+      sysAdmin.status = 'active';
+      sysAdmin.verificationStatus = 'verified';
+      if (!sysAdmin.auditMetadata) sysAdmin.auditMetadata = {};
+      sysAdmin.auditMetadata.loginAttempts = 0;
+      sysAdmin.auditMetadata.lockedUntil = null;
       const matches = await sysAdmin.comparePassword(adminPassword);
       if (!matches) {
         sysAdmin.passwordHash = adminPassword;
-        sysAdmin.status = 'active';
-        sysAdmin.verificationStatus = 'verified';
-        await sysAdmin.save();
         logger.info('  ✓ Repaired password hash for system administrator: admin@jeevacare.demo');
       }
+      await sysAdmin.save();
     }
 
-    // 6. Ensure existing Demo Patient has valid working password
+    // 6. Ensure existing Demo Patient has valid working password and record
     try {
-      const demoPatientUser = await User.findOne({ email: 'patient@jeevacare.demo' }).select('+passwordHash');
-      if (demoPatientUser) {
+      let demoPatientUser = await User.findOne({ email: 'patient@jeevacare.demo' }).select('+passwordHash');
+      if (!demoPatientUser) {
+        demoPatientUser = new User({
+          email: 'patient@jeevacare.demo',
+          passwordHash: 'Patient@123',
+          role: 'PATIENT',
+          status: 'active',
+          verificationStatus: 'verified',
+          profile: {
+            firstName: 'Demo',
+            lastName: 'Patient',
+            phone: '+91-9876543210',
+          },
+          auditMetadata: { loginAttempts: 0, lockedUntil: null },
+        });
+        await demoPatientUser.save();
+        logger.info('  ✓ Created demo patient: patient@jeevacare.demo');
+      } else {
         const matches = await demoPatientUser.comparePassword('Patient@123');
         if (!matches) {
           demoPatientUser.passwordHash = 'Patient@123';
-          demoPatientUser.status = 'active';
-          demoPatientUser.verificationStatus = 'verified';
-          await demoPatientUser.save();
-          logger.info('  ✓ Repaired password hash for Demo Patient: patient@jeevacare.demo');
         }
+        demoPatientUser.status = 'active';
+        demoPatientUser.verificationStatus = 'verified';
+        if (!demoPatientUser.auditMetadata) demoPatientUser.auditMetadata = {};
+        demoPatientUser.auditMetadata.loginAttempts = 0;
+        demoPatientUser.auditMetadata.lockedUntil = null;
+        await demoPatientUser.save();
+      }
+
+      // Ensure Patient profile exists for patient@jeevacare.demo
+      let patDoc = await Patient.findOne({ userId: demoPatientUser._id });
+      if (!patDoc) {
+        patDoc = new Patient({
+          userId: demoPatientUser._id,
+          personalIdentity: {
+            firstName: 'Demo',
+            lastName: 'Patient',
+            dateOfBirth: new Date('1990-01-01'),
+            sex: 'Prefer not to say',
+            phone: '+91-9876543210',
+            email: 'patient@jeevacare.demo',
+          },
+          facilities: [{ facilityId: hospitals[0]._id, registeredAt: new Date() }],
+          status: 'active',
+          identityVerification: { status: 'verified', method: 'demo', verifiedAt: new Date() },
+        });
+        await patDoc.save();
       }
     } catch (demoPatErr) {
       logger.warn(`Demo patient check warning: ${demoPatErr.message}`);
+    }
+
+    // 7. Ensure UI Demo Accounts (patient@demo.com, doctor@demo.com, admin@demo.com) are verified & active
+    try {
+      const genericDemos = [
+        { email: 'patient@demo.com', role: 'PATIENT', password: 'DemoPassword123' },
+        { email: 'doctor@demo.com', role: 'DOCTOR', password: 'DemoPassword123' },
+        { email: 'admin@demo.com', role: 'SYSTEM_ADMIN', password: 'DemoPassword123' },
+      ];
+      for (const g of genericDemos) {
+        let u = await User.findOne({ email: g.email }).select('+passwordHash');
+        if (u) {
+          const match = await u.comparePassword(g.password);
+          if (!match) u.passwordHash = g.password;
+          u.status = 'active';
+          u.verificationStatus = 'verified';
+          if (!u.auditMetadata) u.auditMetadata = {};
+          u.auditMetadata.loginAttempts = 0;
+          u.auditMetadata.lockedUntil = null;
+          await u.save();
+        }
+      }
+    } catch (genErr) {
+      logger.warn(`Generic demo accounts check warning: ${genErr.message}`);
+    }
+
+    // 8. Explicitly preserve existing Kunal accounts
+    try {
+      const kunalEmails = ['kunal@demo.com', 'kunal@carmel.academy', 'kunalmk2005@gmail.com'];
+      for (const ke of kunalEmails) {
+        const ku = await User.findOne({ email: ke });
+        if (ku) {
+          ku.status = 'active';
+          ku.verificationStatus = 'verified';
+          if (!ku.auditMetadata) ku.auditMetadata = {};
+          ku.auditMetadata.loginAttempts = 0;
+          ku.auditMetadata.lockedUntil = null;
+          await ku.save();
+        }
+      }
+    } catch (kunalErr) {
+      logger.warn(`Kunal accounts preserve warning: ${kunalErr.message}`);
     }
 
     logger.info('✅ JeevaCare demo hospitals and accounts bootstrap COMPLETE.');
