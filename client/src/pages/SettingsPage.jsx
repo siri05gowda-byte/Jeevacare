@@ -3,6 +3,7 @@ import { User, Lock, Camera, Save, AlertCircle, CheckCircle, Building2 } from 'l
 import { useAuthStore } from '../stores/authStore';
 import { staffService } from '../services/staffService';
 import api from '../services/api';
+import PasswordInput from '../components/PasswordInput';
 
 export default function SettingsPage() {
   const { user, setUser } = useAuthStore();
@@ -529,13 +530,14 @@ export default function SettingsPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Current Password
               </label>
-              <input
-                type="password"
+              <PasswordInput
                 value={passwordData.currentPassword}
                 onChange={(e) =>
                   setPasswordData({ ...passwordData, currentPassword: e.target.value })
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-jeevacare-blue focus:border-transparent"
+                placeholder="Enter current password"
+                autoComplete="current-password"
                 required
               />
             </div>
@@ -543,13 +545,14 @@ export default function SettingsPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 New Password
               </label>
-              <input
-                type="password"
+              <PasswordInput
                 value={passwordData.newPassword}
                 onChange={(e) =>
                   setPasswordData({ ...passwordData, newPassword: e.target.value })
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-jeevacare-blue focus:border-transparent"
+                placeholder="Enter new password"
+                autoComplete="new-password"
                 required
               />
               <p className="text-xs text-gray-500 mt-1">
@@ -560,13 +563,14 @@ export default function SettingsPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Confirm New Password
               </label>
-              <input
-                type="password"
+              <PasswordInput
                 value={passwordData.confirmPassword}
                 onChange={(e) =>
                   setPasswordData({ ...passwordData, confirmPassword: e.target.value })
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-jeevacare-blue focus:border-transparent"
+                placeholder="Confirm new password"
+                autoComplete="new-password"
                 required
               />
             </div>

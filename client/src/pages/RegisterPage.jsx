@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import Logo from '../components/Logo';
+import PasswordInput from '../components/PasswordInput';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -282,14 +283,13 @@ export default function RegisterPage() {
               <label className="form-label" htmlFor="password">
                 Password <span className="text-red-500">*</span>
               </label>
-              <input
+              <PasswordInput
                 id="password"
-                type="password"
                 name="password"
                 value={formData.password}
                 onChange={handleChange}
                 className="form-input w-full"
-                minLength="8"
+                minLength={8}
                 placeholder="At least 8 characters"
                 autoComplete="new-password"
                 disabled={isLoading}

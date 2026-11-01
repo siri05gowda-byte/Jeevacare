@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import api from '../services/api';
 import Logo from '../components/Logo';
+import PasswordInput from '../components/PasswordInput';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -108,14 +109,14 @@ export default function LoginPage() {
             {/* Password Input */}
             <div className="form-group">
               <label className="form-label">Password</label>
-              <input
-                type="password"
+              <PasswordInput
                 name="password"
                 value={formData.password}
                 onChange={handleChange}
                 className="form-input"
                 placeholder="••••••••"
                 disabled={isLoading}
+                autoComplete="current-password"
               />
             </div>
 
