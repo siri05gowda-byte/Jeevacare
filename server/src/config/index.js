@@ -119,7 +119,7 @@ const config = {
   // Groq AI Service
   groq: {
     apiKey: process.env.GROQ_API_KEY,
-    model: process.env.GROQ_MODEL || 'mixtral-8x7b-32768',
+    model: process.env.GROQ_MODEL || 'openai/gpt-oss-120b',
   },
 
   // Medical Image AI (Zero-Cost Pretrained Models)
