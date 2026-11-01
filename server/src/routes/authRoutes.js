@@ -319,9 +319,32 @@ router.post(
         return next(new InvalidOperationError(`Your account is currently ${user.status}`));
       }
 
+      // Check if account verification was rejected
+      if (user.verificationStatus === 'rejected') {
+        await AuditService.logAuthenticationEvent({
+          actor: user._id,
+          action: 'failed_login',
+          status: 'denied',
+          statusMessage: 'Account verification rejected',
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent'],
+        });
+
+        return next(new AuthorizationError('Your account verification has been rejected. Please contact support.'));
+      }
+
       // Ensure auditMetadata is initialized
       if (!user.auditMetadata) {
         user.auditMetadata = { loginAttempts: 0 };
+      }
+
+      // Check if account is locked
+      if (user.auditMetadata.lockedUntil && user.auditMetadata.lockedUntil > new Date()) {
+        return next(
+          new InvalidOperationError(
+            'Account is temporarily locked. Please try again later or contact support.'
+          )
+        );
       }
 
       // Verify password
@@ -333,7 +356,7 @@ router.post(
 
         if (user.auditMetadata.loginAttempts >= 5) {
           user.auditMetadata.lockedUntil = new Date(Date.now() + 30 * 60 * 1000); // Lock for 30 minutes
-          logger.warn(`Account locked due to multiple failed login attempts: ${email}`);
+          logger.warn(`Account locked due to multiple failed login attempts: ${user.email}`);
         }
 
         await user.save();
@@ -348,15 +371,6 @@ router.post(
         });
 
         return next(new AuthenticationError('Invalid email or password'));
-      }
-
-      // Check if account is locked
-      if (user.auditMetadata.lockedUntil && user.auditMetadata.lockedUntil > new Date()) {
-        return next(
-          new InvalidOperationError(
-            'Account is temporarily locked. Please try again later or contact support.'
-          )
-        );
       }
 
       // Reset failed attempts

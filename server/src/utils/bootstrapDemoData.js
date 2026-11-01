@@ -244,6 +244,7 @@ export async function bootstrapDemoHospitalsAndAccounts() {
           },
           verificationStatus: 'verified',
           status: 'active',
+          isDemoAccount: true,
           auditMetadata: { loginAttempts: 0, lockedUntil: null },
         });
         await user.save();
@@ -251,6 +252,7 @@ export async function bootstrapDemoHospitalsAndAccounts() {
       } else {
         user.status = 'active';
         user.verificationStatus = 'verified';
+        user.isDemoAccount = true;
         if (!user.auditMetadata) user.auditMetadata = {};
         user.auditMetadata.loginAttempts = 0;
         user.auditMetadata.lockedUntil = null;
@@ -317,6 +319,7 @@ export async function bootstrapDemoHospitalsAndAccounts() {
           },
           verificationStatus: 'verified',
           status: 'active',
+          isDemoAccount: true,
           auditMetadata: { loginAttempts: 0, lockedUntil: null },
         });
         await user.save();
@@ -324,6 +327,7 @@ export async function bootstrapDemoHospitalsAndAccounts() {
       } else {
         user.status = 'active';
         user.verificationStatus = 'verified';
+        user.isDemoAccount = true;
         if (!user.auditMetadata) user.auditMetadata = {};
         user.auditMetadata.loginAttempts = 0;
         user.auditMetadata.lockedUntil = null;
@@ -423,12 +427,14 @@ export async function bootstrapDemoHospitalsAndAccounts() {
             },
             verificationStatus: 'verified',
             status: 'active',
+            isDemoAccount: true,
             auditMetadata: { loginAttempts: 0, lockedUntil: null },
           });
           await user.save();
         } else {
           user.status = 'active';
           user.verificationStatus = 'verified';
+          user.isDemoAccount = true;
           if (!user.auditMetadata) user.auditMetadata = {};
           user.auditMetadata.loginAttempts = 0;
           user.auditMetadata.lockedUntil = null;
@@ -577,6 +583,7 @@ export async function bootstrapDemoHospitalsAndAccounts() {
         },
         verificationStatus: 'verified',
         status: 'active',
+        isDemoAccount: true,
         auditMetadata: { loginAttempts: 0, lockedUntil: null },
       });
       await sysAdmin.save();
@@ -585,6 +592,7 @@ export async function bootstrapDemoHospitalsAndAccounts() {
     } else {
       sysAdmin.status = 'active';
       sysAdmin.verificationStatus = 'verified';
+      sysAdmin.isDemoAccount = true;
       if (!sysAdmin.auditMetadata) sysAdmin.auditMetadata = {};
       sysAdmin.auditMetadata.loginAttempts = 0;
       sysAdmin.auditMetadata.lockedUntil = null;
@@ -606,6 +614,7 @@ export async function bootstrapDemoHospitalsAndAccounts() {
           role: 'PATIENT',
           status: 'active',
           verificationStatus: 'verified',
+          isDemoAccount: true,
           profile: {
             firstName: 'Demo',
             lastName: 'Patient',
@@ -622,6 +631,7 @@ export async function bootstrapDemoHospitalsAndAccounts() {
         }
         demoPatientUser.status = 'active';
         demoPatientUser.verificationStatus = 'verified';
+        demoPatientUser.isDemoAccount = true;
         if (!demoPatientUser.auditMetadata) demoPatientUser.auditMetadata = {};
         demoPatientUser.auditMetadata.loginAttempts = 0;
         demoPatientUser.auditMetadata.lockedUntil = null;
@@ -665,6 +675,7 @@ export async function bootstrapDemoHospitalsAndAccounts() {
           if (!match) u.passwordHash = g.password;
           u.status = 'active';
           u.verificationStatus = 'verified';
+          u.isDemoAccount = true;
           if (!u.auditMetadata) u.auditMetadata = {};
           u.auditMetadata.loginAttempts = 0;
           u.auditMetadata.lockedUntil = null;
@@ -675,14 +686,13 @@ export async function bootstrapDemoHospitalsAndAccounts() {
       logger.warn(`Generic demo accounts check warning: ${genErr.message}`);
     }
 
-    // 8. Explicitly preserve existing Kunal accounts
+    // 8. Explicitly preserve existing Kunal accounts - NEVER mark as demo, preserve real password hashing
     try {
       const kunalEmails = ['kunal@demo.com', 'kunal@carmel.academy', 'kunalmk2005@gmail.com'];
       for (const ke of kunalEmails) {
         const ku = await User.findOne({ email: ke });
         if (ku) {
-          ku.status = 'active';
-          ku.verificationStatus = 'verified';
+          ku.isDemoAccount = false; // Preserved accounts must never inherit demo fallback credentials
           if (!ku.auditMetadata) ku.auditMetadata = {};
           ku.auditMetadata.loginAttempts = 0;
           ku.auditMetadata.lockedUntil = null;
