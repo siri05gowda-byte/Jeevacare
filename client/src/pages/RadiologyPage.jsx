@@ -64,19 +64,29 @@ export default function RadiologyPage() {
   const [pollingStudyId, setPollingStudyId] = useState(null);
 
   const resolvePatientId = useCallback(async () => {
+    // Priority 1: Explicit patient ID from user profile
     if (user?.profile?.patientId) return user.profile.patientId;
     if (user?.patientId) return user.patientId;
 
+    // Priority 2: For PATIENT role, ALWAYS fetch from /patients/profile
     if (user?.role === 'PATIENT') {
       try {
         const response = await api.get('/patients/profile');
         const patient = response?.data || response;
-        if (patient?._id) return patient._id;
+        if (patient?._id) {
+          // CRITICAL: Return Patient document _id, NOT user._id
+          return patient._id;
+        }
+        // If no profile exists, throw error - PATIENT must have a Patient document
+        throw new Error('Patient profile not found. Please complete registration.');
       } catch (err) {
-        console.warn('Could not resolve patientId via /patients/profile:', err);
+        console.error('Failed to resolve patient ID:', err);
+        throw new Error(err.message || 'Unable to load patient profile. Please try logging in again.');
       }
     }
 
+    // Priority 3: For non-patient roles (should not reach here for radiology)
+    // This fallback is for staff viewing their own records (rare case)
     return user?._id || user?.id;
   }, [user]);
 
@@ -85,7 +95,17 @@ export default function RadiologyPage() {
       if (!options.silent) setLoading(true);
       setError(null);
 
-      const patientId = await resolvePatientId();
+      let patientId;
+      try {
+        patientId = await resolvePatientId();
+      } catch (resolveErr) {
+        if (!options.silent) {
+          setError(resolveErr.message || 'Unable to resolve patient identity. Please try logging in again.');
+          setRadiologyRecords([]);
+        }
+        return;
+      }
+
       if (!patientId) {
         if (!options.silent) {
           setError('Unable to resolve patient identity. Please try logging in again.');
