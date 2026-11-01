@@ -14,6 +14,7 @@
     "seed": "node src/scripts/seedDemoData.js",
     "seed:comprehensive": "node src/scripts/seedComprehensiveData.js",
     "seed:synthetic": "node src/scripts/seedSyntheticData.js",
+    "fix:patient-assignments": "node src/scripts/fixPatientAssignments.js",
     "credentials:pdf": "node src/scripts/generateCredentialsPDF.js",
     "verify-db": "node src/scripts/verifyDatabase.js",
     "build:python": "node src/scripts/setupPythonEnv.js",

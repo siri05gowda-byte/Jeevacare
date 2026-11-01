@@ -60,6 +60,8 @@ export default function RadiologyPage() {
   const [uploadLoading, setUploadLoading] = useState(false);
   const [uploadError, setUploadError] = useState(null);
   const [uploadSuccess, setUploadSuccess] = useState(null);
+  const [newlyUploadedStudy, setNewlyUploadedStudy] = useState(null);
+  const [pollingStudyId, setPollingStudyId] = useState(null);
 
   const resolvePatientId = useCallback(async () => {
     if (user?.profile?.patientId) return user.profile.patientId;
@@ -123,14 +125,28 @@ export default function RadiologyPage() {
       ['queued', 'processing', 'analyzing'].includes(r.aiAnalysis?.status)
     );
 
-    if (!hasPendingAnalysis) return;
+    // Also poll if we have a specific study ID being tracked
+    if (!hasPendingAnalysis && !pollingStudyId) return;
 
     const intervalId = setInterval(() => {
       loadRadiologyRecords({ silent: true });
+
+      // Update newly uploaded study if we're tracking one
+      if (pollingStudyId) {
+        radiologyService.getRadiologyRecord(pollingStudyId)
+          .then(updated => {
+            setNewlyUploadedStudy(updated);
+            // Stop polling if analysis is complete or failed
+            if (updated.aiAnalysis?.status && !['queued', 'processing', 'analyzing'].includes(updated.aiAnalysis.status)) {
+              setPollingStudyId(null);
+            }
+          })
+          .catch(err => console.warn('Polling error:', err));
+      }
     }, 3000);
 
     return () => clearInterval(intervalId);
-  }, [radiologyRecords, loadRadiologyRecords]);
+  }, [radiologyRecords, loadRadiologyRecords, pollingStudyId]);
 
   // Generate AI Explanation for selected study
   const generateAiExplanation = useCallback(async (record, language) => {
@@ -294,7 +310,7 @@ export default function RadiologyPage() {
       // Facility ID: optional for patient uploads; backend resolves to patient facility or active hospital
       const hospitalId = user?.facilityId || user?.profile?.hospitalId || user?.hospitalId || undefined;
 
-      await radiologyService.uploadRadiologyReport({
+      const uploadResult = await radiologyService.uploadRadiologyReport({
         file: uploadData.file,
         patientId,
         hospitalId,
@@ -306,6 +322,19 @@ export default function RadiologyPage() {
         radiologistName: uploadData.radiologistName?.trim() || undefined,
         radiologistLicense: uploadData.radiologistLicense?.trim() || undefined,
       });
+
+      // Capture the newly uploaded study for same-screen display
+      const uploadedStudyId = uploadResult?.data?._id || uploadResult?._id;
+      if (uploadedStudyId) {
+        setPollingStudyId(uploadedStudyId);
+        // Fetch the full study details
+        try {
+          const newStudy = await radiologyService.getRadiologyRecord(uploadedStudyId);
+          setNewlyUploadedStudy(newStudy);
+        } catch (err) {
+          console.warn('Could not fetch newly uploaded study details:', err);
+        }
+      }
 
       // Clear form and close modal
       setUploadData({
@@ -319,7 +348,7 @@ export default function RadiologyPage() {
         radiologistLicense: '',
       });
       setShowUploadModal(false);
-      setUploadSuccess('Radiology report uploaded successfully. Automatic AI analysis has been initiated.');
+      setUploadSuccess('Radiology report uploaded successfully. Analysis in progress below.');
 
       // Refresh records to update the list and statistics
       await loadRadiologyRecords();
@@ -408,12 +437,109 @@ export default function RadiologyPage() {
             <span>{uploadSuccess}</span>
           </div>
           <button
-            onClick={() => setUploadSuccess(null)}
+            onClick={() => {
+              setUploadSuccess(null);
+              setNewlyUploadedStudy(null);
+              setPollingStudyId(null);
+            }}
             className="p-1 text-green-700 hover:bg-green-100 rounded-md"
             aria-label="Dismiss message"
           >
             <X size={16} />
           </button>
+        </div>
+      )}
+
+      {/* Newly Uploaded Study - Automatic Same-Screen Display */}
+      {newlyUploadedStudy && (
+        <div className="bg-white border-2 border-blue-300 rounded-xl shadow-lg p-6 space-y-4 animate-fade-in">
+          <div className="flex items-center justify-between border-b border-gray-200 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 text-blue-700 rounded-lg">
+                <Stethoscope size={22} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">
+                  Recently Uploaded: {newlyUploadedStudy.modalityType?.replace('_', ' ').toUpperCase()} — {newlyUploadedStudy.bodyPart}
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Study Date: {new Date(newlyUploadedStudy.studyDate).toLocaleDateString()}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setNewlyUploadedStudy(null);
+                setPollingStudyId(null);
+              }}
+              className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+              aria-label="Close"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* Study Metadata */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-gray-50 p-4 rounded-lg border border-gray-200 text-sm">
+            {newlyUploadedStudy.radiologistName && (
+              <div>
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Radiologist</span>
+                <p className="font-medium text-gray-900 mt-0.5 flex items-center gap-1.5">
+                  <UserIcon size={14} className="text-gray-500" />
+                  {newlyUploadedStudy.radiologistName}
+                </p>
+              </div>
+            )}
+            {newlyUploadedStudy.clinicalIndication && (
+              <div>
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Clinical Indication</span>
+                <p className="font-medium text-gray-900 mt-0.5">{newlyUploadedStudy.clinicalIndication}</p>
+              </div>
+            )}
+          </div>
+
+          {/* AI Analysis Section */}
+          <div className="border-t border-gray-200 pt-4">
+            <RadiologyAIAnalyzer
+              radiologyId={newlyUploadedStudy._id}
+              radiologyRecord={newlyUploadedStudy}
+              selectedLanguage={selectedLanguage}
+              onAnalysisComplete={(analysis) => {
+                setNewlyUploadedStudy(prev => ({
+                  ...prev,
+                  aiAnalysis: analysis
+                }));
+              }}
+            />
+          </div>
+
+          {/* Clinical Report if available */}
+          {(newlyUploadedStudy.findings || newlyUploadedStudy.impression) && (
+            <div className="space-y-3 border-t border-gray-200 pt-4">
+              {newlyUploadedStudy.findings && (
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5 mb-1.5">
+                    <FileText size={16} className="text-gray-600" />
+                    Findings
+                  </h4>
+                  <div className="bg-white p-3 border border-gray-200 rounded-lg text-sm text-gray-800 leading-relaxed">
+                    {newlyUploadedStudy.findings}
+                  </div>
+                </div>
+              )}
+              {newlyUploadedStudy.impression && (
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5 mb-1.5">
+                    <FileCheck size={16} className="text-gray-600" />
+                    Impression
+                  </h4>
+                  <div className="bg-blue-50/50 p-3 border border-blue-200 rounded-lg text-sm text-gray-900 leading-relaxed font-medium">
+                    {newlyUploadedStudy.impression}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

@@ -22,7 +22,6 @@ export default function StaffRegistrationPage() {
   const [success, setSuccess] = useState(false);
   const [formData, setFormData] = useState({
     hospitalId: '',
-    role: '',
     specialization: '',
   });
   const [requests, setRequests] = useState([]);
@@ -72,8 +71,8 @@ export default function StaffRegistrationPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!formData.hospitalId || !formData.role) {
-      setError('Please select a hospital and role');
+    if (!formData.hospitalId) {
+      setError('Please select a hospital');
       return;
     }
 
@@ -90,8 +89,7 @@ export default function StaffRegistrationPage() {
         },
         body: JSON.stringify({
           hospitalId: formData.hospitalId,
-          role: formData.role,
-          specialization: formData.specialization,
+          specialization: formData.specialization ? [formData.specialization] : [],
         }),
       });
 
@@ -102,7 +100,7 @@ export default function StaffRegistrationPage() {
       }
 
       setSuccess(true);
-      setFormData({ hospitalId: '', role: '', specialization: '' });
+      setFormData({ hospitalId: '', specialization: '' });
       
       // Reload requests
       await loadData();
@@ -228,24 +226,17 @@ export default function StaffRegistrationPage() {
               </select>
             </div>
 
-            {/* Role Selection */}
+            {/* Current Role Display */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select Role *
+                Your Role
               </label>
-              <select
-                value={formData.role}
-                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-jeevacare-blue focus:border-transparent"
-                required
-              >
-                <option value="">Choose a role...</option>
-                {staffRoles.map((role) => (
-                  <option key={role.value} value={role.value}>
-                    {role.label}
-                  </option>
-                ))}
-              </select>
+              <div className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-700">
+                {user?.role ? staffRoles.find(r => r.value === user.role)?.label || user.role : 'Loading...'}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                You will be registered with your current account role
+              </p>
             </div>
 
             {/* Specialization (optional) */}

@@ -699,6 +699,17 @@ async function seedPatients(hospitals, doctors) {
         const assignedDoctor = doctors.find(d => d.hospital._id.toString() === hospitals[0]._id.toString() && d.user.email === SANJIVANI_DOCTORS[assignedDoctorIdx].email);
         
         if (assignedDoctor) {
+          // Properly assign doctor to patient using assignedDoctors array
+          patient.assignedDoctors.push({
+            doctorId: assignedDoctor.user._id,
+            facilityId: hospitals[0]._id,
+            assignedAt: new Date(),
+            assignedBy: user._id,
+            isPrimary: true,
+            status: 'active',
+          });
+          await patient.save();
+
           // Create a clinical record to establish the doctor-patient relationship
           const clinicalRecord = new ClinicalRecord({
             patientId: patient._id,
@@ -777,6 +788,17 @@ async function seedPatients(hospitals, doctors) {
         const assignedDoctor = doctors.find(d => d.hospital._id.toString() === hospitals[1]._id.toString() && d.user.email === AAROGYA_DOCTORS[assignedDoctorIdx].email);
         
         if (assignedDoctor) {
+          // Properly assign doctor to patient using assignedDoctors array
+          patient.assignedDoctors.push({
+            doctorId: assignedDoctor.user._id,
+            facilityId: hospitals[1]._id,
+            assignedAt: new Date(),
+            assignedBy: user._id,
+            isPrimary: true,
+            status: 'active',
+          });
+          await patient.save();
+
           const clinicalRecord = new ClinicalRecord({
             patientId: patient._id,
             providerId: assignedDoctor.user._id,
