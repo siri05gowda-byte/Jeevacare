@@ -492,7 +492,7 @@ export async function bootstrapDemoHospitalsAndAccounts() {
               data: {
                 condition: 'General Health Maintenance',
                 notes: 'Patient vital signs stable. Baseline metabolic profile within normal limits.',
-                severity: { level: 'mild' },
+                severity: 'mild',
               },
             });
             await clinicalRecord.save();
