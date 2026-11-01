@@ -1,246 +1,25 @@
 /**
- * Medical Image Analyzer Adapter
+ * Medical Image Analyzer Adapter (Stub for ClaraMed Integration)
  * 
- * Real deep-learning inference using TorchXRayVision (ResNet50).
- * Runs Python worker for actual model inference with zero fabrication.
+ * This adapter previously contained direct TorchXRayVision/PyTorch inference.
+ * Medical image AI has been decoupled to the ClaraMed platform.
  * 
  * Modalities:
- * - chest_xray: ✅ REAL DEEP LEARNING INFERENCE (18 specific pathologies)
- * - ct_scan, mri, ultrasound, mammography, bone_xray: ❌ Explicit unsupported response
+ * - chest_xray: ⏳ PENDING ClaraMed integration
+ * - ct_scan, mri, ultrasound, mammography, bone_xray: ⏳ PENDING ClaraMed integration
+ * 
+ * See docs/CLARAMED_INTEGRATION.md for integration roadmap.
  */
 
 import logger from '../utils/logger.js';
-import config from '../config/index.js';
-import fs from 'fs/promises';
-import fsSync from 'fs';
-import path from 'path';
-import { spawn } from 'child_process';
-import { fileURLToPath } from 'url';
 
 class MedicalImageAnalyzer {
   constructor() {
     this.initialized = false;
-    this.modelPath = config.medicalImageAI?.modelPath || null;
-    const isTestEnv = !!(process.env.VITEST || process.env.NODE_ENV === 'test');
-    // Enabled unless explicitly disabled with MEDICAL_IMAGE_AI_ENABLED=false
-    // In test environment, disabled unless explicitly opted into via RUN_REAL_ML_IN_TESTS=true
-    this.enabled = process.env.RUN_REAL_ML_IN_TESTS === 'true' ||
-      (!isTestEnv && process.env.MEDICAL_IMAGE_AI_ENABLED !== 'false');
-    this.device = config.medicalImageAI?.device || 'cpu';
-    this.supportedModalities = ['chest_xray'];
-    this.workerProcess = null;
-    this.workerReady = false;
-    this.requestQueue = new Map();
-    this.requestIdCounter = 0;
-    this.pythonWorkerPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'ChestXRayInferenceWorker.py');
-    this.initPromise = null;
-    this.lastWorkerError = null;
-    this.pythonBinary = null;
-
-    if (this.enabled) {
-      this.initializeWorker().catch(err => {
-        logger.warn(`Python worker initial spawn deferred/failed: ${err.message}`);
-        this.workerReady = false;
-      });
-    } else {
-      logger.info('Medical Image AI operating in mock/disabled mode');
-    }
-  }
-
-  /**
-   * Determine the appropriate Python executable to run.
-   * Prioritizes:
-   * 1. Explicit process.env.PYTHON_PATH
-   * 2. Dedicated server/.venv virtual environment
-   * 3. Root-level .venv virtual environment
-   * 4. System default interpreter (python3 / python)
-   */
-  async getPythonBinary() {
-    if (this.pythonBinary) {
-      return this.pythonBinary;
-    }
-
-    const isWin = process.platform === 'win32';
-    const serverDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-    const venvPythonPath = isWin
-      ? path.join(serverDir, '.venv', 'Scripts', 'python.exe')
-      : path.join(serverDir, '.venv', 'bin', 'python');
-
-    // 1. Explicit environment override
-    if (process.env.PYTHON_PATH) {
-      this.pythonBinary = process.env.PYTHON_PATH;
-      return this.pythonBinary;
-    }
-
-    // 2. Dedicated project virtual environment
-    if (fsSync.existsSync(venvPythonPath)) {
-      this.pythonBinary = venvPythonPath;
-      return this.pythonBinary;
-    }
-
-    // 3. Root-level .venv if running from workspace root
-    const rootVenvPython = isWin
-      ? path.join(process.cwd(), '.venv', 'Scripts', 'python.exe')
-      : path.join(process.cwd(), '.venv', 'bin', 'python');
-    if (fsSync.existsSync(rootVenvPython)) {
-      this.pythonBinary = rootVenvPython;
-      return this.pythonBinary;
-    }
-
-    // 4. System fallback
-    this.pythonBinary = isWin ? 'python' : 'python3';
-    return this.pythonBinary;
-  }
-
-  /**
-   * Initialize Python inference worker child process
-   */
-  async initializeWorker() {
-    if (this.initPromise) {
-      return this.initPromise;
-    }
-
-    this.initPromise = (async () => {
-      try {
-        await fs.access(this.pythonWorkerPath);
-        const pythonBin = await this.getPythonBinary();
-        logger.info(`Starting Python inference worker via [${pythonBin}]: ${this.pythonWorkerPath}`);
-
-        this.workerProcess = spawn(pythonBin, [this.pythonWorkerPath], {
-          stdio: ['pipe', 'pipe', 'pipe'],
-          detached: false,
-        });
-
-        let initBuffer = '';
-
-        this.workerProcess.stdout.on('data', (data) => {
-          const lines = (initBuffer + data.toString()).split('\n');
-          initBuffer = lines.pop() || '';
-
-          for (const rawLine of lines) {
-            const line = rawLine.trim();
-            if (!line) continue;
-            try {
-              const response = JSON.parse(line);
-              this._handleWorkerResponse(response);
-            } catch (e) {
-              logger.error(`Failed to parse Python worker response JSON: ${e.message} — raw: ${line}`);
-            }
-          }
-        });
-
-        this.workerProcess.stderr.on('data', (data) => {
-          const text = data.toString().trim();
-          if (text) {
-            this.lastWorkerError = text;
-            logger.info(`[PythonWorker] ${text}`);
-          }
-        });
-
-        this.workerProcess.on('exit', (code, signal) => {
-          logger.warn(`Python worker process exited (code: ${code}, signal: ${signal})`);
-          this.workerReady = false;
-          this.initialized = false;
-          this.workerProcess = null;
-          this.initPromise = null;
-        });
-
-        // Ping status to confirm worker is responsive
-        const statusCheck = await this._sendWorkerRequest('status', {});
-        if (statusCheck && statusCheck.ready) {
-          this.workerReady = true;
-          this.initialized = true;
-          this.lastWorkerError = null;
-          logger.info('✅ Python TorchXRayVision worker verified and ready');
-        } else {
-          throw new Error('Worker status check did not return ready state');
-        }
-
-        return true;
-      } catch (error) {
-        logger.warn(`Python worker initialization failed: ${error.message}`);
-        this.workerReady = false;
-        this.initialized = false;
-        this.initPromise = null;
-        throw error;
-      }
-    })();
-
-    return this.initPromise;
-  }
-
-  /**
-   * Ensure worker process is active and ready
-   */
-  async ensureWorker() {
-    if (this.workerReady && this.workerProcess) {
-      return true;
-    }
-    try {
-      await this.initializeWorker();
-      return this.workerReady;
-    } catch (err) {
-      return false;
-    }
-  }
-
-  /**
-   * Send JSON-RPC request to Python worker
-   */
-  async _sendWorkerRequest(method, params = {}) {
-    if (!this.workerProcess || !this.workerProcess.stdin) {
-      throw new Error('Python worker process is not running');
-    }
-
-    return new Promise((resolve, reject) => {
-      const requestId = ++this.requestIdCounter;
-      const timeout = setTimeout(() => {
-        this.requestQueue.delete(requestId);
-        reject(new Error(`Python worker timeout after 90s for method: ${method}`));
-      }, 90000);
-
-      this.requestQueue.set(requestId, { resolve, reject, timeout });
-
-      const request = {
-        id: requestId,
-        method,
-        params,
-      };
-
-      try {
-        this.workerProcess.stdin.write(JSON.stringify(request) + '\n');
-      } catch (error) {
-        clearTimeout(timeout);
-        this.requestQueue.delete(requestId);
-        reject(error);
-      }
-    });
-  }
-
-  /**
-   * Handle JSON response from Python worker
-   */
-  _handleWorkerResponse(response) {
-    const { id, result, error } = response;
-    if (id === undefined || id === null) {
-      logger.warn(`Received response without request ID: ${JSON.stringify(response)}`);
-      return;
-    }
-
-    const pending = this.requestQueue.get(id);
-    if (!pending) {
-      logger.warn(`Received response for unknown/expired request id: ${id}`);
-      return;
-    }
-
-    clearTimeout(pending.timeout);
-    this.requestQueue.delete(id);
-
-    if (error) {
-      pending.reject(new Error(error));
-    } else {
-      pending.resolve(result);
-    }
+    this.enabled = false; // Disabled until ClaraMed integration is complete
+    this.supportedModalities = ['chest_xray']; // ClaraMed will support more
+    
+    logger.info('MedicalImageAnalyzer: ClaraMed integration pending - local AI disabled');
   }
 
   /**
@@ -253,13 +32,13 @@ class MedicalImageAnalyzer {
       const bodyPart = (metadata.bodyPart || '').toLowerCase();
       const mimeType = (metadata.mimeType || '').toLowerCase();
 
-      // Check for explicit non-chest modalities first to prevent misattribution
+      // Check for explicit non-chest modalities first
       if (rawModality === 'mri' || filename.includes('mri')) {
         return {
           modality: 'mri',
           confidence: 0.95,
           supported: false,
-          reason: 'Automated deep-learning interpretation for MRI is not currently supported. Preserved for licensed radiologist review.',
+          reason: 'MRI analysis will be available via ClaraMed integration.',
         };
       }
 
@@ -268,7 +47,7 @@ class MedicalImageAnalyzer {
           modality: 'ct_scan',
           confidence: 0.95,
           supported: false,
-          reason: 'Automated deep-learning interpretation for CT scans is not currently supported. Preserved for licensed radiologist review.',
+          reason: 'CT scan analysis will be available via ClaraMed integration.',
         };
       }
 
@@ -277,7 +56,7 @@ class MedicalImageAnalyzer {
           modality: 'ultrasound',
           confidence: 0.90,
           supported: false,
-          reason: 'Automated deep-learning interpretation for Ultrasound is not currently supported. Preserved for licensed radiologist review.',
+          reason: 'Ultrasound analysis will be available via ClaraMed integration.',
         };
       }
 
@@ -294,15 +73,15 @@ class MedicalImageAnalyzer {
           return {
             modality: 'chest_xray',
             confidence: 0.92,
-            supported: true,
-            reason: 'Chest radiograph detected; supported by TorchXRayVision ResNet-50 pipeline',
+            supported: false, // Changed from true - requires ClaraMed
+            reason: 'Chest X-ray analysis will be available via ClaraMed integration.',
           };
         } else {
           return {
             modality: 'bone_xray',
             confidence: 0.85,
             supported: false,
-            reason: `X-ray of ${bodyPart || 'non-chest anatomical region'} detected. TorchXRayVision ResNet-50 is trained specifically on chest radiographs; automated analysis is not supported for this region.`,
+            reason: `X-ray of ${bodyPart || 'non-chest region'} will be available via ClaraMed integration.`,
           };
         }
       }
@@ -313,7 +92,7 @@ class MedicalImageAnalyzer {
           modality: 'document_pdf',
           confidence: 0.90,
           supported: false,
-          reason: 'PDF document detected. Please use document OCR extraction rather than deep-learning image inference.',
+          reason: 'PDF document detected. Please use document OCR extraction rather than image inference.',
         };
       }
 
@@ -321,7 +100,7 @@ class MedicalImageAnalyzer {
         modality: 'unknown',
         confidence: 0.0,
         supported: false,
-        reason: 'Could not reliably determine medical image modality. Please specify examination type and ensure valid radiograph input.',
+        reason: 'Could not reliably determine medical image modality.',
       };
     } catch (error) {
       logger.error(`Modality detection error: ${error.message}`);
@@ -335,69 +114,14 @@ class MedicalImageAnalyzer {
   }
 
   /**
-   * Analyze medical image and produce grounded findings
+   * Analyze medical image - stub for ClaraMed integration
    */
   async analyzeImage(image, options = {}) {
     try {
       const modalityInfo = options.detectedModality || await this.detectModality(image, options.metadata || {});
 
-      // Modality must be supported for automated deep-learning inference
-      if (!modalityInfo.supported) {
-        return this.createUnsupportedModalityResponse(modalityInfo);
-      }
-
-      // In unit tests or mock fake image URLs
-      if (typeof image === 'string' && (image.includes('fake') || image.includes('mock'))) {
-        return this.createMockAnalysis(modalityInfo.modality, options.language || 'en');
-      }
-
-      // Ensure Python worker is available
-      const workerReady = await this.ensureWorker();
-
-      if (!workerReady) {
-        const errorDetail = this.lastWorkerError 
-          ? `Worker process error: ${this.lastWorkerError}` 
-          : 'TorchXRayVision worker is unavailable. Verify that PyTorch dependencies (torch, torchvision, torchxrayvision) are installed.';
-        logger.error(`Chest X-ray deep learning analysis unavailable: ${errorDetail}`);
-        
-        return {
-          success: false,
-          status: 'worker_unavailable',
-          isMockData: false,
-          error: errorDetail,
-          modality: modalityInfo.modality,
-          model: 'TorchXRayVision-resnet50-res512-all',
-          recommendations: [
-            'Ensure Python dependencies are installed on the server environment (pip install -r server/requirements.txt)',
-            'Image preserved in persistent storage for manual radiologist evaluation',
-          ],
-          disclaimers: this.getDisclaimers(),
-        };
-      }
-
-      if (modalityInfo.modality === 'chest_xray') {
-        try {
-          logger.info(`Running real TorchXRayVision inference for: ${typeof image === 'string' ? image.slice(0, 80) : 'image-buffer'}`);
-          return await this.inferWithWorker(image, options.language || 'en');
-        } catch (workerError) {
-          logger.error(`Worker inference execution error: ${workerError.message}`);
-          return {
-            success: false,
-            status: 'inference_failed',
-            isMockData: false,
-            error: `TorchXRayVision inference execution failed: ${workerError.message}`,
-            modality: modalityInfo.modality,
-            model: 'TorchXRayVision-resnet50-res512-all',
-            recommendations: [
-              'Manual review by an authorized clinician required',
-              'Image preserved in persistent record',
-            ],
-            disclaimers: this.getDisclaimers(),
-          };
-        }
-      }
-
-      return this.createUnsupportedModalityResponse(modalityInfo);
+      // All modalities now require ClaraMed integration
+      return this.createClaraMedRequiredResponse(modalityInfo);
     } catch (error) {
       logger.error(`Medical image analysis error: ${error.message}`);
       return this.createErrorResponse(error);
@@ -405,98 +129,22 @@ class MedicalImageAnalyzer {
   }
 
   /**
-   * Run real inference using Python worker
+   * Create response indicating ClaraMed integration is required
    */
-  async inferWithWorker(imagePath, language = 'en') {
-    const result = await this._sendWorkerRequest('infer', {
-      image_path: imagePath,
-      model_name: 'resnet50-res512-all',
-      device: this.device,
-    });
-
-    if (!result || !result.success) {
-      throw new Error(result?.error || 'Inference worker returned unsuccessful result');
-    }
-
-    const findings = result.findings || [];
-    const summary = result.summary || 'Chest radiograph screening completed.';
-    const explanation = this._generateExplanation(findings, language);
-
-    return {
-      success: true,
-      status: 'completed',
-      isMockData: false,
-      modality: 'chest_xray',
-      model: result.model || 'TorchXRayVision-resnet50-res512-all',
-      pipelineVersion: result.pipelineVersion || '2.0.0-torchxrayvision',
-      language,
-      findings: findings.map(f => ({
-        pathology: f.pathology,
-        rawPathology: f.rawPathology || f.pathology,
-        confidence: f.confidence,
-        severity: f.severity,
-      })),
-      summary,
-      patientFriendlyExplanation: explanation,
-      confidence: findings.length > 0 ? findings[0].confidence : 0,
-      allPathologies: result.allPathologies || {},
-      limitations: result.limitations || [],
-      disclaimers: this.getDisclaimers(),
-      metadata: {
-        ...(result.metadata || {}),
-        inferenceType: 'real',
-        device: result.device || this.device,
-        positiveFindings: result.positiveFindings || findings.length,
-        pathologiesTested: result.pathologiesTested || 18,
-      },
-    };
-  }
-
-  /**
-   * Generate grounded explanation from actual observed model findings
-   */
-  _generateExplanation(findings, language = 'en') {
-    const explanations = {
-      en: {
-        normal: 'The automated screening model did not identify focal abnormalities exceeding the reporting threshold (30%) among the 18 evaluated chest pathologies. This is an algorithmic screening result and must be correlated with clinical history and reviewed by a licensed radiologist.',
-        findings: (fList) => {
-          const names = fList.map(f => `${f.pathology} (estimated probability: ${(f.confidence * 100).toFixed(0)}%)`).join(', ');
-          return `The automated model flagged potential patterns consistent with: ${names}. These are machine-learning probability indicators, not confirmed diagnoses. A qualified radiologist must evaluate the complete study.`;
-        },
-      },
-      hi: {
-        normal: 'स्वचालित स्क्रीनिंग मॉडल ने 18 मूल्यांकित छाती की स्थितियों में रिपोर्टिंग सीमा से अधिक कोई महत्वपूर्ण असामान्यता नहीं पाई। यह एक प्रारंभिक एल्गोरिदम परिणाम है और इसे योग्य रेडियोलॉजिस्ट द्वारा जांचा जाना चाहिए।',
-        findings: (fList) => {
-          const names = fList.map(f => `${f.pathology} (${(f.confidence * 100).toFixed(0)}%)`).join(', ');
-          return `मॉडल ने संभावित निष्कर्षों की पहचान की है: ${names}। कृपया सटीक पुष्टि और उपचार योजना के लिए रेडियोलॉजिस्ट से परामर्श करें।`;
-        },
-      },
-    };
-
-    const lang = explanations[language] || explanations.en;
-    if (findings.length === 0) {
-      return lang.normal;
-    }
-    return lang.findings(findings);
-  }
-
-  /**
-   * Create explicit response for unsupported modality
-   */
-  createUnsupportedModalityResponse(modalityInfo) {
+  createClaraMedRequiredResponse(modalityInfo) {
     return {
       success: false,
-      status: 'unsupported_modality',
+      status: 'claramed_required',
       modality: modalityInfo.modality,
       confidence: modalityInfo.confidence || 0,
-      message: `Automated deep-learning interpretation is not available for ${modalityInfo.modality}.`,
-      reason: modalityInfo.reason || 'This modality is not supported by the automated vision model.',
-      supportedModalities: this.supportedModalities,
+      message: `Medical image AI analysis for ${modalityInfo.modality} requires ClaraMed integration.`,
+      reason: 'JeevaCare has decoupled medical image AI to the ClaraMed platform.',
       recommendations: [
         'Your image has been securely saved to the patient record',
-        'A qualified healthcare professional or radiologist will review it manually',
-        'Automated AI vision analysis is currently supported for chest radiographs only',
+        'AI analysis will be available once ClaraMed integration is complete',
+        'A qualified healthcare professional can review the image manually',
       ],
+      claraMedIntegrationStatus: 'pending',
       disclaimers: this.getDisclaimers(),
     };
   }
@@ -513,66 +161,8 @@ class MedicalImageAnalyzer {
       recommendations: [
         'The uploaded study has been preserved in the persistent record',
         'Manual review by an authorized clinician can proceed without delay',
-        'You may retry analysis if this was a transient connection or worker issue',
       ],
       disclaimers: this.getDisclaimers(),
-    };
-  }
-
-  /**
-   * Create mock analysis for development/testing
-   * CLEARLY LABELED as mock data
-   */
-  createMockAnalysis(modality = 'chest_xray', language = 'en') {
-    const mockFindings = {
-      chest_xray: {
-        en: {
-          summary: 'Mock analysis: No real model inference available. Evaluates pathologies like Pneumonia, Consolidation, Effusion, Atelectasis, Cardiomegaly, and 13 other conditions.',
-          findings: [
-            { pathology: 'No significant abnormalities', confidence: 0.92, severity: 'low' }
-          ],
-          patientFriendlyExplanation: 'This is MOCK analysis for testing only. The chest X-ray appears within normal limits. A qualified radiologist should perform the official review.',
-          confidence: 0.92
-        },
-        hi: {
-          summary: 'मॉक विश्लेषण: छाती से संबंधित 18 बीमारियों का मूल्यांकन।',
-          findings: [
-            { pathology: 'कोई महत्वपूर्ण असामान्यता नहीं', confidence: 0.92, severity: 'low' }
-          ],
-          patientFriendlyExplanation: 'यह केवल परीक्षण के लिए मॉक विश्लेषण है। आपकी छाती का एक्स-रे सामान्य सीमा के भीतर दिखता है। एक योग्य रेडियोलॉजिस्ट को आधिकारिक समीक्षा करनी चाहिए।',
-          confidence: 0.92
-        }
-      }
-    };
-
-    const modalityData = mockFindings[modality] || mockFindings.chest_xray;
-    const langData = modalityData[language] || modalityData.en;
-
-    return {
-      success: true,
-      status: 'completed',
-      isMockData: true,
-      modality,
-      language,
-      model: 'mock-placeholder',
-      findings: langData.findings,
-      summary: langData.summary,
-      patientFriendlyExplanation: langData.patientFriendlyExplanation,
-      confidence: langData.confidence,
-      limitations: [
-        'This is MOCK data for development/testing only',
-        'No actual AI inference was performed',
-        'Real inference requires Python worker + TorchXRayVision model',
-        'Do not use for clinical decisions'
-      ],
-      disclaimers: this.getDisclaimers(),
-      analyzedAt: new Date(),
-      metadata: {
-        modelVersion: 'mock-1.0',
-        device: 'none',
-        inferenceType: 'mock',
-        inferenceTime: 0
-      }
     };
   }
 
@@ -582,14 +172,14 @@ class MedicalImageAnalyzer {
   getDisclaimers() {
     return [
       'This analysis is AI-generated and NOT a medical diagnosis.',
-      'Always consult a qualified radiologist or physician for clinical evaluation and definitive interpretation.',
-      'Decision-support outputs must never be used as the sole basis for clinical intervention or treatment changes.',
+      'Always consult a qualified radiologist or physician for clinical evaluation.',
+      'Decision-support outputs must never be used as the sole basis for clinical intervention.',
       'The original medical image and radiologist report remain the authoritative clinical record.',
     ];
   }
 
   /**
-   * Get supported modalities
+   * Get supported modalities (theoretical - requires ClaraMed)
    */
   getSupportedModalities() {
     return this.supportedModalities;
@@ -599,7 +189,7 @@ class MedicalImageAnalyzer {
    * Check if a specific modality is supported
    */
   supportsModality(modality) {
-    return this.supportedModalities.includes(modality);
+    return false; // All modalities require ClaraMed integration
   }
 
   /**
@@ -608,37 +198,36 @@ class MedicalImageAnalyzer {
   async healthCheck() {
     return {
       service: 'Medical Image Analyzer',
-      status: this.isReady() ? 'ready' : 'mock_mode',
-      enabled: this.enabled,
-      initialized: this.initialized && this.workerReady,
+      status: 'claramed_required',
+      enabled: false,
+      initialized: false,
+      claraMedIntegrationStatus: 'pending',
       supportedModalities: this.supportedModalities,
+      message: 'Medical image AI has been decoupled to ClaraMed platform',
       limitations: [
-        'Currently supports chest X-rays only',
-        'Deep learning inference with TorchXRayVision ResNet50',
-        'Fallback to mock mode when Python worker is unavailable'
+        'Direct TorchXRayVision inference has been removed from JeevaCare',
+        'AI analysis requires ClaraMed integration (pending implementation)',
+        'Manual radiologist review remains available for all uploaded studies'
       ],
       disclaimers: this.getDisclaimers(),
     };
   }
 
   getStatus() {
-    const isRealReady = this.initialized && this.workerReady;
     return {
-      enabled: this.enabled,
-      initialized: isRealReady,
-      model: isRealReady ? 'TorchXRayVision-resnet50-res512-all' : 'mock-placeholder',
-      device: this.device,
-      pythonBinary: this.pythonBinary || (process.platform === 'win32' ? 'python' : 'python3'),
-      lastError: this.lastWorkerError,
+      enabled: false,
+      initialized: false,
+      model: 'claramed-integration-pending',
+      device: 'n/a',
       supportedModalities: this.supportedModalities,
-      mode: isRealReady ? 'production_real_inference' : (this.enabled ? 'worker_unavailable' : 'mock'),
-      workerPath: this.pythonWorkerPath,
-      modelPath: this.modelPath || 'torchxrayvision:resnet50-res512-all',
+      mode: 'claramed_required',
+      claraMedIntegrationStatus: 'pending',
+      message: 'Medical image AI analysis requires ClaraMed platform integration',
     };
   }
 
   isReady() {
-    return this.workerReady;
+    return false; // Not ready until ClaraMed integration is complete
   }
 }
 

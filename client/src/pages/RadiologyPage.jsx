@@ -368,7 +368,7 @@ export default function RadiologyPage() {
         radiologistLicense: '',
       });
       setShowUploadModal(false);
-      setUploadSuccess('Radiology report uploaded successfully. Analysis in progress below.');
+      setUploadSuccess('Radiology report uploaded successfully. For AI analysis, use ClaraMed integration.');
 
       // Refresh records to update the list and statistics
       await loadRadiologyRecords();

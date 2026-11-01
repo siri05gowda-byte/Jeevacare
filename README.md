@@ -120,7 +120,7 @@ JeevaCare creates a **single, auditable health record** that follows the patient
 ### External Services (All with Demo/Mock Modes)
 - **Groq AI** — Medical text summaries (demo/mock if unconfigured)
 - **Piper TTS** — Text-to-speech audio (3 languages: English, Hindi, Malayalam; demo/mock for others)
-- **TorchXRayVision** — Chest X-ray analysis using ResNet50 pretrained model (mock mode by default; real inference requires manual setup)
+- **ClaraMed** — Medical image AI analysis platform (integration pending)
 - **Tesseract OCR** — Text extraction from medical documents (optional)
 - **Cloudinary** — File/document storage (optional; local filesystem used if unconfigured)
 - **DigiLocker** — Government document integration (demo mode by default)
@@ -153,7 +153,7 @@ JeevaCare creates a **single, auditable health record** that follows the patient
 ├─ Services
 │  ├─ AI Summary Service (Groq integration)
 │  ├─ TTS Service (Piper)
-│  ├─ Medical Image Analyzer (TorchXRayVision worker)
+│  ├─ Medical Image Analysis (ClaraMed integration pending)
 │  ├─ OCR Service (optional)
 │  └─ Document Storage (Cloudinary)
 │
@@ -166,9 +166,8 @@ JeevaCare creates a **single, auditable health record** that follows the patient
 │  ├─ Audit Events
 │  └─ Emergency Access Logs
 │
-└─ Python Workers
-   ├─ ChestXRayInferenceWorker (TorchXRayVision ResNet50)
-   └─ OCR Worker (optional)
+└─ External AI Platform
+   └─ ClaraMed (Medical image AI analysis - integration pending)
 ```
 
 ### Data Model
@@ -374,6 +373,7 @@ npm run seed:synthetic        # Seed synthetic demo data
 ### AI Features
 - `POST /api/v1/ai-summary/:patientId` — Generate medical summary (demo/mock)
 - `POST /api/v1/tts/speak` — Generate speech from text (English, Hindi, Malayalam with Piper; demo/mock for others)
+- **Medical image AI analysis has been decoupled to ClaraMed platform (integration pending)**
 
 ---
 

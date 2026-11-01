@@ -1,19 +1,20 @@
 /**
- * Radiology AI Service
+ * Radiology AI Service (Stub for ClaraMed Integration)
  * 
- * Orchestrates automated medical study analysis for radiology records.
- * Integrates:
- * 1. TorchXRayVision (ResNet50) for chest radiograph deep learning inference
- * 2. Groq LLM for grounded clinical explanations & patient summaries
- * 3. Tesseract OCR for written document and PDF report text extraction
- * 4. Structured unsupported-modality handling for CT/MRI/Ultrasound
+ * Previously orchestrated automated medical study analysis.
+ * Medical image AI has been decoupled to ClaraMed platform.
  * 
- * Safety-first approach:
- * - Never fabricates findings
- * - Always includes clinician-review disclaimers
- * - Preserves original uploaded files on processing failures
- * - DB-backed job tracking: survives Node process restarts
- * - Stale job recovery on startup prevents lost work
+ * Preserved functionality:
+ * - OCR for PDF report text extraction (Tesseract)
+ * - AI explanations for existing reports (Groq)
+ * - Record retrieval and status checking
+ * 
+ * Removed functionality (awaiting ClaraMed integration):
+ * - Direct TorchXRayVision inference
+ * - Automatic processing after upload
+ * - Stale job recovery
+ * 
+ * See docs/CLARAMED_INTEGRATION.md for integration roadmap.
  */
 
 import RadiologyRecord from '../models/RadiologyRecord.js';
@@ -31,123 +32,43 @@ const HEARTBEAT_INTERVAL_MS = 30 * 1000; // 30 seconds
 class RadiologyAIService {
   /**
    * Automatically process a radiology study immediately after upload.
+   * STUB: This functionality has been removed pending ClaraMed integration.
    * 
-   * Persists job state to MongoDB BEFORE dispatching, so the job can be
-   * recovered via recoverStaleJobs() if the Node process restarts before
-   * processing completes.
-   *
    * @param {String} radiologyId - Radiology record ID
    * @param {Object} requestingUser - User who uploaded the record
    * @param {Object} options - Language and options
    */
   static autoProcessRadiologyStudy(radiologyId, requestingUser, options = {}) {
-    const now = new Date();
-    // Persist job dispatch timestamp immediately (synchronous DB write via findByIdAndUpdate)
-    // This ensures even if the process dies immediately after, recoverStaleJobs() will pick it up
+    logger.info(`autoProcessRadiologyStudy called for ${radiologyId}: ClaraMed integration required`);
+    
+    // Update status to indicate ClaraMed is required (don't queue for processing)
     RadiologyRecord.findByIdAndUpdate(radiologyId, {
       $set: {
-        'aiAnalysis.status': 'queued',
-        'aiJob.dispatchedAt': now,
-        'aiJob.heartbeatAt': now,
-        'aiJob.processingLock': false,
-        'aiJob.lockPid': null,
+        'aiAnalysis.status': 'not_analyzed',
+        'aiAnalysis.error': 'AI analysis requires ClaraMed integration',
       },
-    }).catch(err => logger.error(`Failed to persist job dispatch state for ${radiologyId}: ${err.message}`));
-
-    // Run asynchronously in background after persisting state
-    setImmediate(async () => {
-      try {
-        await this._runWithLock(radiologyId, requestingUser, options);
-      } catch (err) {
-        logger.error(`Automated radiology processing error for ${radiologyId}: ${err.message}`);
-      }
-    });
+    }).catch(err => logger.error(`Failed to update radiology status for ${radiologyId}: ${err.message}`));
+    
+    // Automatic processing is disabled - awaiting ClaraMed integration
+    logger.warn(`Automatic radiology AI processing is disabled. Study ${radiologyId} saved for manual review.`);
   }
 
   /**
-   * Acquire processing lock and run analysis, releasing lock when done.
-   * Prevents concurrent processing of the same record.
+   * REMOVED: _runWithLock() - Processing lock logic removed pending ClaraMed integration.
    * @private
    */
   static async _runWithLock(radiologyId, requestingUser, options = {}) {
-    // Atomically acquire processing lock
-    const locked = await RadiologyRecord.findOneAndUpdate(
-      {
-        _id: radiologyId,
-        $or: [
-          { 'aiJob.processingLock': false },
-          { 'aiJob.processingLock': { $exists: false } },
-          // Allow re-lock if heartbeat is stale (process died mid-run)
-          { 'aiJob.heartbeatAt': { $lt: new Date(Date.now() - STALE_JOB_TIMEOUT_MS) } },
-        ],
-      },
-      {
-        $set: {
-          'aiJob.processingLock': true,
-          'aiJob.lockPid': process.pid,
-          'aiJob.heartbeatAt': new Date(),
-        },
-      },
-      { new: false }
-    );
-
-    if (!locked) {
-      logger.info(`Skipping radiology ${radiologyId}: already locked by another process`);
-      return null;
-    }
-
-    // Heartbeat timer — updates DB every 30s to prove the process is alive
-    const heartbeatTimer = setInterval(async () => {
-      try {
-        await RadiologyRecord.findByIdAndUpdate(radiologyId, {
-          $set: { 'aiJob.heartbeatAt': new Date() },
-        });
-      } catch (e) { /* non-fatal */ }
-    }, HEARTBEAT_INTERVAL_MS);
-
-    try {
-      const result = await this.processRadiologyStudy(radiologyId, requestingUser, options);
-      return result;
-    } finally {
-      clearInterval(heartbeatTimer);
-      // Release lock regardless of success/failure
-      await RadiologyRecord.findByIdAndUpdate(radiologyId, {
-        $set: {
-          'aiJob.processingLock': false,
-          'aiJob.lockPid': null,
-        },
-      }).catch(() => {});
-    }
+    logger.warn(`_runWithLock called but disabled: ClaraMed integration required`);
+    return null;
   }
 
   /**
    * Recover stale queued/processing jobs on process startup.
-   * Call this once from server/src/index.js after MongoDB connects.
-   * 
-   * Finds all records stuck in non-terminal states where the heartbeat
-   * is older than STALE_JOB_TIMEOUT_MS, resets their lock, and re-dispatches.
+   * STUB: This functionality has been removed pending ClaraMed integration.
    */
   static async recoverStaleJobs() {
-    const staleThreshold = new Date(Date.now() - STALE_JOB_TIMEOUT_MS);
-    try {
-      const staleRecords = await RadiologyRecord.find({
-        'aiAnalysis.status': { $in: ['queued', 'processing', 'analyzing'] },
-        $or: [
-          { 'aiJob.heartbeatAt': { $lt: staleThreshold } },
-          { 'aiJob.heartbeatAt': { $exists: false } },
-          { 'aiJob.dispatchedAt': { $lt: staleThreshold } },
-        ],
-      }).select('_id aiAnalysis.status aiJob').lean();
-
-      if (staleRecords.length === 0) {
-        logger.info('Radiology job recovery: no stale jobs found');
-        return { recovered: 0 };
-      }
-
-      logger.warn(`Radiology job recovery: found ${staleRecords.length} stale job(s) — re-dispatching`);
-
-      for (const record of staleRecords) {
-        const retryCount = (record.aiJob?.retryCount || 0) + 1;
+    logger.info('Radiology job recovery: disabled (ClaraMed integration required)');
+    return { recovered: 0 };
         const maxRetries = record.aiJob?.maxRetries || 3;
 
         if (retryCount > maxRetries) {

@@ -16,9 +16,7 @@
     "seed:synthetic": "node src/scripts/seedSyntheticData.js",
     "fix:patient-assignments": "node src/scripts/fixPatientAssignments.js",
     "credentials:pdf": "node src/scripts/generateCredentialsPDF.js",
-    "verify-db": "node src/scripts/verifyDatabase.js",
-    "build:python": "node src/scripts/setupPythonEnv.js",
-    "postinstall": "node src/scripts/setupPythonEnv.js"
+    "verify-db": "node src/scripts/verifyDatabase.js"
   },
   "dependencies": {
     "axios": "^1.6.0",

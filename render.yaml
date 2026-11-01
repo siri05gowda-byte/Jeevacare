@@ -6,8 +6,8 @@ services:
     plan: standard
     
     # Build configuration
-    # Installs Node dependencies and pinned CPU-only PyTorch + TorchXRayVision ML packages
-    buildCommand: npm install && node server/src/scripts/setupPythonEnv.js
+    # Install Node dependencies only (Python ML dependencies removed for ClaraMed architecture)
+    buildCommand: npm install
     # Pre-deploy hook
     preDeployCommand: echo "Pre-deploy check complete"
     startCommand: cd server && npm start
@@ -18,9 +18,7 @@ services:
       - key: NODE_ENV
         scope: build_and_runtime
         value: staging
-      - key: PYTHON_VERSION
-        scope: build_and_runtime
-        value: 3.11.10
+
       - key: PORT
         scope: runtime
         value: 5000

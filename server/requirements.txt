@@ -1,21 +1,6 @@
-# TorchXRayVision Inference Worker - Pinned CPU Dependencies
-# Explicitly configured for CPU-only inference on Python 3.11 (Render Linux & Windows)
-
---extra-index-url https://download.pytorch.org/whl/cpu
-
-# Deep Learning Framework (CPU-optimized, paired for Python 3.11)
-torch==2.3.1
-torchvision==0.18.1
-
-# Pretrained Medical Imaging Decision Support
-torchxrayvision==1.5.5
-
-# Numerical & Image Preprocessing
-numpy==1.26.4
-scikit-image==0.26.0
-Pillow>=9.0.0,<11.0.0
-scipy>=1.10.0,<1.13.0
-
-# Network & Utility
-requests>=2.28.0
-tqdm>=4.64.0
+# JeevaCare Server Python Dependencies
+# NOTE: TorchXRayVision/PyTorch dependencies have been removed.
+# Medical image AI is now handled by ClaraMed platform.
+# 
+# Preserved dependencies: None currently required by JeevaCare backend
+# OCR is handled by Tesseract.js (JavaScript library, no Python dependency)
