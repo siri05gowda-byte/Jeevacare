@@ -22,17 +22,33 @@ export const claraMedConfig = {
   },
 
   /**
-   * Get ClaraMed analysis URL for a radiology record
-   * @param {string} radiologyId - JeevaCare radiology record ID
-   * @param {string} patientId - JeevaCare patient ID
-   * @returns {string} Full ClaraMed analysis URL
+   * Address of the ClaraMed website (its first tab is Radiology AI), or null when ClaraMed is not configured.
+   * ClaraMed is a separate website; this is a plain link, so nothing about the user or a record is sent.
+   * Read at call time (not cached) so tests and runtime config changes take effect.
+   * Only https is accepted (http is allowed for localhost during development).
+   * @returns {string|null}
    */
-  getAnalysisUrl(radiologyId, patientId) {
-    if (!this.isConfigured()) {
+  getRadiologyAiUrl() {
+    const base = (import.meta.env.VITE_CLARAMED_BASE_URL || '').trim().replace(/\/+$/, '');
+    if (!base) return null;
+    let parsed;
+    try {
+      parsed = new URL(base);
+    } catch {
       return null;
     }
-    // Future: Will include auth token and callback URL
-    return `${this.baseUrl}/analyze?record=${radiologyId}&patient=${patientId}`;
+    const isLocalhost = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+    if (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && isLocalhost)) return null;
+    return base;
+  },
+
+  /**
+   * Kept for existing callers (RadiologyPage). ClaraMed no longer receives record or patient ids:
+   * it is a separate service reached by a plain link, so this returns the same Radiology AI page URL.
+   * @returns {string|null}
+   */
+  getAnalysisUrl() {
+    return this.getRadiologyAiUrl();
   },
 
   /**

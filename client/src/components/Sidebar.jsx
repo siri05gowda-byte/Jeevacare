@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import { Home, Users, Stethoscope, Calendar, AlertCircle, FileText, ChevronDown, X, Activity } from 'lucide-react';
+import { Home, Users, Stethoscope, Calendar, AlertCircle, FileText, ChevronDown, X, Activity, ExternalLink } from 'lucide-react';
 import Logo from './Logo';
+import { claraMedConfig } from '../config/claramed';
+
+// Roles that see the link to the separate ClaraMed "Radiology AI" website.
+const RADIOLOGY_AI_ROLES = ['PATIENT', 'DOCTOR', 'RADIOLOGY_TECHNICIAN'];
 
 export default function Sidebar({ isOpen = true, onClose }) {
   const { user } = useAuthStore();
@@ -54,7 +58,12 @@ export default function Sidebar({ isOpen = true, onClose }) {
     ],
   };
 
-  const items = menuItems[user?.role] || [];
+  const roleItems = menuItems[user?.role] || [];
+  const radiologyAiUrl = RADIOLOGY_AI_ROLES.includes(user?.role) ? claraMedConfig.getRadiologyAiUrl() : null;
+  // ClaraMed is a separate site: this item is an external link, not a route in this app.
+  const items = radiologyAiUrl
+    ? [...roleItems, { name: 'Radiology AI', href: radiologyAiUrl, icon: Activity, external: true }]
+    : roleItems;
   const isActive = (path) => location.pathname === path;
 
   // Close sidebar on mobile when a link is clicked
@@ -103,14 +112,33 @@ export default function Sidebar({ isOpen = true, onClose }) {
         <nav className="space-y-2 flex-1">
           {items.map((item) => {
             const Icon = item.icon;
-            const active = isActive(item.path);
+            const linkClasses =
+              'flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 text-sm font-medium focus-visible:outline-offset-2';
 
+            if (item.external) {
+              return (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={handleLinkClick}
+                  className={`${linkClasses} text-gray-300 hover:bg-white/10 hover:text-white`}
+                >
+                  <Icon size={18} className="flex-shrink-0" />
+                  <span>{item.name}</span>
+                  <ExternalLink size={14} className="ml-auto flex-shrink-0 opacity-70" aria-hidden="true" />
+                </a>
+              );
+            }
+
+            const active = isActive(item.path);
             return (
               <Link
                 key={item.path}
                 to={item.path}
                 onClick={handleLinkClick}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 text-sm font-medium focus-visible:outline-offset-2 ${
+                className={`${linkClasses} ${
                   active
                     ? 'bg-jeevacare-blue text-white shadow-lg'
                     : 'text-gray-300 hover:bg-white/10 hover:text-white'
