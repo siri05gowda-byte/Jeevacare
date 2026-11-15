@@ -8,6 +8,7 @@ import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import IntegratedDashboardPage from './pages/IntegratedDashboardPage';
 import PatientDashboardV2 from './pages/PatientDashboardV2';
+import ProtectedRoute from './components/ProtectedRoute';
 import ProviderDashboardV2 from './pages/ProviderDashboardV2';
 import EmergencyDashboardV2 from './pages/EmergencyDashboardV2';
 import HospitalPatientsPage from './pages/HospitalPatientsPage';
@@ -27,27 +28,6 @@ import SettingsPage from './pages/SettingsPage';
 import NotificationCenterPage from './pages/NotificationCenterPage';
 import StaffRegistrationPage from './pages/StaffRegistrationPage';
 import HospitalAdminDashboardPage from './pages/HospitalAdminDashboardPage';
-
-// Protected route component
-function ProtectedRoute({ children }) {
-  const { token, isLoading } = useAuthStore();
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin-slow">
-          <div className="w-16 h-16 border-4 border-gray-200 border-t-jeevacare-blue rounded-full"></div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!token) {
-    return <Navigate to="/login" replace />;
-  }
-
-  return children;
-}
 
 function App() {
   const { initialize } = useAuthStore();

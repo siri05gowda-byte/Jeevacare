@@ -28,22 +28,39 @@ export const useAuthStore = create((set, get) => ({
   refreshToken: getStoredItem('refreshToken') || null,
   isLoading: false,
   isInitialized: false,
+  connectionError: false,
   error: null,
 
-  // Initialize auth state from storage
-  initialize: async () => {
+  // Initialize auth state from storage (runs on every page load and refresh)
+  initialize: async ({ retryDelaysMs = [1500, 4000] } = {}) => {
     const token = getStoredItem('token');
-    if (token) {
+    if (!token) {
+      set({ user: null, token: null, refreshToken: null, isInitialized: true, connectionError: false, error: null });
+      return;
+    }
+
+    set({ isInitialized: false, connectionError: false });
+    for (let attempt = 0; ; attempt++) {
       try {
         const user = await authService.getCurrentUser();
-        set({ user, token, isInitialized: true, error: null });
+        set({ user, token, isInitialized: true, connectionError: false, error: null });
+        return;
       } catch (error) {
-        set({ user: null, token: null, refreshToken: null, isInitialized: true, error: error.message });
-        removeStoredItem('token');
-        removeStoredItem('refreshToken');
+        const status = error.response?.status;
+        if (status === 401 || status === 403) {
+          // The server says this token is no good: sign out.
+          set({ user: null, token: null, refreshToken: null, isInitialized: true, connectionError: false, error: error.message });
+          removeStoredItem('token');
+          removeStoredItem('refreshToken');
+          return;
+        }
+        if (attempt >= retryDelaysMs.length) {
+          // Slow, waking up or unreachable: stay signed in and let the user retry, instead of logging them out.
+          set({ isInitialized: true, connectionError: true, error: error.message });
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, retryDelaysMs[attempt]));
       }
-    } else {
-      set({ user: null, token: null, refreshToken: null, isInitialized: true, error: null });
     }
   },
 
