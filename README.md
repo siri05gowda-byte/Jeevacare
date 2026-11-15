@@ -4,7 +4,7 @@
 
 </div>
 
-**JeevaCare** is a healthcare information platform designed to organize patient medical records, enable emergency-access workflows, facilitate healthcare-provider interactions, and integrate radiology-report processing with AI-assisted analysis.
+**JeevaCare** is a healthcare information platform designed to organize patient medical records, enable emergency-access workflows, facilitate healthcare-provider interactions, and connect patients to **ClaraMed**, a separate AI service that explains X-rays in plain English.
 
 > **Academic/Demo Prototype** — Built to address fragmented medical records and demonstrate lifelong healthcare continuity principles. Not a certified medical device; all clinical decisions require qualified healthcare professional review.
 
@@ -42,7 +42,8 @@ JeevaCare creates a **single, auditable health record** that follows the patient
 
 - **Health Timeline** — Chronological view of all medical encounters, diagnoses, procedures, lab results, and documents
 - **Medical Records** — Secure viewing of clinical information created by providers
-- **Appointments** — Search providers, book appointments, and manage schedule
+- **Appointments** — Pick a hospital and doctor, then book, reschedule or cancel. A new patient is registered at a hospital the first time they book there
+- **JeevaCare ID** — One permanent ID per person (format `JJYY-XXXXX`, for example `JJ26-H7K2M`), shown on the dashboard and in Settings. The account and the patient record share it, and every user of every role gets one
 - **Emergency Profile** — Document critical information (allergies, medications, conditions, emergency contacts)
 - **Document Upload** — Add personal medical records and documents for verification by providers
 - **Clinical Records** — View clinical encounters, diagnoses, procedures, medications, and notes
@@ -50,7 +51,7 @@ JeevaCare creates a **single, auditable health record** that follows the patient
 - **Vaccinations** — Track vaccination history
 - **Discharge Summaries** — View hospital discharge documents and summaries
 - **AI Summaries** — AI-generated medical history summaries (demo/mock mode if unconfigured)
-- **Radiology Viewing** — View uploaded radiology reports and imaging metadata
+- **Radiology AI (ClaraMed)** — A sidebar link opens ClaraMed in a new tab, where patients upload an X-ray (PNG, JPEG, DICOM or PDF) and get a plain-English explanation. Shown when `VITE_CLARAMED_BASE_URL` is set, and it replaces the in-app radiology page
 - **Multilingual Interface** — 6 supported languages with language-specific content
 
 ### Healthcare Provider Workspace
@@ -120,7 +121,7 @@ JeevaCare creates a **single, auditable health record** that follows the patient
 ### External Services (All with Demo/Mock Modes)
 - **Groq AI** — Medical text summaries (demo/mock if unconfigured)
 - **Piper TTS** — Text-to-speech audio (3 languages: English, Hindi, Malayalam; demo/mock for others)
-- **ClaraMed** — Medical image AI analysis platform (integration pending)
+- **ClaraMed** — Separate Streamlit app that analyses chest X-rays and explains them in plain English; linked from the patient sidebar (see [Radiology AI](#radiology-ai-claramed))
 - **Tesseract OCR** — Text extraction from medical documents (optional)
 - **Cloudinary** — File/document storage (optional; local filesystem used if unconfigured)
 - **DigiLocker** — Government document integration (demo mode by default)
@@ -244,8 +245,8 @@ npm run start:client
 - Doctor: `doctor@demo.com` / `DemoPassword123`
 - Admin: `admin@demo.com` / `DemoPassword123`
 
-**Synthetic Multi-Hospital Demo** (when seeded):
-See `docs/RENDER_DEPLOYMENT_GUIDE.md` for Sanjivani Hospital and Aarogya Kendra demo accounts.
+**Synthetic Multi-Hospital Demo:**
+On every start the server creates two demo hospitals (Sanjivani Hospital and Aarogya Kendra) with their administrators, 11 doctors and 20 patients. It gives every user a JeevaCare ID, then links the doctors to the patients and adds an appointment history, so the dashboards look like a working hospital. This is safe to repeat and only touches the demo accounts. See [docs/DEMO_DATA_LINKING.md](docs/DEMO_DATA_LINKING.md). The logins are kept in your local `DEMO_CREDENTIALS.json` (never committed); see also `docs/RENDER_DEPLOYMENT_GUIDE.md`.
 
 ---
 
@@ -277,10 +278,9 @@ CORS_ORIGIN=http://localhost:5173
 GROQ_API_KEY=                     # Leave empty for AI demo mode
 GROQ_MODEL=mixtral-8x7b-32768
 
-# Medical Image AI (real inference requires manual setup)
-MEDICAL_IMAGE_AI_ENABLED=false    # Set true for real chest X-ray analysis
-MEDICAL_IMAGE_AI_MODEL_PATH=      # Path to model (e.g., ./models/chest-xray)
-MEDICAL_IMAGE_AI_DEVICE=cpu       # cpu or cuda
+# Demo data (see docs/DEMO_DATA_LINKING.md)
+DEMO_LINK_ON_STARTUP=true         # false stops the startup linking; "remove" takes back what it added
+DEMO_MODE=                        # set to false for real use: turns off the built-in demo passwords
 
 # File Storage (optional; local filesystem used if unconfigured)
 CLOUDINARY_CLOUD_NAME=
@@ -294,6 +294,14 @@ PIPER_MODELS_PATH=
 
 # Logging
 LOG_LEVEL=info
+```
+
+### Frontend Variables (Vercel, or client/.env)
+
+```env
+VITE_API_BASE_URL=                # Backend URL (production uses the /api/v1 proxy)
+VITE_CLARAMED_BASE_URL=           # Your ClaraMed address, https only (for example https://your-claramed-app.streamlit.app).
+                                  # Adds the "Radiology AI" link to the patient sidebar. Baked in at build time: redeploy after changing it.
 ```
 
 ---
@@ -315,6 +323,7 @@ npm run test                  # Run all tests
 npm run test:backend          # Run backend tests
 npm run test:frontend         # Run frontend tests
 npm run test:quick            # Run quick unit tests
+# Backend tests run one file at a time because they share one database. See "Testing" below.
 
 # Linting
 npm run lint                  # Lint all workspaces
@@ -348,10 +357,13 @@ npm run seed:synthetic        # Seed synthetic demo data
 - `POST /api/v1/patients/:id/documents` — Upload medical documents
 
 ### Appointments
-- `GET /api/v1/appointments` — List appointments
-- `POST /api/v1/appointments` — Book new appointment
-- `GET /api/v1/appointments/:id` — Get appointment details
-- `PUT /api/v1/appointments/:id` — Update appointment
+- `POST /api/v1/appointments/book` — Book an appointment (`POST /api/v1/appointments` also works)
+- `GET /api/v1/appointments/patient/:patientId` — A patient's appointments
+- `GET /api/v1/appointments/doctor/:doctorId` — A doctor's appointments
+- `GET /api/v1/appointments/:id` — Appointment details
+- `POST /api/v1/appointments/:id/reschedule` — Reschedule to a new time
+- `POST /api/v1/appointments/:id/cancel` — Cancel (`DELETE /api/v1/appointments/:id` also works)
+- `PUT /api/v1/appointments/:id/status` — Update the status
 
 ### Clinical Records (Provider)
 - `GET /api/v1/encounters` — List provider's encounters
@@ -362,7 +374,7 @@ npm run seed:synthetic        # Seed synthetic demo data
 ### Radiology
 - `GET /api/v1/radiology/:id` — Get radiology record
 - `POST /api/v1/radiology/upload` — Upload radiology report
-- `POST /api/v1/radiology/:id/analyze-image` — Analyze chest X-ray (real or mock)
+- `POST /api/v1/radiology/:id/analyze-image` — Image analysis has moved to ClaraMed; this backend no longer runs an X-ray model
 - `GET /api/v1/radiology/:id/ai-status` — Check AI analysis status
 
 ### Emergency Access
@@ -373,7 +385,7 @@ npm run seed:synthetic        # Seed synthetic demo data
 ### AI Features
 - `POST /api/v1/ai-summary/:patientId` — Generate medical summary (demo/mock)
 - `POST /api/v1/tts/speak` — Generate speech from text (English, Hindi, Malayalam with Piper; demo/mock for others)
-- **Medical image AI analysis has been decoupled to ClaraMed platform (integration pending)**
+- **Medical image AI analysis lives in ClaraMed, linked from the patient sidebar**
 
 ---
 
@@ -411,38 +423,28 @@ npm run seed:synthetic        # Seed synthetic demo data
 - **Synthetic credentials** kept in local `DEMO_CREDENTIALS.json` (ignored by Git, never committed)
 - **Plaintext demo passwords** are fictional and only for development/testing
 - **Mock AI modes** clearly labeled and cannot be mistaken for real analysis
+- **Built-in demo passwords:** while `DEMO_MODE` is not `false`, demo accounts also accept fixed fallback passwords (for example `Patient@123`) in addition to their own, even after a password change. Some of these appear in the repository's tests. Set `DEMO_MODE=false` before real patients use a deployment.
 
 ---
 
-## Radiology & Medical Image Processing
+## Radiology AI (ClaraMed)
 
-### Chest X-Ray Analysis
+X-ray analysis is **not** done inside JeevaCare. It lives in **ClaraMed**, a separate Streamlit app. Patients reach it from the **Radiology AI** item in the sidebar, which opens ClaraMed in a new tab. Nothing is sent from JeevaCare to ClaraMed: the patient uploads the image there directly.
 
-**Technology**: TorchXRayVision with pretrained ResNet50
+**What ClaraMed does:**
+- Accepts PNG, JPEG, DICOM and PDF (first page).
+- Chest X-rays go through a pretrained TorchXRayVision model. The result is turned into a plain-English report: an overall verdict (including a clear "no issues were flagged"), each flagged finding explained in everyday words with a low, moderate or high level of concern, faint borderline signs mentioned gently, what looks normal, next steps, and questions to ask a doctor.
+- Other body parts (hand, leg, spine and so on) are described by a vision language model. The page states that, for this option, the image is sent to the AI provider (Groq).
+- Reports can be written in the language chosen in the app.
 
-**Architecture:**
-- Real deep-learning inference using pretrained convolutional neural network
-- Python worker spawned by Node.js backend
-- Model cached in memory after first load
-- JSON-RPC communication over stdin/stdout
-- Detects 18 common chest pathologies
+**Connecting it:** set `VITE_CLARAMED_BASE_URL` to your ClaraMed address on the frontend host and redeploy. If it is not set, the patient sidebar keeps the in-app radiology page and no link is shown.
 
-**Supported Modalities:**
-- ✅ **Chest X-rays** — Real inference (18 pathologies detected)
-- ❌ **CT, MRI, Ultrasound** — Not supported (unsupported modality message)
+**Important disclaimers:**
+- It is an AI explanation, **not a diagnosis**, and never a substitute for a radiologist's interpretation.
+- The model is pretrained (a published research model), with no custom training on JeevaCare data. AI can miss problems or flag things that are not there.
+- Always requires review by a licensed healthcare professional.
 
-**Deployment:**
-- **Default (Free Tier):** Mock mode (clearly labeled)
-- **Real Inference:** Requires manual setup + 2-4GB RAM minimum
-- **Render Free Tier:** Insufficient RAM (512MB) for real inference; keep in mock mode
-- See `docs/MEDICAL_IMAGE_AI_SETUP.md` for real inference setup
-
-**Important Disclaimers:**
-- No custom training on JeevaCare-specific dataset
-- Uses pretrained weights (published research model)
-- Experimental feature; not a clinical diagnostic tool
-- Predictions are **not a substitute for qualified radiologist interpretation**
-- Always requires licensed healthcare professional review
+The earlier on-server chest X-ray worker (a Python process inside the backend) has been removed. `docs/MEDICAL_IMAGE_AI_SETUP.md` and `docs/RADIOLOGY_AI_QUICK_START.md` describe that old setup and are kept for reference only.
 
 ### OCR Processing
 
@@ -490,7 +492,9 @@ Currently deployed at: **https://jeevacare-cmdm.vercel.app**
 3. Configure environment variable:
    ```
    VITE_API_BASE_URL=https://jeevacare-th88.onrender.com
+   VITE_CLARAMED_BASE_URL=https://your-claramed-app.streamlit.app   # optional: adds the Radiology AI link
    ```
+   Vite bakes these in at build time, so redeploy after changing them.
 4. Build: `npm run build --workspace=client`
 5. Output: `client/dist`
 
@@ -518,6 +522,9 @@ Currently deployed at: **https://jeevacare-th88.onrender.com**
    ```
    *Note: Ensure the spreadsheet is shared with the service account email as Editor. The alias `GOOGLE_PRIVATE_KEY` is also supported.*
 6. Optional: Configure external services (Groq, Piper TTS, Cloudinary)
+7. Demo data (optional): `DEMO_LINK_ON_STARTUP` (default on) links the demo doctors to patients on each start, and `DEMO_MODE=false` turns off the built-in demo passwords. See [docs/DEMO_DATA_LINKING.md](docs/DEMO_DATA_LINKING.md).
+
+On the free tier the backend sleeps when idle, so the first request after a pause can take 20 seconds or more. The app waits and retries, and offers a Retry button instead of logging you out.
 
 **Health Check:** `https://jeevacare-th88.onrender.com/health`
 **Sheets Diagnostic:** `https://jeevacare-th88.onrender.com/api/v1/health/sheets` (or `POST /api/v1/health/sheets/test` for smoke test)
@@ -530,6 +537,8 @@ See `docs/RENDER_DEPLOYMENT_GUIDE.md` for complete instructions on:
 - Executing actual seed (creates demo hospitals, administrators, doctors, patients)
 - Verifying seeded records
 - Testing synthetic demo logins
+
+The server also links the demo doctors to the demo patients on startup; see [docs/DEMO_DATA_LINKING.md](docs/DEMO_DATA_LINKING.md).
 
 ---
 
@@ -550,10 +559,17 @@ npm run test:frontend         # Frontend tests
 - Production regression tests (23 verified fixes)
 
 **Test Status:**
-- Backend: Unit and integration tests included
-- Frontend: 60+ tests
+- Backend: Unit and integration tests; the database-backed ones run one file at a time because they share one test database
+- Frontend: 100+ tests (Vitest with jsdom and Testing Library)
 - Production builds: Validated (exit 0)
 - Deployment: Health checks configured
+
+**Running the backend tests:**
+- `TEST_MONGODB_URI` must point at a database named `jeevacare-test`; the tests refuse to run against anything else. MongoDB Atlas only accepts connections from allow-listed IP addresses.
+- `server/src/__tests__/demo-flows.verification.test.js` walks the real user flows (register, sign in, settings, password change, document upload, booking, cancel and reschedule, the new-patient journey, JeevaCare IDs). It only runs when `FLOW_TEST_MONGODB_URI` points at a throwaway database, and it never reads `MONGODB_URI`:
+  ```bash
+  FLOW_TEST_MONGODB_URI=mongodb://127.0.0.1:27017/jeevacare-test npx vitest run src/__tests__/demo-flows.verification.test.js
+  ```
 
 ---
 
@@ -563,7 +579,9 @@ npm run test:frontend         # Frontend tests
 |---|---|---|
 | Full Integration Tests | Configurable | Requires TEST_MONGODB_URI |
 | AI Medical Summaries | Demo Mode | Groq API optional; mock responses if unconfigured |
-| Chest X-Ray Analysis | Real/Mock Switchable | Real inference requires 2-4GB RAM; mock mode default |
+| X-Ray Analysis | In ClaraMed | A separate app; not run inside JeevaCare |
+| Demo Passwords | On by default | Built-in fallback passwords until `DEMO_MODE=false` |
+| Free-Tier Backend | Cold starts | The first request after idle can take 20+ seconds |
 | Text-to-Speech | Real/Mock Switchable | Piper TTS for English/Hindi/Malayalam; demo/mock for others |
 | DigiLocker Integration | Optional | Demo mode by default |
 | Cloudinary File Storage | Optional | Local filesystem used if unconfigured |
@@ -631,6 +649,10 @@ All external services have demo/fallback modes:
 - ✅ Role-based access control (8 roles)
 - ✅ Multilingual interface (6 languages)
 - ✅ Deployment configuration (Render + Vercel)
+- ✅ Radiology AI through ClaraMed (patient sidebar link)
+- ✅ One JeevaCare ID per user, matching the patient dashboard
+- ✅ Booking, rescheduling and cancelling appointments, including for newly registered patients
+- ✅ Demo hospitals linked to doctors and patients on startup
 - ✅ Production stability fixes and regression tests
 
 **Verified & Tested:**
@@ -671,9 +693,11 @@ Bug fixes and dependency updates can be addressed in subsequent maintenance work
 - **[Build_spec.md](Build_spec.md)** — Technical architecture and detailed specifications
 - **[objective.md](objective.md)** — Feature requirements and verification checklist
 - **[docs/RENDER_DEPLOYMENT_GUIDE.md](docs/RENDER_DEPLOYMENT_GUIDE.md)** — Staging deployment with synthetic demo data
-- **[docs/MEDICAL_IMAGE_AI_SETUP.md](docs/MEDICAL_IMAGE_AI_SETUP.md)** — Chest X-ray analysis setup and limitations
+- **[docs/DEMO_DATA_LINKING.md](docs/DEMO_DATA_LINKING.md)** — Linking demo doctors to patients, and how to control it
+- **[docs/CLARAMED_INTEGRATION.md](docs/CLARAMED_INTEGRATION.md)** — How ClaraMed fits in
+- **[docs/MEDICAL_IMAGE_AI_SETUP.md](docs/MEDICAL_IMAGE_AI_SETUP.md)** — The old on-server chest X-ray setup (reference only; replaced by ClaraMed)
 - **[docs/JEEVACARE_FRONTEND_IMPLEMENTATION.md](docs/JEEVACARE_FRONTEND_IMPLEMENTATION.md)** — Frontend architecture
-- **[docs/RADIOLOGY_AI_QUICK_START.md](docs/RADIOLOGY_AI_QUICK_START.md)** — Quick-start guide for radiology features
+- **[docs/RADIOLOGY_AI_QUICK_START.md](docs/RADIOLOGY_AI_QUICK_START.md)** — Quick start for the old on-server radiology features (reference only)
 
 ---
 

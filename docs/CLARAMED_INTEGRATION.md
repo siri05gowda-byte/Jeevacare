@@ -1,7 +1,7 @@
 # ClaraMed Integration Guide
 
-**Status**: Pending Implementation  
-**Last Updated**: October 7, 2026
+**Status**: Integrated as an external link. The patient sidebar's "Radiology AI" item opens ClaraMed in a new tab (set `VITE_CLARAMED_BASE_URL`); see the README. The rest of this guide is the original design plan.  
+**Last Updated**: November 15, 2026
 
 ---
 
