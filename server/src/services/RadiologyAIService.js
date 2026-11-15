@@ -69,53 +69,6 @@ class RadiologyAIService {
   static async recoverStaleJobs() {
     logger.info('Radiology job recovery: disabled (ClaraMed integration required)');
     return { recovered: 0 };
-        const maxRetries = record.aiJob?.maxRetries || 3;
-
-        if (retryCount > maxRetries) {
-          logger.error(`Radiology ${record._id}: max retries (${maxRetries}) exceeded, permanently marking failed`);
-          await RadiologyRecord.findByIdAndUpdate(record._id, {
-            $set: {
-              'aiAnalysis.status': 'failed',
-              'aiAnalysis.error': `Analysis failed after ${maxRetries} automated recovery attempts. Please retry manually.`,
-              'aiJob.processingLock': false,
-            },
-          });
-          continue;
-        }
-
-        // Release lock and increment retry count
-        await RadiologyRecord.findByIdAndUpdate(record._id, {
-          $set: {
-            'aiJob.processingLock': false,
-            'aiJob.retryCount': retryCount,
-            'aiJob.dispatchedAt': new Date(),
-            'aiJob.heartbeatAt': new Date(),
-          },
-          $push: {
-            'aiJob.errorHistory': {
-              attempt: retryCount,
-              error: `Recovered from stale state: ${record.aiAnalysis?.status}`,
-              failedAt: new Date(),
-            },
-          },
-        });
-
-        // Re-dispatch with a staggered delay to avoid thundering herd
-        const delayMs = retryCount * 2000;
-        setTimeout(() => {
-          this._runWithLock(record._id.toString(), { _id: 'system-recovery', role: 'SYSTEM' }, {}).catch(err => {
-            logger.error(`Recovery re-dispatch failed for ${record._id}: ${err.message}`);
-          });
-        }, delayMs);
-
-        logger.info(`Radiology job recovery: re-dispatched ${record._id} (attempt ${retryCount}/${maxRetries})`);
-      }
-
-      return { recovered: staleRecords.length };
-    } catch (err) {
-      logger.error(`Radiology job recovery failed: ${err.message}`);
-      return { recovered: 0, error: err.message };
-    }
   }
 
   /**
