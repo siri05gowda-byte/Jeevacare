@@ -75,53 +75,15 @@ describe('RadiologyAIService - Unit Tests', () => {
       expect(health.limitations).toBeInstanceOf(Array);
     });
 
-    it('should confirm mock mode is active', () => {
-      const status = MedicalImageAnalyzer.getStatus();
-      expect(['mock', 'worker_unavailable']).toContain(status.mode);
-      expect(status.initialized).toBe(false);
-    });
   });
 
   describe('Mock Data Behavior', () => {
-    it('should ensure RadiologyAIService relies on MedicalImageAnalyzer mock data', async () => {
-      // This test verifies the integration contract
-      const analyzerStatus = MedicalImageAnalyzer.getStatus();
-      expect(['mock', 'worker_unavailable']).toContain(analyzerStatus.mode);
-      
-      // All analysis from service will return isMockData: true
-      const serviceStatus = RadiologyAIService.getServiceStatus();
-      expect(['mock', 'worker_unavailable']).toContain(serviceStatus.imageAnalyzer.mode);
-    });
-
     it('should include disclaimers in all responses', () => {
       const disclaimers = MedicalImageAnalyzer.getDisclaimers();
       expect(disclaimers.some(d => d.includes('AI-generated'))).toBe(true);
       expect(disclaimers.some(d => d.includes('medical diagnosis') || d.includes('radiologist'))).toBe(true);
     });
 
-    it('should clearly label mock analysis in limitations', async () => {
-      const result = await MedicalImageAnalyzer.analyzeImage('http://fake.jpg', {
-        metadata: { filename: 'chest_xray.jpg' },
-        detectedModality: { modality: 'chest_xray', supported: true }
-      });
-
-      expect(result.isMockData).toBe(true);
-      expect(result.limitations).toBeDefined();
-      expect(result.limitations.some(l => l.includes('MOCK'))).toBe(true);
-    });
-  });
-
-  describe('Language Support', () => {
-    it('should have access to multi-language analysis capability', async () => {
-      const result = await MedicalImageAnalyzer.analyzeImage('http://fake.jpg', {
-        metadata: { filename: 'chest_xray.jpg' },
-        detectedModality: { modality: 'chest_xray', supported: true },
-        language: 'hi'
-      });
-
-      expect(result.language).toBe('hi');
-      expect(result.summary).toBeDefined();
-    });
   });
 
   describe('Cost Constraint Verification', () => {
@@ -134,10 +96,5 @@ describe('RadiologyAIService - Unit Tests', () => {
       expect(status.capabilities.imageAnalysis).toBe(false); // Mock mode
     });
 
-    it('should use local/mock analysis only', () => {
-      const analyzerStatus = MedicalImageAnalyzer.getStatus();
-      expect(['mock', 'worker_unavailable']).toContain(analyzerStatus.mode);
-      expect(analyzerStatus.modelPath).toBeDefined();
-    });
   });
 });

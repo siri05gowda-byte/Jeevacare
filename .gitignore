@@ -148,3 +148,7 @@ ENV/
 research/private/
 experiments/private/
 notes/private/
+
+# Local credential and secret notes (never commit)
+demo_credentials_reference.md
+env (secret keys).txt
