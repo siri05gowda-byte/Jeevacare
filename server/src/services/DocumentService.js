@@ -69,7 +69,7 @@ class DocumentService {
 
       // Determine verification status based on uploader role
       const isStaffUploader = authResult.user?.role && authResult.user.role !== 'PATIENT';
-      const initialVerificationStatus = isStaffUploader ? 'verified' : 'patient_uploaded';
+      const initialVerificationStatus = isStaffUploader ? 'provider_verified' : 'patient_uploaded';
 
       // ===== CREATE DOCUMENT RECORD =====
       const document = new Document({

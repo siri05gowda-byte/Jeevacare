@@ -1,0 +1,368 @@
+/**
+ * End-to-end check of the user-input flows against a LOCAL copy of the demo data:
+ * login, dashboard data, profile update, password change, document upload, appointment booking,
+ * and that doctors see their linked patients and appointments.
+ *
+ * It mounts the real route files on a throwaway Express app. Cloudinary is stubbed, so nothing is
+ * uploaded anywhere. It runs only when FLOW_TEST_MONGODB_URI is set (a database you can throw away,
+ * already holding the demo seed); it deliberately never reads MONGODB_URI, so it cannot touch live data.
+ *
+ *   FLOW_TEST_MONGODB_URI=mongodb://127.0.0.1:27017/jeevacare-test npx vitest run src/__tests__/demo-flows.verification.test.js
+ */
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import express from 'express';
+import request from 'supertest';
+import mongoose from 'mongoose';
+import { execFileSync } from 'child_process';
+import { fileURLToPath } from 'url';
+
+const FLOW_URI = process.env.FLOW_TEST_MONGODB_URI;
+
+vi.mock('../adapters/CloudinaryAdapter.js', () => ({
+  default: {
+    uploadFile: async (buffer, options = {}) => ({
+      success: true,
+      publicId: `test/${Date.now()}`,
+      url: 'https://example.invalid/test-upload',
+      bytes: buffer.length,
+      format: 'pdf',
+      ...options,
+    }),
+    deleteFile: async () => ({ success: true }),
+    isDemoMode: () => true,
+    getStatus: () => ({ configured: true }),
+  },
+}));
+
+// The bootstrap reports users to Google Sheets; never let a test do that.
+vi.mock('../services/GoogleSheetsService.js', () => ({
+  default: new Proxy({}, { get: () => async () => ({}) }),
+}));
+
+const describeFlows = FLOW_URI ? describe : describe.skip;
+
+describeFlows('demo user-input flows (local database)', () => {
+  let app;
+  const PATIENT = { email: 'rajesh.kumar.pat@sanjivani.in', password: 'Patient@123' };
+  const DOCTOR = { email: 'soundarya.shetty@sanjivani.in', password: 'SoundaryaShetty@123' };
+  const tokens = {};
+
+  const login = async ({ email, password }) => {
+    const res = await request(app).post('/api/v1/auth/login').send({ username: email, password });
+    return res;
+  };
+  const authed = (method, url, role) => request(app)[method](url).set('Authorization', `Bearer ${tokens[role]}`);
+
+  beforeAll(async () => {
+    process.env.NODE_ENV = 'test';
+    await mongoose.connect(FLOW_URI);
+    // Build the demo hospitals, doctors and patients exactly as the live server does on startup.
+    const { bootstrapDemoHospitalsAndAccounts } = await import('../utils/bootstrapDemoData.js');
+    await bootstrapDemoHospitalsAndAccounts();
+    // Link doctors to patients and add appointments, in a separate process with its own connection.
+    execFileSync(
+      process.execPath,
+      [fileURLToPath(new URL('../scripts/linkDemoActivity.js', import.meta.url)), '--apply', '--uri-env=FLOW_TEST_MONGODB_URI'],
+      { env: { ...process.env, FLOW_TEST_MONGODB_URI: FLOW_URI }, stdio: 'pipe' }
+    );
+    const [auth, patients, appointments, facilities, documents, errors] = await Promise.all([
+      import('../routes/authRoutes.js'),
+      import('../routes/patientRoutes.js'),
+      import('../routes/appointmentRoutes.js'),
+      import('../routes/facilityRoutes.js'),
+      import('../routes/documentRoutes.js'),
+      import('../middleware/errorHandler.js'),
+    ]);
+    app = express();
+    app.use(express.json());
+    app.use('/api/v1/auth', auth.default);
+    app.use('/api/v1/patients', patients.default);
+    app.use('/api/v1/appointments', appointments.default);
+    app.use('/api/v1/facilities', facilities.default);
+    app.use('/api/v1/documents', documents.default);
+    app.use(errors.errorHandler); // same error mapping as the real server (e.g. bad token -> 401)
+  }, 60000);
+
+  afterAll(async () => {
+    await mongoose.disconnect();
+  });
+
+  describe('demo doctors can see patients (needed for booking)', () => {
+    it('every demo doctor passes the clinical authorization gate at their hospital', async () => {
+      const [{ default: HospitalStaff }, { default: Patient }, { default: ClinicalAuth }] = await Promise.all([
+        import('../models/HospitalStaff.js'),
+        import('../models/Patient.js'),
+        import('../utils/clinicalAuthorizationBoundary.js'),
+      ]);
+      const staff = await HospitalStaff.find({ role: 'doctor', associationStatus: 'active' });
+      expect(staff.length).toBeGreaterThanOrEqual(11);
+      const failures = [];
+      for (const s of staff) {
+        const patient = await Patient.findOne({ 'facilities.facilityId': s.hospitalId });
+        const result = await ClinicalAuth.canCreateOfficialClinicalRecord(s.userId, s.hospitalId, patient._id);
+        if (!result.authorized) failures.push(`${s.userId}: ${result.error}`);
+      }
+      expect(failures).toEqual([]);
+    });
+  });
+
+  describe('login', () => {
+    it('lets the demo patient and doctor sign in and returns a token', async () => {
+      for (const [role, creds] of [['patient', PATIENT], ['doctor', DOCTOR]]) {
+        const res = await login(creds);
+        expect(res.status, JSON.stringify(res.body)).toBe(200);
+        const token = res.body.tokens?.token;
+        expect(token).toBeTruthy();
+        tokens[role] = token;
+      }
+    });
+
+    it('rejects a wrong password', async () => {
+      const res = await login({ email: PATIENT.email, password: 'definitely-wrong' });
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe('patient dashboard data', () => {
+    it('returns the patient profile used by the dashboard', async () => {
+      const res = await authed('get', '/api/v1/patients/profile', 'patient');
+      expect(res.status, JSON.stringify(res.body).slice(0, 300)).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.patient || res.body.data).toBeTruthy();
+    });
+  });
+
+  describe('doctor sees linked patients', () => {
+    it('lists the patients assigned to the doctor', async () => {
+      const res = await authed('get', '/api/v1/patients/assigned-to/me', 'doctor');
+      expect(res.status, JSON.stringify(res.body).slice(0, 300)).toBe(200);
+      const list = res.body.patients || res.body.data || [];
+      expect(list.length).toBeGreaterThan(0);
+    });
+
+    it('lists the doctor\'s appointments, past and upcoming', async () => {
+      const me = await authed('get', '/api/v1/auth/current-user', 'doctor');
+      const doctorId = (me.body.user || me.body.data || me.body)._id;
+      const res = await authed('get', `/api/v1/appointments/doctor/${doctorId}`, 'doctor');
+      expect(res.status, JSON.stringify(res.body).slice(0, 300)).toBe(200);
+      const list = res.body.data || res.body.appointments || [];
+      expect(list.length).toBeGreaterThan(0);
+      const times = list.map((a) => new Date(a.scheduledDateTime || a.appointmentDate).getTime());
+      expect(times.some((t) => t < Date.now())).toBe(true);
+      expect(times.some((t) => t > Date.now())).toBe(true);
+    });
+  });
+
+  describe('settings: update profile', () => {
+    it('updates name and phone and reads them back', async () => {
+      const res = await authed('put', '/api/v1/auth/profile', 'patient').send({
+        firstName: 'Rajesh',
+        lastName: 'Kumar-Test',
+        phone: '+91-9000000001',
+      });
+      expect(res.status, JSON.stringify(res.body).slice(0, 300)).toBe(200);
+      expect(res.body.success).toBe(true);
+      const me = await authed('get', '/api/v1/auth/current-user', 'patient');
+      expect(me.status).toBe(200);
+      const user = me.body.user || me.body.data || me.body;
+      expect(user.profile?.lastName).toBe('Kumar-Test');
+      expect(user.profile?.phone).toBe('+91-9000000001');
+      await authed('put', '/api/v1/auth/profile', 'patient').send({ firstName: 'Rajesh', lastName: 'Kumar', phone: '+91-9845110001' });
+    });
+
+    it('rejects an empty first name', async () => {
+      const res = await authed('put', '/api/v1/auth/profile', 'patient').send({ firstName: '   ', lastName: 'Kumar' });
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe('settings: profile picture', () => {
+    const PNG_1X1 = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      'base64'
+    );
+
+    it('accepts a PNG', async () => {
+      const res = await authed('post', '/api/v1/auth/upload-profile-picture', 'patient').attach('profilePicture', PNG_1X1, {
+        filename: 'me.png',
+        contentType: 'image/png',
+      });
+      expect(res.status, JSON.stringify(res.body).slice(0, 300)).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    it('rejects a non-image file', async () => {
+      const res = await authed('post', '/api/v1/auth/upload-profile-picture', 'patient').attach('profilePicture', Buffer.from('hello'), {
+        filename: 'notes.txt',
+        contentType: 'text/plain',
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects a request with no file', async () => {
+      const res = await authed('post', '/api/v1/auth/upload-profile-picture', 'patient');
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe('settings: change password', () => {
+    it('rejects a wrong current password', async () => {
+      const res = await authed('post', '/api/v1/auth/change-password', 'patient').send({
+        currentPassword: 'not-the-password',
+        newPassword: 'NewPassw0rd!Test',
+      });
+      expect(res.status).toBeGreaterThanOrEqual(400);
+      expect(res.status).toBeLessThan(500);
+    });
+
+    const NEW_PASSWORD = 'NewPassw0rd!Test';
+    const changePassword = (current, next) =>
+      authed('post', '/api/v1/auth/change-password', 'patient').send({
+        currentPassword: current,
+        newPassword: next,
+      });
+
+    it('changes the password and the new one signs in', async () => {
+      const change = await changePassword(PATIENT.password, NEW_PASSWORD);
+      expect(change.status, JSON.stringify(change.body)).toBe(200);
+      const fresh = await login({ email: PATIENT.email, password: NEW_PASSWORD });
+      expect(fresh.status).toBe(200);
+      tokens.patient = fresh.body.tokens?.token;
+      // restore the demo password so the demo data is left as it was found
+      const back = await changePassword(NEW_PASSWORD, PATIENT.password);
+      expect(back.status, JSON.stringify(back.body)).toBe(200);
+    });
+
+    it('demo mode (the default) keeps the built-in demo password working even after a change', async () => {
+      // Known behaviour of User.comparePassword: demo accounts also accept fixed passwords such as
+      // Patient@123 unless DEMO_MODE=false. This test documents it; see the next test for the safe setting.
+      expect((await changePassword(PATIENT.password, NEW_PASSWORD)).status).toBe(200);
+      try {
+        expect((await login({ email: PATIENT.email, password: PATIENT.password })).status).toBe(200);
+      } finally {
+        const fresh = await login({ email: PATIENT.email, password: NEW_PASSWORD });
+        tokens.patient = fresh.body.tokens?.token;
+        await changePassword(NEW_PASSWORD, PATIENT.password);
+      }
+    });
+
+    it('with DEMO_MODE=false the old password really stops working after a change', async () => {
+      expect((await changePassword(PATIENT.password, NEW_PASSWORD)).status).toBe(200);
+      process.env.DEMO_MODE = 'false';
+      try {
+        expect((await login({ email: PATIENT.email, password: PATIENT.password })).status).toBe(401);
+        const fresh = await login({ email: PATIENT.email, password: NEW_PASSWORD });
+        expect(fresh.status).toBe(200);
+        tokens.patient = fresh.body.tokens?.token;
+      } finally {
+        delete process.env.DEMO_MODE;
+        await changePassword(NEW_PASSWORD, PATIENT.password);
+      }
+      expect((await login(PATIENT)).status).toBe(200);
+    });
+  });
+
+  describe('document upload (patient)', () => {
+    it('accepts a PDF and lists it back', async () => {
+      const res = await authed('post', '/api/v1/documents/upload', 'patient')
+        .field('documentType', 'lab_result')
+        .attach('file', Buffer.from('%PDF-1.4 test document'), { filename: 'cbc.pdf', contentType: 'application/pdf' });
+      expect(res.status, JSON.stringify(res.body).slice(0, 300)).toBe(200);
+      expect(res.body.success).toBe(true);
+      const pid = res.body.document.patientId;
+      const list = await authed('get', `/api/v1/documents/patient/${pid}`, 'patient');
+      expect(list.status, JSON.stringify(list.body).slice(0, 300)).toBe(200);
+    });
+
+    it('rejects a file type that is not allowed', async () => {
+      const res = await authed('post', '/api/v1/documents/upload', 'patient')
+        .field('documentType', 'lab_result')
+        .attach('file', Buffer.from('MZ binary'), { filename: 'virus.exe', contentType: 'application/x-msdownload' });
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects an upload with no file', async () => {
+      const res = await authed('post', '/api/v1/documents/upload', 'patient').field('documentType', 'lab_result');
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe('document upload (doctor for a patient)', () => {
+    it('finds a patient by name and uploads a document for them', async () => {
+      const found = await authed('get', '/api/v1/patients/search?q=Meera&limit=10', 'doctor');
+      expect(found.status, JSON.stringify(found.body).slice(0, 300)).toBe(200);
+      const list = found.body.data?.patients || found.body.patients || [];
+      expect(list.length).toBeGreaterThan(0);
+      const patientId = list[0]._id || list[0].id;
+
+      const res = await authed('post', '/api/v1/documents/upload', 'doctor')
+        .field('patientId', String(patientId))
+        .field('documentType', 'prescription')
+        .attach('file', Buffer.from('%PDF-1.4 prescription'), { filename: 'rx.pdf', contentType: 'application/pdf' });
+      expect(res.status, JSON.stringify(res.body).slice(0, 300)).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    it('refuses an upload for a patient that does not exist', async () => {
+      const res = await authed('post', '/api/v1/documents/upload', 'doctor')
+        .field('patientId', '000000000000000000000000')
+        .field('documentType', 'prescription')
+        .attach('file', Buffer.from('%PDF-1.4 x'), { filename: 'rx.pdf', contentType: 'application/pdf' });
+      expect(res.status).toBeGreaterThanOrEqual(400);
+      expect(res.status).toBeLessThan(500);
+    });
+  });
+
+  describe('appointment booking', () => {
+    it('shows facilities and their doctors, then books an appointment that appears for the patient and doctor', async () => {
+      const fac = await authed('get', '/api/v1/facilities', 'patient');
+      expect(fac.status, JSON.stringify(fac.body).slice(0, 300)).toBe(200);
+      const facilities = fac.body.facilities || fac.body.data || [];
+      expect(facilities.length).toBeGreaterThan(0);
+      const sanjivani = facilities.find((f) => /sanjivani/i.test(f.name)) || facilities[0];
+      const docs = await authed('get', `/api/v1/facilities/${sanjivani._id}/doctors`, 'patient');
+      expect(docs.status, JSON.stringify(docs.body).slice(0, 300)).toBe(200);
+      const doctors = docs.body.doctors || docs.body.data || [];
+      expect(doctors.length).toBeGreaterThan(0);
+      const doctor = doctors.find((d) => d.email === DOCTOR.email);
+      expect(doctor, 'Dr. Shetty should be bookable at Sanjivani').toBeTruthy();
+
+      const when = new Date(Date.now() + 40 * 86400000);
+      when.setUTCHours(5, 0, 0, 0); // 10:30 IST
+      const book = await authed('post', '/api/v1/appointments/book', 'patient').send({
+        providerId: doctor._id || doctor.userId || doctor.id,
+        hospitalId: sanjivani._id,
+        appointmentDate: when.toISOString(),
+        scheduledDateTime: when.toISOString(),
+        appointmentType: 'consultation',
+        reasonForVisit: 'Flow verification booking',
+      });
+      expect(book.status, JSON.stringify(book.body).slice(0, 400)).toBeLessThan(300);
+      const created = book.body.data;
+      expect(created?._id).toBeTruthy();
+
+      const mine = await authed('get', `/api/v1/appointments/patient/${created.patientId}`, 'patient');
+      expect(mine.status, JSON.stringify(mine.body).slice(0, 300)).toBe(200);
+      const patientList = mine.body.data || mine.body.appointments || [];
+      expect(patientList.some((a) => String(a._id) === String(created._id))).toBe(true);
+
+      const theirs = await authed('get', `/api/v1/appointments/doctor/${doctor._id}`, 'doctor');
+      expect(theirs.status, JSON.stringify(theirs.body).slice(0, 300)).toBe(200);
+      const doctorList = theirs.body.data || theirs.body.appointments || [];
+      expect(doctorList.some((a) => String(a._id) === String(created._id))).toBe(true);
+    });
+
+    it('rejects a booking with missing details', async () => {
+      const res = await authed('post', '/api/v1/appointments/book', 'patient').send({});
+      expect(res.status).toBeGreaterThanOrEqual(400);
+      expect(res.status).toBeLessThan(500);
+    });
+  });
+
+  describe('access control', () => {
+    it('refuses requests without a token', async () => {
+      expect((await request(app).get('/api/v1/patients/profile')).status).toBe(401);
+      expect((await request(app).post('/api/v1/auth/change-password').send({})).status).toBe(401);
+    });
+  });
+});

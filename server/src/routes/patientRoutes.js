@@ -697,6 +697,8 @@ router.get(
  * Error handler for route
  */
 router.use((error, req, res, next) => {
+  // Errors that already carry a status (401 not signed in, 403 not allowed, 400 invalid) keep it.
+  if (error?.statusCode) return next(error);
   logger.error(`Patient route error: ${error.message}`);
   res.status(500).json({
     success: false,

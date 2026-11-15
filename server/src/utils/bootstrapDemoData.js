@@ -4,6 +4,7 @@ import Patient from '../models/Patient.js';
 import Hospital from '../models/Hospital.js';
 import HospitalStaff from '../models/HospitalStaff.js';
 import HealthcareProfessional from '../models/HealthcareProfessional.js';
+import ProfessionalCredential from '../models/ProfessionalCredential.js';
 import ClinicalRecord from '../models/ClinicalRecord.js';
 import RadiologyRecord from '../models/RadiologyRecord.js';
 import logger from '../utils/logger.js';
@@ -386,6 +387,33 @@ export async function bootstrapDemoHospitalsAndAccounts() {
       } else if (!professional.facilityAssociations.includes(staff._id)) {
         professional.facilityAssociations.push(staff._id);
         await professional.save();
+      }
+
+      // A verified licence on file. Without it the clinical authorization gate rejects the doctor,
+      // and patients cannot book appointments with them.
+      const credential = await ProfessionalCredential.findOne({
+        professionalId: professional._id,
+        credentialType: 'medical_license',
+      });
+      if (!credential) {
+        await ProfessionalCredential.create({
+          professionalId: professional._id,
+          credentialType: 'medical_license',
+          credentialName: 'Medical Practitioner Licence',
+          credentialNumber: docConfig.licenseId,
+          issuingAuthority: 'Karnataka Medical Council',
+          issueDate: new Date('2015-06-01'),
+          status: 'verified',
+          verification: {
+            verifiedAt: new Date(),
+            verificationMethod: 'manual',
+            verificationSource: 'demo bootstrap',
+          },
+        });
+      } else if (credential.status !== 'verified') {
+        credential.status = 'verified';
+        credential.verification = { verifiedAt: new Date(), verificationMethod: 'manual', verificationSource: 'demo bootstrap' };
+        await credential.save();
       }
 
       GoogleSheetsService.recordDoctor(user, professional, targetHospital).catch(() => {});
