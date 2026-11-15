@@ -57,6 +57,9 @@ describeFlows('demo user-input flows (local database)', () => {
     // Build the demo hospitals, doctors and patients exactly as the live server does on startup.
     const { bootstrapDemoHospitalsAndAccounts } = await import('../utils/bootstrapDemoData.js');
     await bootstrapDemoHospitalsAndAccounts();
+    // Same startup step the server runs: every user gets a JeevaCare ID.
+    const { ensureJeevaIds } = await import('../utils/jeevaIdBackfill.js');
+    await ensureJeevaIds();
     // Link doctors to patients exactly as the server does on startup, and fail loudly if it cannot.
     const warnings = [];
     const { linkDemoDataOnStartup } = await import('../utils/demoLinkStartup.js');
@@ -106,6 +109,27 @@ describeFlows('demo user-input flows (local database)', () => {
     });
   });
 
+  describe('JeevaCare ID', () => {
+    it('every user has one, and every patient account matches the ID on their record', async () => {
+      const [{ default: User }, { default: Patient }, { validateJeevaIdFormat }] = await Promise.all([
+        import('../models/User.js'),
+        import('../models/Patient.js'),
+        import('../utils/jeevaIdGenerator.js'),
+      ]);
+      const users = await User.find({});
+      expect(users.length).toBeGreaterThanOrEqual(33);
+      const missing = users.filter((u) => !validateJeevaIdFormat(u.jeevaId)).map((u) => u.email);
+      expect(missing).toEqual([]);
+      expect(new Set(users.map((u) => u.jeevaId)).size).toBe(users.length);
+      const mismatched = [];
+      for (const p of await Patient.find({ userId: { $exists: true } })) {
+        const u = users.find((x) => String(x._id) === String(p.userId));
+        if (u && u.jeevaId !== p.jeevaId) mismatched.push(u.email);
+      }
+      expect(mismatched).toEqual([]);
+    });
+  });
+
   describe('login', () => {
     it('lets the demo patient and doctor sign in and returns a token', async () => {
       for (const [role, creds] of [['patient', PATIENT], ['doctor', DOCTOR]]) {
@@ -120,6 +144,17 @@ describeFlows('demo user-input flows (local database)', () => {
     it('rejects a wrong password', async () => {
       const res = await login({ email: PATIENT.email, password: 'definitely-wrong' });
       expect(res.status).toBe(401);
+    });
+  });
+
+  describe('JeevaCare ID in the signed-in account', () => {
+    it('shows a signed-in patient the same ID in their account and on the dashboard', async () => {
+      const me = await authed('get', '/api/v1/auth/current-user', 'patient');
+      const profile = await authed('get', '/api/v1/patients/profile', 'patient');
+      const accountId = (me.body.user || me.body.data || me.body).jeevaId;
+      const dashboardId = (profile.body.data || profile.body.patient).jeevaId;
+      expect(accountId).toBeTruthy();
+      expect(accountId).toBe(dashboardId);
     });
   });
 
@@ -386,6 +421,18 @@ describeFlows('demo user-input flows (local database)', () => {
       tokens.newPatient = res.body.tokens?.token;
     });
 
+    it('gives a newly registered staff member a JeevaCare ID straight away', async () => {
+      const res = await request(app).post('/api/v1/auth/register').send({
+        email: 'new.paramedic.flow@example.com',
+        password: 'Str0ngPassw0rd!',
+        firstName: 'Pavan',
+        lastName: 'Medic',
+        role: 'PARAMEDIC',
+      });
+      expect(res.status, JSON.stringify(res.body).slice(0, 300)).toBe(201);
+      expect(res.body.user.jeevaId).toMatch(/^JJ\d{2}-[0-9A-Z]{5}$/);
+    });
+
     it('rejects a second registration with the same email, a weak password, and an admin role', async () => {
       const dup = await request(app).post('/api/v1/auth/register').send({ ...NEWBIE, role: 'PATIENT' });
       expect(dup.status).toBe(409);
@@ -394,6 +441,15 @@ describeFlows('demo user-input flows (local database)', () => {
       const admin = await request(app).post('/api/v1/auth/register').send({ ...NEWBIE, email: 'sneaky@example.com', role: 'SYSTEM_ADMIN' });
       expect(admin.status).toBeGreaterThanOrEqual(400);
       expect(admin.status).toBeLessThan(500);
+    });
+
+    it('has the same JeevaCare ID in their account and on their dashboard', async () => {
+      const me = await authed('get', '/api/v1/auth/current-user', 'newPatient');
+      const profile = await authed('get', '/api/v1/patients/profile', 'newPatient');
+      const accountId = (me.body.user || me.body.data || me.body).jeevaId;
+      const dashboardId = (profile.body.data || profile.body.patient).jeevaId;
+      expect(accountId).toMatch(/^JJ\d{2}-[0-9A-Z]{5}$/);
+      expect(accountId).toBe(dashboardId);
     });
 
     it('has a dashboard profile', async () => {

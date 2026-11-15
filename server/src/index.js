@@ -154,6 +154,17 @@ const startServer = async () => {
         logger.warn(`Startup demo bootstrap warning: ${bootErr.message}`);
       }
 
+      // Make sure every user has a JeevaCare ID, and that patients' accounts match their dashboard ID.
+      try {
+        const { ensureJeevaIds } = await import('./utils/jeevaIdBackfill.js');
+        const { usersUpdated, patientsUpdated } = await ensureJeevaIds();
+        if (usersUpdated || patientsUpdated) {
+          logger.info(`JeevaCare IDs assigned or synced: ${usersUpdated} users, ${patientsUpdated} patients`);
+        }
+      } catch (idErr) {
+        logger.warn(`JeevaCare ID backfill warning: ${idErr.message}`);
+      }
+
       // Give the demo patients doctors and appointments, so dashboards look like a working hospital.
       // On by default and safe to repeat; set DEMO_LINK_ON_STARTUP=false to turn it off.
       try {

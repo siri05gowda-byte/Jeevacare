@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import bcryptjs from 'bcryptjs';
+import { generateJeevaId } from '../utils/jeevaIdGenerator.js';
 
 const userSchema = new mongoose.Schema(
   {
@@ -150,6 +151,18 @@ const userSchema = new mongoose.Schema(
     ],
   }
 );
+
+// Every user gets a JeevaCare ID, whatever the role or the way the account was created.
+userSchema.pre('save', async function (next) {
+  if (!this.jeevaId) {
+    try {
+      this.jeevaId = await generateJeevaId();
+    } catch (error) {
+      return next(error);
+    }
+  }
+  next();
+});
 
 // Hash password before saving
 userSchema.pre('save', async function (next) {

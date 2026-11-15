@@ -272,7 +272,13 @@ const patientSchema = new mongoose.Schema(
 patientSchema.pre('save', async function (next) {
   if (!this.jeevaId) {
     try {
-      this.jeevaId = await generateJeevaId();
+      // A patient and their account share one JeevaCare ID.
+      const User = mongoose.models.User;
+      const owner = this.userId && User ? await User.findById(this.userId).select('jeevaId') : null;
+      this.jeevaId = owner?.jeevaId || (await generateJeevaId());
+      if (owner && !owner.jeevaId) {
+        await User.updateOne({ _id: owner._id }, { $set: { jeevaId: this.jeevaId } });
+      }
     } catch (error) {
       return next(error);
     }
