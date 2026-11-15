@@ -7,10 +7,7 @@ import LoadingSkeleton from '../components/State/LoadingSkeleton';
 import EmptyState from '../components/State/EmptyState';
 import HealthTimeline from '../components/Timeline/HealthTimeline';
 import RecordsBrowser from '../components/Records/RecordsBrowser';
-import HealthExplainer from '../components/AI/HealthExplainer';
 import { useToast, ToastContainer } from '../components/State/Toast';
-import aiService from '../services/aiService';
-import ttsService from '../services/ttsService';
 import { isDemoModeEnabled, getDemoBadgeLabel, getDemoDemoDataDisclaimer } from '../utils/demoMode';
 
 /**
@@ -22,7 +19,7 @@ import { isDemoModeEnabled, getDemoBadgeLabel, getDemoDemoDataDisclaimer } from 
  * - Recent appointments
  * - Health timeline
  * - Records browser
- * - AI health explanations
+ * (Radiology and AI explanations live in ClaraMed, reached by the sidebar's external link.)
  */
 export default function PatientDashboardV2() {
   const { user } = useAuthStore();
@@ -31,9 +28,6 @@ export default function PatientDashboardV2() {
   const [isLoading, setIsLoading] = useState(true);
   const [patientData, setPatientData] = useState(null);
   const [error, setError] = useState(null);
-  const [aiExplanationData, setAiExplanationData] = useState(null);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [selectedLanguage, setSelectedLanguage] = useState('English');
   const [demoMode, setDemoMode] = useState(isDemoModeEnabled());
 
   // Load patient data from real API only (no automatic demo fallback)
@@ -111,7 +105,6 @@ export default function PatientDashboardV2() {
         timeline: data.timeline || [],
         records: {
           lab_results: data.records?.lab_results || [],
-          radiology: data.records?.radiology || [],
           discharge_summaries: data.records?.discharge_summaries || [],
           vaccinations: data.records?.vaccinations || [],
           documents: data.records?.documents || [],
@@ -140,49 +133,6 @@ export default function PatientDashboardV2() {
       loadPatientData();
     }
   }, [user, loadPatientData]);
-
-  // Load AI explanation when patient data is ready
-  // Only load if real data was retrieved; do not generate for missing/empty records
-  useEffect(() => {
-    const loadAiExplanation = async () => {
-      // Only attempt AI explanation if we have real data and at least one record
-      if (!patientData?.records?.lab_results?.[0]) {
-        setAiExplanationData(null);
-        return;
-      }
-
-      setAiLoading(true);
-      try {
-        const firstLabResult = patientData.records.lab_results[0];
-        const explanation = await aiService.getHealthExplanation(
-          firstLabResult.id,
-          'lab_result',
-          {
-            title: firstLabResult.title,
-            date: firstLabResult.date,
-            detail: firstLabResult.detail,
-          },
-          selectedLanguage.toLowerCase()
-        );
-
-        setAiExplanationData({
-          title: `Understanding: ${firstLabResult.title}`,
-          text: explanation,
-          isLoading: false,
-        });
-      } catch (error) {
-        console.error('Failed to load AI explanation:', error);
-        // Clear AI explanation on error; do not show fallback explanations
-        setAiExplanationData(null);
-      } finally {
-        setAiLoading(false);
-      }
-    };
-
-    if (patientData && !error) {
-      loadAiExplanation();
-    }
-  }, [patientData, selectedLanguage, error]);
 
   if (isLoading) {
     return (
@@ -219,7 +169,7 @@ export default function PatientDashboardV2() {
     );
   }
 
-  const { patient, stats, criticalInfo, recentAppointments, timeline, records, aiExplanation } = patientData || {};
+  const { patient, stats, criticalInfo, recentAppointments, timeline, records } = patientData || {};
 
   return (
     <PageContainer>
@@ -322,48 +272,6 @@ export default function PatientDashboardV2() {
               </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* AI Health Explanation - Only show if real data available */}
-      {aiExplanationData && !error && (
-        <div className="mb-8">
-          <div className="mb-4 flex gap-2 items-center">
-            <label className="text-sm font-medium text-gray-700">Language:</label>
-            <select
-              value={selectedLanguage}
-              onChange={(e) => setSelectedLanguage(e.target.value)}
-              className="text-sm border border-gray-300 rounded px-2 py-1"
-            >
-              <option>English</option>
-              <option>Hindi</option>
-              <option>Kannada</option>
-              <option>Telugu</option>
-              <option>Tamil</option>
-              <option>Malayalam</option>
-            </select>
-          </div>
-          <HealthExplainer
-            title={aiExplanationData?.title}
-            explanation={aiExplanationData?.text}
-            isLoading={aiLoading}
-            availableLanguages={['English', 'Hindi', 'Kannada', 'Telugu', 'Tamil', 'Malayalam']}
-            currentLanguage={selectedLanguage}
-            onLanguageChange={setSelectedLanguage}
-            onPlayAudio={async (config) => {
-              try {
-                const audioBlob = await ttsService.synthesize(
-                  config.text,
-                  ttsService.getLanguageCode(config.language),
-                  { rate: 1.0 }
-                );
-                await ttsService.play(audioBlob, ttsService.getLanguageCode(config.language));
-              } catch (error) {
-                console.error('TTS error:', error);
-                showError('Unable to play audio');
-              }
-            }}
-          />
         </div>
       )}
 

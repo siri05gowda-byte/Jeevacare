@@ -28,5 +28,8 @@
     "medical-continuity"
   ],
   "author": "JeevaCare Team",
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "jsdom": "^22.1.0"
+  }
 }
