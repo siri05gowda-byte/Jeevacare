@@ -445,6 +445,107 @@ describeFlows('demo user-input flows (local database)', () => {
     });
   });
 
+  describe('cancel and reschedule', () => {
+    // Books a fresh appointment for the signed-in patient with Dr. Shetty at Sanjivani.
+    const bookFresh = async (role, daysAhead, hourUtc) => {
+      const fac = await authed('get', '/api/v1/facilities', role);
+      const hospital = (fac.body.facilities || fac.body.data || []).find((f) => /sanjivani/i.test(f.name));
+      const docs = await authed('get', `/api/v1/facilities/${hospital._id}/doctors`, role);
+      const doctor = (docs.body.doctors || docs.body.data || []).find((d) => d.email === DOCTOR.email);
+      const when = new Date(Date.now() + daysAhead * 86400000);
+      when.setUTCHours(hourUtc, 0, 0, 0);
+      const book = await authed('post', '/api/v1/appointments/book', role).send({
+        providerId: doctor._id,
+        hospitalId: hospital._id,
+        appointmentDate: when.toISOString(),
+        scheduledDateTime: when.toISOString(),
+        reasonForVisit: 'Cancel and reschedule check',
+      });
+      expect(book.status, JSON.stringify(book.body).slice(0, 300)).toBeLessThan(300);
+      return book.body.data;
+    };
+    const listFor = async (role, patientId) => {
+      const res = await authed('get', `/api/v1/appointments/patient/${patientId}`, role);
+      return res.body.data || res.body.appointments || [];
+    };
+
+    it('lets a patient cancel their own appointment, keeping the reason', async () => {
+      const apt = await bookFresh('patient', 50, 4);
+      const res = await authed('post', `/api/v1/appointments/${apt._id}/cancel`, 'patient').send({ reason: 'Cancelled by patient' });
+      expect(res.status, JSON.stringify(res.body).slice(0, 300)).toBe(200);
+      expect(res.body.data.status).toBe('cancelled');
+      expect(res.body.data.cancellationReason).toBe('Cancelled by patient');
+      const after = (await listFor('patient', apt.patientId)).find((a) => String(a._id) === String(apt._id));
+      expect(after.status).toBe('cancelled');
+    });
+
+    it('cancels without a reason too', async () => {
+      const apt = await bookFresh('patient', 51, 4);
+      const res = await authed('post', `/api/v1/appointments/${apt._id}/cancel`, 'patient').send({});
+      expect(res.status, JSON.stringify(res.body).slice(0, 300)).toBe(200);
+      expect(res.body.data.status).toBe('cancelled');
+    });
+
+    it('refuses to cancel an appointment that is already cancelled', async () => {
+      const apt = await bookFresh('patient', 52, 4);
+      await authed('post', `/api/v1/appointments/${apt._id}/cancel`, 'patient').send({});
+      const again = await authed('post', `/api/v1/appointments/${apt._id}/cancel`, 'patient').send({});
+      expect(again.status).toBeGreaterThanOrEqual(400);
+      expect(again.status).toBeLessThan(500);
+    });
+
+    it("does not let another patient cancel someone else's appointment", async () => {
+      const apt = await bookFresh('patient', 53, 4);
+      const res = await authed('post', `/api/v1/appointments/${apt._id}/cancel`, 'newPatient').send({});
+      expect(res.status).toBeGreaterThanOrEqual(400);
+      expect(res.status).toBeLessThan(500);
+      const still = (await listFor('patient', apt.patientId)).find((a) => String(a._id) === String(apt._id));
+      expect(still.status).toBe('scheduled');
+    });
+
+    it('lets the doctor cancel an appointment too', async () => {
+      const apt = await bookFresh('patient', 54, 4);
+      const res = await authed('post', `/api/v1/appointments/${apt._id}/cancel`, 'doctor').send({ reason: 'Doctor unavailable' });
+      expect(res.status, JSON.stringify(res.body).slice(0, 300)).toBe(200);
+      expect(res.body.data.status).toBe('cancelled');
+    });
+
+    it('notifies the patient (their user, not the patient record) when an appointment is cancelled or rescheduled', async () => {
+      const { default: Notification } = await import('../models/Notification.js');
+      const me = await authed('get', '/api/v1/auth/current-user', 'patient');
+      const userId = (me.body.user || me.body.data || me.body)._id;
+      const apt = await bookFresh('patient', 57, 4);
+      await authed('post', `/api/v1/appointments/${apt._id}/cancel`, 'doctor').send({ reason: 'Doctor unavailable' });
+      const cancelled = await Notification.findOne({ userId, type: 'appointment_cancelled', 'metadata.appointmentId': String(apt._id) });
+      expect(cancelled, 'patient should get a cancellation notification').toBeTruthy();
+
+      const apt2 = await bookFresh('patient', 58, 4);
+      const later = new Date(Date.now() + 61 * 86400000);
+      later.setUTCHours(5, 0, 0, 0);
+      await authed('post', `/api/v1/appointments/${apt2._id}/reschedule`, 'doctor').send({ newScheduledDateTime: later.toISOString(), reason: 'Clinic moved' });
+      const moved = await Notification.findOne({ userId, type: 'appointment_updated' });
+      expect(moved, 'patient should get a reschedule notification').toBeTruthy();
+    });
+
+    it('lets a patient reschedule their own appointment', async () => {
+      const apt = await bookFresh('patient', 55, 4);
+      const later = new Date(Date.now() + 58 * 86400000);
+      later.setUTCHours(5, 0, 0, 0);
+      const res = await authed('post', `/api/v1/appointments/${apt._id}/reschedule`, 'patient').send({
+        newScheduledDateTime: later.toISOString(),
+        reason: 'Travelling that week',
+      });
+      expect(res.status, JSON.stringify(res.body).slice(0, 300)).toBe(200);
+      expect(new Date(res.body.data.scheduledDateTime || res.body.data.appointmentDate).toISOString()).toBe(later.toISOString());
+    });
+
+    it('rejects a reschedule with no new time', async () => {
+      const apt = await bookFresh('patient', 56, 4);
+      const res = await authed('post', `/api/v1/appointments/${apt._id}/reschedule`, 'patient').send({});
+      expect(res.status).toBe(400);
+    });
+  });
+
   describe('access control', () => {
     it('refuses requests without a token', async () => {
       expect((await request(app).get('/api/v1/patients/profile')).status).toBe(401);

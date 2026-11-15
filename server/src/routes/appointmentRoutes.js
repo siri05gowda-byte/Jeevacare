@@ -16,11 +16,19 @@
 import express from 'express';
 import AppointmentService from '../services/AppointmentService.js';
 import Notification from '../models/Notification.js';
+import Patient from '../models/Patient.js';
 import { authMiddleware, requireRole } from '../middleware/authentication.js';
 import logger from '../utils/logger.js';
 
 const router = express.Router();
 const { authorize } = { authorize: requireRole };
+
+// Notifications belong to a user, but appointments point at a patient record: find the patient's user.
+const patientUserId = async (patientRef) => {
+  if (!patientRef) return null;
+  const patient = await Patient.findById(patientRef._id || patientRef).select('userId');
+  return patient?.userId || null;
+};
 
 /**
  * POST /appointments/book or POST /appointments
@@ -68,7 +76,7 @@ router.post(['/', '/book'], authMiddleware, async (req, res) => {
     if (process.env.NODE_ENV !== 'test') {
       try {
         await Notification.createNotification({
-          userId: appointmentData.patientId || rawPatientId,
+          userId: await patientUserId(appointment.patientId),
           type: 'appointment_created',
           title: 'Appointment Scheduled',
           message: `Your appointment has been scheduled for ${new Date(scheduledDateTime).toLocaleString()}. Reason: ${reason}`,
@@ -286,10 +294,8 @@ const handleReschedule = async (req, res) => {
 
     const appointment = await AppointmentService.rescheduleAppointment(
       appointmentId,
-      {
-        newScheduledDateTime: new Date(newScheduledDateTime),
-        reason: reason || '',
-      },
+      new Date(newScheduledDateTime),
+      reason || '',
       {
         _id: req.user._id,
         id: req.user._id,
@@ -300,7 +306,7 @@ const handleReschedule = async (req, res) => {
 
     // Create notification for patient about rescheduled appointment
     try {
-      const targetUserId = appointment?.patientId?.userId || appointment?.patientId || appointment?.patient;
+      const targetUserId = await patientUserId(appointment?.patientId);
       if (targetUserId) {
         await Notification.createNotification({
           userId: targetUserId,
@@ -344,10 +350,7 @@ const handleCancel = async (req, res) => {
     const { appointmentId } = req.params;
     const reason = req.query.reason || req.body.reason;
 
-    const result = await AppointmentService.cancelAppointment(appointmentId, {
-      reason: reason || '',
-      cancelledBy: req.user._id,
-    }, {
+    const result = await AppointmentService.cancelAppointment(appointmentId, reason || '', {
       _id: req.user._id,
       id: req.user._id,
       role: req.user.role,
@@ -356,7 +359,7 @@ const handleCancel = async (req, res) => {
 
     // Create notification for patient about cancelled appointment
     try {
-      const targetUserId = result?.patientId?.userId || result?.patientId || result?.patient;
+      const targetUserId = await patientUserId(result?.patientId);
       if (targetUserId) {
         await Notification.createNotification({
           userId: targetUserId,
