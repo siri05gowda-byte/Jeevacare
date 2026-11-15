@@ -359,6 +359,92 @@ describeFlows('demo user-input flows (local database)', () => {
     });
   });
 
+  describe('a brand-new patient: register, upload, book', () => {
+    const NEWBIE = { email: 'new.patient.flow@example.com', password: 'Str0ngPassw0rd!', firstName: 'Nisha', lastName: 'Flowtest' };
+    let patientId;
+
+    it('registers through the form and gets signed in', async () => {
+      const res = await request(app).post('/api/v1/auth/register').send({
+        ...NEWBIE,
+        role: 'PATIENT',
+        phone: '+91-9000000002',
+        dateOfBirth: '1995-04-12',
+        sex: 'F',
+        termsAccepted: true,
+        privacyPolicyAccepted: true,
+      });
+      expect(res.status, JSON.stringify(res.body).slice(0, 300)).toBe(201);
+      tokens.newPatient = res.body.tokens?.token;
+      expect(tokens.newPatient).toBeTruthy();
+      expect(res.body.user.role).toBe('PATIENT');
+      expect(res.body.user.verificationStatus).toBe('verified'); // patients need no approval
+    });
+
+    it('can sign in again with the password they chose', async () => {
+      const res = await login({ email: NEWBIE.email, password: NEWBIE.password });
+      expect(res.status, JSON.stringify(res.body).slice(0, 200)).toBe(200);
+      tokens.newPatient = res.body.tokens?.token;
+    });
+
+    it('rejects a second registration with the same email, a weak password, and an admin role', async () => {
+      const dup = await request(app).post('/api/v1/auth/register').send({ ...NEWBIE, role: 'PATIENT' });
+      expect(dup.status).toBe(409);
+      const weak = await request(app).post('/api/v1/auth/register').send({ ...NEWBIE, email: 'weak@example.com', password: 'short' });
+      expect(weak.status).toBe(400);
+      const admin = await request(app).post('/api/v1/auth/register').send({ ...NEWBIE, email: 'sneaky@example.com', role: 'SYSTEM_ADMIN' });
+      expect(admin.status).toBeGreaterThanOrEqual(400);
+      expect(admin.status).toBeLessThan(500);
+    });
+
+    it('has a dashboard profile', async () => {
+      const res = await authed('get', '/api/v1/patients/profile', 'newPatient');
+      expect(res.status, JSON.stringify(res.body).slice(0, 300)).toBe(200);
+      patientId = (res.body.data || res.body.patient)._id;
+      expect(patientId).toBeTruthy();
+    });
+
+    it('uploads a document', async () => {
+      const res = await authed('post', '/api/v1/documents/upload', 'newPatient')
+        .field('documentType', 'lab_result')
+        .attach('file', Buffer.from('%PDF-1.4 new patient report'), { filename: 'report.pdf', contentType: 'application/pdf' });
+      expect(res.status, JSON.stringify(res.body).slice(0, 300)).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    it('books an appointment with a doctor at a hospital they have never visited', async () => {
+      const fac = await authed('get', '/api/v1/facilities', 'newPatient');
+      expect(fac.status, JSON.stringify(fac.body).slice(0, 300)).toBe(200);
+      const hospital = (fac.body.facilities || fac.body.data || []).find((f) => /sanjivani/i.test(f.name));
+      const docs = await authed('get', `/api/v1/facilities/${hospital._id}/doctors`, 'newPatient');
+      const doctor = (docs.body.doctors || docs.body.data || []).find((d) => d.email === DOCTOR.email);
+      expect(doctor).toBeTruthy();
+
+      const when = new Date(Date.now() + 45 * 86400000);
+      when.setUTCHours(6, 0, 0, 0);
+      const book = await authed('post', '/api/v1/appointments/book', 'newPatient').send({
+        providerId: doctor._id,
+        hospitalId: hospital._id,
+        appointmentDate: when.toISOString(),
+        scheduledDateTime: when.toISOString(),
+        reasonForVisit: 'First visit',
+      });
+      expect(book.status, JSON.stringify(book.body).slice(0, 400)).toBeLessThan(300);
+      const created = book.body.data;
+
+      const mine = await authed('get', `/api/v1/appointments/patient/${patientId}`, 'newPatient');
+      expect(mine.status).toBe(200);
+      expect((mine.body.data || mine.body.appointments || []).some((a) => String(a._id) === String(created._id))).toBe(true);
+      const theirs = await authed('get', `/api/v1/appointments/doctor/${doctor._id}`, 'doctor');
+      expect((theirs.body.data || theirs.body.appointments || []).some((a) => String(a._id) === String(created._id))).toBe(true);
+    });
+
+    it('is now registered at that hospital, so the doctor can see them', async () => {
+      const { default: Patient } = await import('../models/Patient.js');
+      const patient = await Patient.findById(patientId);
+      expect(patient.facilities.length).toBe(1);
+    });
+  });
+
   describe('access control', () => {
     it('refuses requests without a token', async () => {
       expect((await request(app).get('/api/v1/patients/profile')).status).toBe(401);

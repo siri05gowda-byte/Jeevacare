@@ -59,6 +59,19 @@ class AppointmentService {
         );
       }
 
+      // A patient who books at a hospital is choosing to be seen there, so register them at it.
+      // Without this a newly registered patient is refused ("not registered at this facility").
+      // Staff booking on a patient's behalf do not do this; that registration is their decision.
+      if (requestingUser.role === 'PATIENT') {
+        const registeredHere = (patient.facilities || []).some(
+          (f) => String(f.facilityId) === String(facility._id)
+        );
+        if (!registeredHere) {
+          patient.facilities.push({ facilityId: facility._id });
+          await patient.save();
+        }
+      }
+
       // 3. Verify provider exists (accept User._id or HealthcareProfessional._id)
       let provider = await User.findById(appointmentData.providerId);
       let professional = null;
