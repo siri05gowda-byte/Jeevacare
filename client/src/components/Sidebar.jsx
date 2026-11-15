@@ -61,8 +61,12 @@ export default function Sidebar({ isOpen = true, onClose }) {
   const roleItems = menuItems[user?.role] || [];
   const radiologyAiUrl = RADIOLOGY_AI_ROLES.includes(user?.role) ? claraMedConfig.getRadiologyAiUrl() : null;
   // ClaraMed is a separate site: this item is an external link, not a route in this app.
+  // Once ClaraMed is linked, it replaces the in-app Radiology & Imaging entry so patients see one radiology option.
   const items = radiologyAiUrl
-    ? [...roleItems, { name: 'Radiology AI', href: radiologyAiUrl, icon: Activity, external: true }]
+    ? [
+        ...roleItems.filter((item) => item.path !== '/radiology'),
+        { name: 'Radiology AI', href: radiologyAiUrl, icon: Activity, external: true },
+      ]
     : roleItems;
   const isActive = (path) => location.pathname === path;
 

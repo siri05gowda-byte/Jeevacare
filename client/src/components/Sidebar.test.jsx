@@ -42,8 +42,24 @@ describe('Sidebar Radiology AI link', () => {
     expect(render('SYSTEM_ADMIN')).not.toContain('Radiology AI');
   });
 
-  it('keeps the existing in-app Radiology & Imaging page for patients', () => {
+  it('shows only the external Radiology AI link, not the in-app Radiology & Imaging page, once ClaraMed is configured', () => {
     vi.stubEnv('VITE_CLARAMED_BASE_URL', BASE);
+    const html = render('PATIENT');
+    expect(html).toContain(`href="${BASE}"`);
+    expect(html).not.toContain('href="/radiology"');
+    expect(html).not.toContain('Radiology &amp; Imaging');
+  });
+
+  it('keeps the in-app Radiology & Imaging page for patients where ClaraMed is not configured', () => {
+    vi.stubEnv('VITE_CLARAMED_BASE_URL', '');
     expect(render('PATIENT')).toContain('href="/radiology"');
+  });
+
+  it('leaves the other sidebar items for patients untouched', () => {
+    vi.stubEnv('VITE_CLARAMED_BASE_URL', BASE);
+    const html = render('PATIENT');
+    for (const href of ['/dashboard', '/patient', '/documents', '/appointments', '/emergency']) {
+      expect(html).toContain(`href="${href}"`);
+    }
   });
 });
