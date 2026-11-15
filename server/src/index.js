@@ -154,6 +154,15 @@ const startServer = async () => {
         logger.warn(`Startup demo bootstrap warning: ${bootErr.message}`);
       }
 
+      // Give the demo patients doctors and appointments, so dashboards look like a working hospital.
+      // On by default and safe to repeat; set DEMO_LINK_ON_STARTUP=false to turn it off.
+      try {
+        const { linkDemoDataOnStartup } = await import('./utils/demoLinkStartup.js');
+        await linkDemoDataOnStartup({ logger });
+      } catch (linkErr) {
+        logger.warn(`Startup demo linking warning: ${linkErr.message}`);
+      }
+
       // Recover any stale or interrupted radiology AI jobs after restart
       try {
         const RadiologyAIService = (await import('./services/RadiologyAIService.js')).default;

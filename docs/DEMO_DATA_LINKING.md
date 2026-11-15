@@ -8,6 +8,23 @@ and upcoming visits on working days), so the doctor, patient and hospital dashbo
 It only ever touches the 31 demo accounts, never real users, and tags everything it writes with
 `demo-seed:v1` so it can be removed again.
 
+## It runs automatically on startup
+
+Right after the demo accounts are bootstrapped, the server runs the linking by itself
+(`server/src/utils/demoLinkStartup.js`), so a fresh deploy comes up with populated dashboards. Nothing to run by hand.
+It is safe on every restart: once the demo patients have their appointments it logs
+"already linked; nothing to do". A failure is logged as a warning and never stops the server.
+
+Control it with the `DEMO_LINK_ON_STARTUP` environment variable (for example in Render):
+
+| Value | Effect |
+|---|---|
+| unset or `true` | link on startup (default) |
+| `false` | switch it off |
+| `remove` | take back everything it added on the next start, then set it back to `false` |
+
+## Running it by hand
+
 Run these from the `server/` folder. The database comes from `MONGODB_URI` in `server/.env`.
 
 ```bash

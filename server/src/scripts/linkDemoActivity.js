@@ -73,7 +73,7 @@ const addMinutes = (hhmm, minutes) => {
 const maskedTarget = (uri) => uri.replace(/\/\/[^@/]*@/, '//***@').split('?')[0];
 
 function parseArgs(argv) {
-  const opts = { apply: false, remove: false, seed: 20261115, uriEnv: 'MONGODB_URI' };
+  const opts = { apply: false, remove: false, seed: DEFAULT_SEED, uriEnv: 'MONGODB_URI' };
   for (const arg of argv) {
     if (arg === '--apply') opts.apply = true;
     else if (arg === '--remove') opts.remove = true;
@@ -127,7 +127,7 @@ async function loadRoster() {
   return { hospitals, warnings };
 }
 
-function printPlan(roster, plan, existingDemoPatients) {
+function printPlan(roster, plan, existingDemoPatients, log) {
   const doctorName = new Map();
   for (const h of roster.hospitals) {
     h.doctors.forEach((d) => doctorName.set(d.id, `${d.name} (${d.specialization || 'doctor'})`));
@@ -135,13 +135,13 @@ function printPlan(roster, plan, existingDemoPatients) {
   const skip = (id) => existingDemoPatients.has(id);
 
   for (const h of roster.hospitals) {
-    console.log(`\n=== ${h.label}: ${h.doctors.length} doctors, ${h.patients.length} patients ===`);
+    log(`\n=== ${h.label}: ${h.doctors.length} doctors, ${h.patients.length} patients ===`);
     for (const p of h.patients) {
       const existing = p.existingDoctorIds.map((id) => doctorName.get(id) || id);
       const added = plan.assignments.filter((a) => a.patientId === p.id).map((a) => doctorName.get(a.doctorId));
       const visits = plan.appointments.filter((a) => a.patientId === p.id);
       const tag = skip(p.id) ? '  [already has demo appointments: skipped]' : '';
-      console.log(`  ${p.name.padEnd(18)} existing: ${existing.join(', ') || '-'} | new doctors: ${added.join(', ') || '-'} | ${visits.length} visits${tag}`);
+      log(`  ${p.name.padEnd(18)} existing: ${existing.join(', ') || '-'} | new doctors: ${added.join(', ') || '-'} | ${visits.length} visits${tag}`);
     }
   }
 
@@ -149,14 +149,14 @@ function printPlan(roster, plan, existingDemoPatients) {
   const byStatus = {};
   for (const a of todo) byStatus[a.status] = (byStatus[a.status] || 0) + 1;
   const dates = todo.map((a) => a.when.getTime());
-  console.log(`\nWould add ${plan.assignments.filter((a) => !skip(a.patientId)).length} doctor links and ${todo.length} appointments`);
-  console.log(`  by status: ${JSON.stringify(byStatus)}`);
+  log(`\nWould add ${plan.assignments.filter((a) => !skip(a.patientId)).length} doctor links and ${todo.length} appointments`);
+  log(`  by status: ${JSON.stringify(byStatus)}`);
   if (dates.length) {
-    console.log(`  dates: ${istParts(new Date(Math.min(...dates))).date} to ${istParts(new Date(Math.max(...dates))).date}`);
+    log(`  dates: ${istParts(new Date(Math.min(...dates))).date} to ${istParts(new Date(Math.max(...dates))).date}`);
   }
 }
 
-async function apply(roster, plan, existingDemoPatients) {
+async function applyPlan(roster, plan, existingDemoPatients, log) {
   const now = new Date();
   const hospitalByKey = new Map(roster.hospitals.map((h) => [h.key, h.hospital]));
   const patientsToTouch = new Set(plan.assignments.map((a) => a.patientId));
@@ -211,17 +211,49 @@ async function apply(roster, plan, existingDemoPatients) {
   });
 
   const created = docs.length ? await Appointment.insertMany(docs) : [];
-  console.log(`\nWrote ${links} doctor links and ${created.length} appointments.`);
+  log(`\nWrote ${links} doctor links and ${created.length} appointments.`);
 }
 
-async function removeDemo(apply_) {
+async function removeDemo(apply_, log) {
   const appointments = await Appointment.countDocuments({ notes: MARKER });
   const patients = await Patient.countDocuments({ 'assignedDoctors.notes': MARKER });
-  console.log(`\nDemo data to remove: ${appointments} appointments, doctor links on ${patients} patients.`);
-  if (!apply_) return console.log('DRY RUN: nothing removed. Add --apply to remove it.');
+  log(`\nDemo data to remove: ${appointments} appointments, doctor links on ${patients} patients.`);
+  if (!apply_) return log('DRY RUN: nothing removed. Add --apply to remove it.');
   const a = await Appointment.deleteMany({ notes: MARKER });
   const p = await Patient.updateMany({ 'assignedDoctors.notes': MARKER }, { $pull: { assignedDoctors: { notes: MARKER } } });
-  console.log(`Removed ${a.deletedCount} appointments and cleaned ${p.modifiedCount} patients.`);
+  log(`Removed ${a.deletedCount} appointments and cleaned ${p.modifiedCount} patients.`);
+}
+
+export const DEFAULT_SEED = 20261115;
+
+/**
+ * Link the demo doctors to the demo patients and add appointment history.
+ * Uses the mongoose connection that is already open (the server's, or the CLI's below).
+ * @param {{apply?: boolean, remove?: boolean, seed?: number, verbose?: boolean, log?: Function}} options
+ */
+export async function linkDemoActivity({ apply = false, remove = false, seed = DEFAULT_SEED, verbose = true, log = console.log } = {}) {
+  if (remove) return removeDemo(apply, log);
+
+  const roster = await loadRoster();
+  roster.warnings.forEach((w) => log(`WARNING: ${w}`));
+  if (roster.hospitals.length === 0) throw new Error('No demo hospitals found, nothing to do.');
+
+  const plan = planDemoLinks({
+    hospitals: roster.hospitals.map(({ key, doctors, patients }) => ({ key, doctors, patients })),
+    now: new Date(),
+    seed,
+  });
+
+  const withDemoVisits = await Appointment.distinct('patientId', { notes: MARKER });
+  const existingDemoPatients = new Set(withDemoVisits.map(String));
+  const allPatients = roster.hospitals.flatMap((h) => h.patients);
+
+  if (allPatients.length > 0 && allPatients.every((p) => existingDemoPatients.has(p.id))) {
+    return log('Demo doctors and patients are already linked; nothing to do.');
+  }
+  if (verbose) printPlan(roster, plan, existingDemoPatients, log);
+  if (!apply) return log('\nDRY RUN: nothing written. Re-run with --apply to write this plan.');
+  await applyPlan(roster, plan, existingDemoPatients, log);
 }
 
 export async function main(argv = process.argv.slice(2)) {
@@ -232,26 +264,8 @@ export async function main(argv = process.argv.slice(2)) {
   console.log(opts.apply ? 'MODE: APPLY (will write)' : 'MODE: DRY RUN (read only)');
   await mongoose.connect(uri, { serverSelectionTimeoutMS: 15000 });
   console.log(`Connected to database "${mongoose.connection.db.databaseName}" at ${maskedTarget(uri)}`);
-
   try {
-    if (opts.remove) return await removeDemo(opts.apply);
-
-    const roster = await loadRoster();
-    roster.warnings.forEach((w) => console.log(`WARNING: ${w}`));
-    if (roster.hospitals.length === 0) throw new Error('No demo hospitals found, nothing to do.');
-
-    const plan = planDemoLinks({
-      hospitals: roster.hospitals.map(({ key, doctors, patients }) => ({ key, doctors, patients })),
-      now: new Date(),
-      seed: opts.seed,
-    });
-
-    const withDemoVisits = await Appointment.distinct('patientId', { notes: MARKER });
-    const existingDemoPatients = new Set(withDemoVisits.map(String));
-
-    printPlan(roster, plan, existingDemoPatients);
-    if (!opts.apply) return console.log('\nDRY RUN: nothing written. Re-run with --apply to write this plan.');
-    await apply(roster, plan, existingDemoPatients);
+    await linkDemoActivity({ apply: opts.apply, remove: opts.remove, seed: opts.seed });
   } finally {
     await mongoose.disconnect();
   }

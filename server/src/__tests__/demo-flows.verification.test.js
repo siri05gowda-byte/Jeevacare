@@ -13,8 +13,6 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import mongoose from 'mongoose';
-import { execFileSync } from 'child_process';
-import { fileURLToPath } from 'url';
 
 const FLOW_URI = process.env.FLOW_TEST_MONGODB_URI;
 
@@ -59,12 +57,14 @@ describeFlows('demo user-input flows (local database)', () => {
     // Build the demo hospitals, doctors and patients exactly as the live server does on startup.
     const { bootstrapDemoHospitalsAndAccounts } = await import('../utils/bootstrapDemoData.js');
     await bootstrapDemoHospitalsAndAccounts();
-    // Link doctors to patients and add appointments, in a separate process with its own connection.
-    execFileSync(
-      process.execPath,
-      [fileURLToPath(new URL('../scripts/linkDemoActivity.js', import.meta.url)), '--apply', '--uri-env=FLOW_TEST_MONGODB_URI'],
-      { env: { ...process.env, FLOW_TEST_MONGODB_URI: FLOW_URI }, stdio: 'pipe' }
-    );
+    // Link doctors to patients exactly as the server does on startup, and fail loudly if it cannot.
+    const warnings = [];
+    const { linkDemoDataOnStartup } = await import('../utils/demoLinkStartup.js');
+    await linkDemoDataOnStartup({
+      env: {},
+      logger: { info: () => {}, warn: (m) => warnings.push(m) },
+    });
+    if (warnings.length) throw new Error(`Startup linking failed: ${warnings.join('; ')}`);
     const [auth, patients, appointments, facilities, documents, errors] = await Promise.all([
       import('../routes/authRoutes.js'),
       import('../routes/patientRoutes.js'),
