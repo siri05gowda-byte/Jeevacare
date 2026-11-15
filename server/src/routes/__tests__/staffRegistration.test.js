@@ -9,9 +9,13 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import mongoose from 'mongoose';
+import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
 dotenv.config({ path: '.env' });
+
+// Source files are read relative to this test, so the tests work from the repo root or from server/.
+const srcFile = (relative) => fileURLToPath(new URL(`../../${relative}`, import.meta.url));
 
 const TEST_MONGODB_URI = process.env.TEST_MONGODB_URI || 'mongodb://localhost:27017/jeevacare-test';
 
@@ -120,7 +124,7 @@ describe('Staff Registration Workflow', () => {
     it('should enforce SYSTEM_ADMIN role for hospital creation', async () => {
       // This is a code review test - verify the route requires role
       const fs = await import('fs/promises');
-      const content = await fs.readFile('server/src/routes/hospitalAdminRoutes.js', 'utf-8');
+      const content = await fs.readFile(srcFile('routes/hospitalAdminRoutes.js'), 'utf-8');
 
       expect(content).toContain("requireRole('SYSTEM_ADMIN')");
       expect(content).toContain('/create-hospital');
@@ -128,7 +132,7 @@ describe('Staff Registration Workflow', () => {
 
     it('should enforce authMiddleware on registration endpoints', async () => {
       const fs = await import('fs/promises');
-      const content = await fs.readFile('server/src/routes/staffRegistrationRoutes.js', 'utf-8');
+      const content = await fs.readFile(srcFile('routes/staffRegistrationRoutes.js'), 'utf-8');
 
       expect(content).toContain('authMiddleware');
       expect(content).toContain('/request');
@@ -202,7 +206,7 @@ describe('Staff Registration Workflow', () => {
     it('should create notifications on registration submission', async () => {
       // Code review - verify service creates notifications
       const fs = await import('fs/promises');
-      const content = await fs.readFile('server/src/services/StaffRegistrationService.js', 'utf-8');
+      const content = await fs.readFile(srcFile('services/StaffRegistrationService.js'), 'utf-8');
 
       expect(content).toContain('new Notification');
       expect(content).toContain('staff_registration_request');
@@ -210,14 +214,14 @@ describe('Staff Registration Workflow', () => {
 
     it('should notify applicant on approval', async () => {
       const fs = await import('fs/promises');
-      const content = await fs.readFile('server/src/services/StaffRegistrationService.js', 'utf-8');
+      const content = await fs.readFile(srcFile('services/StaffRegistrationService.js'), 'utf-8');
 
       expect(content).toContain('staff_registration_approved');
     });
 
     it('should notify applicant on rejection', async () => {
       const fs = await import('fs/promises');
-      const content = await fs.readFile('server/src/services/StaffRegistrationService.js', 'utf-8');
+      const content = await fs.readFile(srcFile('services/StaffRegistrationService.js'), 'utf-8');
 
       expect(content).toContain('staff_registration_rejected');
     });
@@ -227,7 +231,7 @@ describe('Staff Registration Workflow', () => {
     it('should allow same user to request multiple hospitals', async () => {
       // Code review - verify no single-hospital hardcoding
       const fs = await import('fs/promises');
-      const content = await fs.readFile('server/src/services/StaffRegistrationService.js', 'utf-8');
+      const content = await fs.readFile(srcFile('services/StaffRegistrationService.js'), 'utf-8');
 
       // Verify it checks for existing requests but allows multiple different hospitals
       expect(content).toContain('hospitalId');
@@ -236,7 +240,7 @@ describe('Staff Registration Workflow', () => {
 
     it('should create separate HospitalStaff per affiliation', async () => {
       const fs = await import('fs/promises');
-      const content = await fs.readFile('server/src/services/StaffRegistrationService.js', 'utf-8');
+      const content = await fs.readFile(srcFile('services/StaffRegistrationService.js'), 'utf-8');
 
       expect(content).toContain('HospitalStaff');
       expect(content).toContain('associateProfessionalWithFacility');

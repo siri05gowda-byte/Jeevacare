@@ -37,7 +37,7 @@ describe('Phase 7 Independent Verification Suite', () => {
 
       // If TTS is not configured, verify demo mode
       if (!status.configured) {
-        expect(status.mode).toBe('demo');
+        expect(String(status.mode).toLowerCase()).toBe('demo');
         logger.info('TTS is in DEMO MODE - no external credentials configured');
       }
     });

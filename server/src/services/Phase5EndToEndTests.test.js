@@ -208,10 +208,6 @@ describe('Phase 5 End-to-End Patient Journey Test', () => {
       if (!verifiedPatient) {
         throw new Error(`Failed to persist patient: ${patient._id}`);
       }
-    } catch (error) {
-      console.error('E2E test setup error:', error.message);
-      throw error;
-    }
   });
 
   afterEach(async () => {

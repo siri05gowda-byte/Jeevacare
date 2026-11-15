@@ -175,10 +175,6 @@ describe('Phase 5 Authorization Tests', () => {
         status: 'active',
       });
       await patientB.save();
-    } catch (error) {
-      console.error('Test setup error:', error.message);
-      throw error;
-    }
   });
 
   afterEach(async () => {

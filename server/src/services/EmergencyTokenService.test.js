@@ -29,7 +29,8 @@ describe('EmergencyTokenService', () => {
       };
 
       vi.spyOn(EmergencyProfile, 'findOne').mockResolvedValue(null);
-      vi.spyOn(EmergencyProfile.prototype, 'constructor').mockImplementation(() => mockProfile);
+      // The service builds a real EmergencyProfile when none exists; stop its save() from touching a database.
+      vi.spyOn(EmergencyProfile.prototype, 'save').mockResolvedValue(mockProfile);
 
       const result = await EmergencyTokenService.generateEmergencyToken(mockPatient._id);
 
@@ -283,11 +284,7 @@ describe('EmergencyTokenService', () => {
 
       vi.spyOn(Patient, 'findById').mockResolvedValue(mockPatient);
       vi.spyOn(EmergencyProfile, 'findOne').mockResolvedValue(null);
-
-      const mockProfile = {
-        patientId: mockPatient._id,
-        save: vi.fn().mockResolvedValue(true),
-      };
+      vi.spyOn(EmergencyProfile.prototype, 'save').mockResolvedValue(true);
 
       // Generate multiple tokens
       const tokens = [];

@@ -111,10 +111,6 @@ describe('Phase 5 Immutability Tests', () => {
         status: 'in_progress',
       });
       await encounter.save();
-    } catch (error) {
-      console.error('Test setup error:', error.message);
-      throw error;
-    }
   });
 
   afterEach(async () => {

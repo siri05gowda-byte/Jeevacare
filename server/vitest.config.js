@@ -9,6 +9,8 @@ dotenv.config({ path: path.join(serverDir, '.env') });
 export default defineConfig({
   test: {
     environment: 'node',
+    // Test files share one test database and clean it between tests, so they must not run in parallel.
+    fileParallelism: false,
     globals: true,
     testTimeout: 120000,  // Increased for TTS synthesis (30s per test + overhead)
     hookTimeout: 30000,
