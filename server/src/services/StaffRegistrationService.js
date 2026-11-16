@@ -7,13 +7,113 @@ import StaffRegistrationRequest from '../models/StaffRegistrationRequest.js';
 import User from '../models/User.js';
 import Hospital from '../models/Hospital.js';
 import HospitalStaff from '../models/HospitalStaff.js';
+import HealthcareProfessional from '../models/HealthcareProfessional.js';
+import ProfessionalCredential from '../models/ProfessionalCredential.js';
 import Notification from '../models/Notification.js';
 import AuditService from './AuditService.js';
 import StaffService from './StaffService.js';
 import logger from '../utils/logger.js';
+import { ConflictError } from '../utils/errors.js';
 import GoogleSheetsService from './GoogleSheetsService.js';
 
+// Registration role -> HealthcareProfessional.professionalType
+const PROFESSIONAL_TYPES = {
+  doctor: 'doctor',
+  nurse: 'nurse',
+  pharmacist: 'pharmacist',
+  lab_technician: 'lab_technician',
+  radiology_technician: 'radiology_technician',
+  paramedic: 'paramedic',
+};
+
+// What each kind of approved staff member may do at the hospital.
+const ROLE_PERMISSIONS = {
+  doctor: {
+    viewPatientRecords: true,
+    createClinicalRecords: true,
+    createDiagnosis: true,
+    createPrescription: true,
+    manageAppointments: true,
+    accessEmergencyProfiles: true,
+  },
+  nurse: { viewPatientRecords: true, createClinicalRecords: true, manageAppointments: true },
+  pharmacist: { viewPatientRecords: true },
+  lab_technician: { viewPatientRecords: true },
+  radiology_technician: { viewPatientRecords: true },
+  paramedic: { viewPatientRecords: true, accessEmergencyProfiles: true },
+  reception_staff: { manageAppointments: true },
+};
+
+// A notification must never make the request itself fail.
+async function notify({ userId, type, title, message, link, metadata }) {
+  try {
+    await Notification.createNotification({ userId, type, title, message, link, metadata });
+  } catch (err) {
+    logger.warn(`Staff registration notification not sent: ${err.message}`);
+  }
+}
+
 class StaffRegistrationService {
+  /**
+   * Marks an approved applicant as verified: the user, a healthcare professional
+   * profile and (for a licence number) a verified credential. Safe to run twice.
+   */
+  static async verifyApprovedStaff(request, staffAssociation) {
+    await User.updateOne(
+      { _id: request.userId },
+      { $set: { verificationStatus: 'verified' } }
+    );
+
+    let professional = await HealthcareProfessional.findOne({ userId: request.userId });
+    if (!professional) {
+      professional = new HealthcareProfessional({
+        userId: request.userId,
+        firstName: request.firstName,
+        lastName: request.lastName,
+        email: request.email,
+        phone: request.phone,
+        professionalType: PROFESSIONAL_TYPES[request.requestedRole] || 'other_healthcare_professional',
+        specialization: request.specialization || [],
+        licenseNumber: request.licenseNumber,
+        verificationStatus: 'verified',
+        accountStatus: 'active',
+        facilityAssociations: [staffAssociation._id],
+      });
+    } else {
+      professional.verificationStatus = 'verified';
+      if (!professional.facilityAssociations.some((id) => String(id) === String(staffAssociation._id))) {
+        professional.facilityAssociations.push(staffAssociation._id);
+      }
+    }
+    await professional.save();
+
+    // Clinical access checks look for a verified licence on file.
+    const licence = request.licenseNumber || request.registrationNumber;
+    const hasLicence = await ProfessionalCredential.findOne({ professionalId: professional._id, credentialType: 'medical_license' });
+    // A licence number can belong to one person only. If it is already on file for someone else,
+    // approval still goes through but no licence is recorded for this person.
+    const licenceTaken = licence && (await ProfessionalCredential.findOne({ credentialNumber: licence }));
+    if (licenceTaken && !hasLicence) {
+      logger.warn(`Licence number on request ${request._id} is already on file for another professional`);
+    }
+    if (licence && !hasLicence && !licenceTaken) {
+      await ProfessionalCredential.create({
+        professionalId: professional._id,
+        credentialType: 'medical_license',
+        credentialName: 'Professional Licence',
+        credentialNumber: licence,
+        issuingAuthority: 'Verified by hospital administrator',
+        issueDate: new Date(),
+        status: 'verified',
+        verification: {
+          verifiedAt: new Date(),
+          verificationMethod: 'manual',
+          verificationSource: 'hospital administrator approval',
+        },
+      });
+    }
+  }
+
   /**
    * Submit a staff registration request
    * @param {String} userId - User ID requesting affiliation
@@ -72,8 +172,10 @@ class StaffRegistrationService {
       });
 
       if (existingRequest) {
-        throw new Error(
-          `You already have a ${existingRequest.status} request for ${hospital.name}. Please wait for approval or withdraw your current request.`
+        throw new ConflictError(
+          existingRequest.status === 'approved'
+            ? `Your request to join ${hospital.name} has already been approved.`
+            : `You already have a pending request for ${hospital.name}. Please wait for the hospital administrator to review it.`
         );
       }
 
@@ -85,9 +187,7 @@ class StaffRegistrationService {
       });
 
       if (existingStaff) {
-        throw new Error(
-          `You are already affiliated with ${hospital.name} in an active capacity`
-        );
+        throw new ConflictError(`You are already affiliated with ${hospital.name} in an active capacity`);
       }
 
       // Normalize role to staff model format
@@ -133,17 +233,14 @@ class StaffRegistrationService {
 
       // Create notifications for each hospital admin
       for (const admin of hospitalAdmins) {
-        const notification = new Notification({
+        await notify({
           userId: admin.userId,
-          type: 'staff_registration_request',
-          subject: `New staff registration request from ${request.firstName} ${request.lastName}`,
-          message: `${request.firstName} ${request.lastName} (${request.email}) has requested to join ${hospital.name} as a ${request.requestedRole}. Please review and approve or reject this request.`,
-          relatedEntityType: 'StaffRegistrationRequest',
-          relatedEntityId: request._id,
-          actionUrl: `/admin/registration-requests/${request._id}`,
-          priority: 'high',
+          type: 'verification_required',
+          title: `New staff registration request from ${request.firstName} ${request.lastName}`,
+          message: `${request.firstName} ${request.lastName} (${request.email}) has requested to join ${hospital.name} as a ${request.requestedRole.replace(/_/g, ' ')}. Please review and approve or reject this request.`,
+          link: '/hospital/dashboard',
+          metadata: { requestId: request._id, hospitalId: hospital._id },
         });
-        await notification.save();
       }
 
       // Audit log
@@ -266,28 +363,42 @@ class StaffRegistrationService {
         );
       }
 
-      // Create HospitalStaff association
-      const roleMapping = {
-        doctor: 'DOCTOR',
-        nurse: 'NURSE',
-        lab_technician: 'LAB_TECHNICIAN',
-        radiology_technician: 'RADIOLOGY_TECHNICIAN',
-        pharmacist: 'PHARMACIST',
-        paramedic: 'PARAMEDIC',
-        reception_staff: 'RECEPTION_STAFF',
-        other_staff: 'OTHER_STAFF',
-      };
+      // The staff record: reuse one that already exists (for example from an invitation), else create it.
+      let staffAssociation = await HospitalStaff.findOne({
+        userId: request.userId,
+        hospitalId: request.hospitalId,
+      });
+      if (!staffAssociation) {
+        staffAssociation = await StaffService.associateProfessionalWithFacility(
+          request.userId,
+          null,
+          request.hospitalId,
+          {
+            role: request.requestedRole,
+            department: request.department,
+            startDate: new Date(),
+            specialization: request.specialization,
+            permissions: ROLE_PERMISSIONS[request.requestedRole] || {},
+            notes: `Approved from registration request ${request._id}`,
+          },
+          approvingUserId
+        );
+      }
+      const hasPermissions = Object.values(staffAssociation.permissions || {}).some(Boolean);
+      if (!hasPermissions && ROLE_PERMISSIONS[request.requestedRole]) {
+        staffAssociation.permissions = ROLE_PERMISSIONS[request.requestedRole];
+        await staffAssociation.save();
+      }
+      if (staffAssociation.associationStatus !== 'active') {
+        staffAssociation = await StaffService.approveStaffAssociation(
+          staffAssociation._id,
+          { approvalMethod: approver.role === 'SYSTEM_ADMIN' ? 'jeevacare_admin' : 'facility_admin' },
+          approvingUserId
+        );
+      }
 
-      const staffAssociation = await StaffService.associateProfessionalWithFacility(
-        {
-          userId: request.userId,
-          facilityId: request.hospitalId,
-          role: request.requestedRole,
-          startDate: new Date(),
-          notes: `Approved from registration request ${request._id}`,
-        },
-        approvingUserId
-      );
+      // Approval is what verifies the person: they now count as verified staff.
+      await StaffRegistrationService.verifyApprovedStaff(request, staffAssociation);
 
       // Update request
       request.status = 'approved';
@@ -298,16 +409,15 @@ class StaffRegistrationService {
       await request.save();
 
       // Notify applicant
-      const notification = new Notification({
+      const approvedHospital = await Hospital.findById(request.hospitalId);
+      await notify({
         userId: request.userId,
-        type: 'staff_registration_approved',
-        subject: `Your registration request has been approved`,
-        message: `Your request to join ${(await Hospital.findById(request.hospitalId))?.name} as a ${request.requestedRole} has been approved. You can now access hospital facilities and systems.`,
-        relatedEntityType: 'HospitalStaff',
-        relatedEntityId: staffAssociation._id,
-        priority: 'high',
+        type: 'staff_approval',
+        title: 'Your registration request has been approved',
+        message: `Your request to join ${approvedHospital?.name} as a ${request.requestedRole.replace(/_/g, ' ')} has been approved. You are now verified.`,
+        link: '/dashboard',
+        metadata: { staffId: staffAssociation._id, hospitalId: request.hospitalId },
       });
-      await notification.save();
 
       // Audit log
       await AuditService.logEvent({
@@ -401,16 +511,14 @@ class StaffRegistrationService {
 
       // Notify applicant
       const hospital = await Hospital.findById(request.hospitalId);
-      const notification = new Notification({
+      await notify({
         userId: request.userId,
-        type: 'staff_registration_rejected',
-        subject: `Your registration request was not approved`,
-        message: `Your request to join ${hospital?.name} as a ${request.requestedRole} was not approved. Reason: ${rejectionReason}`,
-        relatedEntityType: 'StaffRegistrationRequest',
-        relatedEntityId: request._id,
-        priority: 'normal',
+        type: 'staff_rejection',
+        title: 'Your registration request was not approved',
+        message: `Your request to join ${hospital?.name} as a ${request.requestedRole.replace(/_/g, ' ')} was not approved. Reason: ${rejectionReason}`,
+        link: '/staff/registration',
+        metadata: { requestId: request._id, hospitalId: request.hospitalId },
       });
-      await notification.save();
 
       // Audit log
       await AuditService.logEvent({

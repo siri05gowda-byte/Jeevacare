@@ -208,22 +208,22 @@ describe('Staff Registration Workflow', () => {
       const fs = await import('fs/promises');
       const content = await fs.readFile(srcFile('services/StaffRegistrationService.js'), 'utf-8');
 
-      expect(content).toContain('new Notification');
-      expect(content).toContain('staff_registration_request');
+      expect(content).toContain('Notification.createNotification');
+      expect(content).toContain('verification_required');
     });
 
     it('should notify applicant on approval', async () => {
       const fs = await import('fs/promises');
       const content = await fs.readFile(srcFile('services/StaffRegistrationService.js'), 'utf-8');
 
-      expect(content).toContain('staff_registration_approved');
+      expect(content).toContain('staff_approval');
     });
 
     it('should notify applicant on rejection', async () => {
       const fs = await import('fs/promises');
       const content = await fs.readFile(srcFile('services/StaffRegistrationService.js'), 'utf-8');
 
-      expect(content).toContain('staff_registration_rejected');
+      expect(content).toContain('staff_rejection');
     });
   });
 

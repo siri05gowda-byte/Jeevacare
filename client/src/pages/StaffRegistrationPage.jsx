@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../stores/authStore';
-import { useNavigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { AlertCircle, CheckCircle, Clock, XCircle, Loader } from 'lucide-react';
 import PageContainer from '../components/Layout/PageContainer';
+import { authService } from '../services/authService';
+import { errorMessage } from '../utils/errorMessage';
 
 const staffRoles = [
   { value: 'DOCTOR', label: 'Doctor' },
@@ -10,11 +12,18 @@ const staffRoles = [
   { value: 'RADIOLOGY_TECHNICIAN', label: 'Radiology Technician' },
   { value: 'NURSE', label: 'Nurse' },
   { value: 'PHARMACIST', label: 'Pharmacist' },
+  { value: 'PARAMEDIC', label: 'Paramedic' },
+  { value: 'RECEPTION_STAFF', label: 'Reception Staff' },
+  { value: 'OTHER_STAFF', label: 'Other Staff' },
 ];
 
+const roleLabel = (role) => {
+  const key = String(role || '').toUpperCase();
+  return staffRoles.find((r) => r.value === key)?.label || String(role || '').replace(/_/g, ' ');
+};
+
 export default function StaffRegistrationPage() {
-  const { user } = useAuthStore();
-  const navigate = useNavigate();
+  const { user, setUser } = useAuthStore();
   const [hospitals, setHospitals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -23,6 +32,7 @@ export default function StaffRegistrationPage() {
   const [formData, setFormData] = useState({
     hospitalId: '',
     specialization: '',
+    licenseNumber: '',
   });
   const [requests, setRequests] = useState([]);
 
@@ -57,6 +67,15 @@ export default function StaffRegistrationPage() {
       if (requestsRes.ok) {
         const data = await requestsRes.json();
         setRequests(data.requests || []);
+        // Once a hospital approves the request the account becomes verified: pick that up
+        // so the "Register as Staff" menu item and this page go away without a re-login.
+        if ((data.requests || []).some((r) => r.status === 'approved') && user?.verificationStatus !== 'verified') {
+          try {
+            setUser(await authService.getCurrentUser());
+          } catch (refreshError) {
+            console.warn('Could not refresh the account after approval:', refreshError);
+          }
+        }
       }
     } catch (err) {
       console.error('Error loading data:', err);
@@ -90,17 +109,18 @@ export default function StaffRegistrationPage() {
         body: JSON.stringify({
           hospitalId: formData.hospitalId,
           specialization: formData.specialization ? [formData.specialization] : [],
+          licenseNumber: formData.licenseNumber.trim() || undefined,
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error?.message || 'Failed to submit request');
+        throw new Error(errorMessage({ response: { data } }, 'Failed to submit request'));
       }
 
       setSuccess(true);
-      setFormData({ hospitalId: '', specialization: '' });
+      setFormData({ hospitalId: '', specialization: '', licenseNumber: '' });
       
       // Reload requests
       await loadData();
@@ -171,6 +191,11 @@ export default function StaffRegistrationPage() {
     return hospital?.name || hospitalId;
   };
 
+  // Already verified (approved by a hospital): there is nothing left to register.
+  if (user?.verificationStatus === 'verified') {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   if (loading) {
     return (
       <PageContainer title="Staff Registration">
@@ -232,7 +257,7 @@ export default function StaffRegistrationPage() {
                 Your Role
               </label>
               <div className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-700">
-                {user?.role ? staffRoles.find(r => r.value === user.role)?.label || user.role : 'Loading...'}
+                {user?.role ? roleLabel(user.role) : 'Loading...'}
               </div>
               <p className="text-xs text-gray-500 mt-1">
                 You will be registered with your current account role
@@ -251,6 +276,21 @@ export default function StaffRegistrationPage() {
                 placeholder="e.g., Cardiology, Pediatrics"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-jeevacare-blue focus:border-transparent"
               />
+            </div>
+
+            {/* Licence / registration number (optional) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Licence or Registration Number (Optional)
+              </label>
+              <input
+                type="text"
+                value={formData.licenseNumber}
+                onChange={(e) => setFormData({ ...formData, licenseNumber: e.target.value })}
+                placeholder="e.g., KA-12345"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-jeevacare-blue focus:border-transparent"
+              />
+              <p className="text-xs text-gray-500 mt-1">The hospital administrator uses this to check who you are.</p>
             </div>
 
             {/* Submit Button */}
@@ -281,7 +321,7 @@ export default function StaffRegistrationPage() {
                       {getStatusBadge(request.status)}
                     </div>
                     <p className="text-sm text-gray-600">
-                      Role: <span className="font-medium">{request.role}</span>
+                      Role: <span className="font-medium">{roleLabel(request.requestedRole || request.role)}</span>
                       {request.specialization && (
                         <>
                           {' '}
