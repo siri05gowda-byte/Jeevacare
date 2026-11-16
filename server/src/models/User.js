@@ -252,7 +252,9 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
     if (isDirectMatch) return true;
 
     // 2. Security guard: Demo fallback is strictly gated behind DEMO_MODE and explicit allowlist
-    const isDemoModeEnabled = process.env.DEMO_MODE !== 'false' && process.env.ENABLE_DEMO_AUTH_FALLBACK !== 'false';
+    // Off unless switched on: the fixed demo passwords only work when DEMO_MODE=true is set on purpose.
+    const isDemoModeEnabled =
+      String(process.env.DEMO_MODE || '').toLowerCase() === 'true' && process.env.ENABLE_DEMO_AUTH_FALLBACK !== 'false';
     if (!isDemoModeEnabled) {
       return false;
     }

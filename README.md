@@ -277,7 +277,7 @@ GROQ_MODEL=mixtral-8x7b-32768
 
 # Demo data (see docs/DEMO_DATA_LINKING.md)
 DEMO_LINK_ON_STARTUP=true         # false stops the startup linking; "remove" takes back what it added
-DEMO_MODE=                        # set to false for real use: turns off the built-in demo passwords
+DEMO_MODE=                        # leave unset. "true" makes demo accounts accept fixed built-in passwords (demos only)
 
 # File Storage (optional; local filesystem used if unconfigured)
 CLOUDINARY_CLOUD_NAME=
@@ -420,7 +420,7 @@ npm run seed:synthetic        # Seed synthetic demo data
 - **Synthetic credentials** kept in local `DEMO_CREDENTIALS.json` (ignored by Git, never committed)
 - **Plaintext demo passwords** are fictional and only for development/testing
 - **Mock AI modes** clearly labeled and cannot be mistaken for real analysis
-- **Built-in demo passwords:** while `DEMO_MODE` is not `false`, demo accounts also accept fixed fallback passwords in addition to their own, even after a password change. Some of these appear in the repository's tests. Set `DEMO_MODE=false` before real patients use a deployment.
+- **Built-in demo passwords are off by default.** Demo accounts sign in with their own password only. Setting `DEMO_MODE=true` makes them also accept fixed fallback passwords, even after a password change; do not enable that on a deployment real patients use. On each start the server resets the demo accounts to their documented passwords.
 
 ---
 
@@ -519,7 +519,7 @@ Currently deployed at: **https://jeevacare-th88.onrender.com**
    ```
    *Note: Ensure the spreadsheet is shared with the service account email as Editor. The alias `GOOGLE_PRIVATE_KEY` is also supported.*
 6. Optional: Configure external services (Groq, Piper TTS, Cloudinary)
-7. Demo data (optional): `DEMO_LINK_ON_STARTUP` (default on) links the demo doctors to patients on each start, and `DEMO_MODE=false` turns off the built-in demo passwords. See [docs/DEMO_DATA_LINKING.md](docs/DEMO_DATA_LINKING.md).
+7. Demo data (optional): `DEMO_LINK_ON_STARTUP` (default on) links the demo doctors to patients on each start, and `DEMO_MODE=true` (off by default) allows the built-in demo passwords. See [docs/DEMO_DATA_LINKING.md](docs/DEMO_DATA_LINKING.md).
 
 On the free tier the backend sleeps when idle, so the first request after a pause can take 20 seconds or more. The app waits and retries, and offers a Retry button instead of logging you out.
 
@@ -577,7 +577,7 @@ npm run test:frontend         # Frontend tests
 | Full Integration Tests | Configurable | Requires TEST_MONGODB_URI |
 | AI Medical Summaries | Demo Mode | Groq API optional; mock responses if unconfigured |
 | X-Ray Analysis | In ClaraMed | A separate app; not run inside JeevaCare |
-| Demo Passwords | On by default | Built-in fallback passwords until `DEMO_MODE=false` |
+| Demo Passwords | Off by default | Fixed fallback passwords only work with `DEMO_MODE=true` |
 | Free-Tier Backend | Cold starts | The first request after idle can take 20+ seconds |
 | Text-to-Speech | Real/Mock Switchable | Piper TTS for English/Hindi/Malayalam; demo/mock for others |
 | DigiLocker Integration | Optional | Demo mode by default |

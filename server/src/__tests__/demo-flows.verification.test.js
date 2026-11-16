@@ -268,32 +268,30 @@ describeFlows('demo user-input flows (local database)', () => {
       expect(back.status, JSON.stringify(back.body)).toBe(200);
     });
 
-    it('demo mode (the default) keeps the built-in demo password working even after a change', async () => {
-      // Known behaviour of User.comparePassword: demo accounts also accept fixed passwords such as
-      // Patient@123 unless DEMO_MODE=false. This test documents it; see the next test for the safe setting.
+    it('built-in demo passwords are off by default: the old password stops working after a change', async () => {
       expect((await changePassword(PATIENT.password, NEW_PASSWORD)).status).toBe(200);
-      try {
-        expect((await login({ email: PATIENT.email, password: PATIENT.password })).status).toBe(200);
-      } finally {
-        const fresh = await login({ email: PATIENT.email, password: NEW_PASSWORD });
-        tokens.patient = fresh.body.tokens?.token;
-        await changePassword(NEW_PASSWORD, PATIENT.password);
-      }
-    });
-
-    it('with DEMO_MODE=false the old password really stops working after a change', async () => {
-      expect((await changePassword(PATIENT.password, NEW_PASSWORD)).status).toBe(200);
-      process.env.DEMO_MODE = 'false';
       try {
         expect((await login({ email: PATIENT.email, password: PATIENT.password })).status).toBe(401);
         const fresh = await login({ email: PATIENT.email, password: NEW_PASSWORD });
         expect(fresh.status).toBe(200);
         tokens.patient = fresh.body.tokens?.token;
       } finally {
-        delete process.env.DEMO_MODE;
         await changePassword(NEW_PASSWORD, PATIENT.password);
       }
       expect((await login(PATIENT)).status).toBe(200);
+    });
+
+    it('with DEMO_MODE=true (opt-in) the built-in demo password still works after a change', async () => {
+      expect((await changePassword(PATIENT.password, NEW_PASSWORD)).status).toBe(200);
+      process.env.DEMO_MODE = 'true';
+      try {
+        expect((await login({ email: PATIENT.email, password: PATIENT.password })).status).toBe(200);
+      } finally {
+        delete process.env.DEMO_MODE;
+        const fresh = await login({ email: PATIENT.email, password: NEW_PASSWORD });
+        tokens.patient = fresh.body.tokens?.token;
+        await changePassword(NEW_PASSWORD, PATIENT.password);
+      }
     });
   });
 

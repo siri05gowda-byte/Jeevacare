@@ -138,6 +138,7 @@ describe('Demo Authentication & Security Regression Test Suite', () => {
     });
 
     it('should gracefully accept Patient@123 or personalized password for explicit demo patients', async () => {
+      process.env.DEMO_MODE = 'true'; // the built-in demo passwords are opt-in
       const hash = await bcryptjs.hash('StoredDifferentHash@999', 10);
       const user = new User({
         email: 'rajesh.kumar.pat@sanjivani.in',
@@ -152,6 +153,7 @@ describe('Demo Authentication & Security Regression Test Suite', () => {
     });
 
     it('should gracefully accept Doctor@123 or personalized password for explicit demo doctors', async () => {
+      process.env.DEMO_MODE = 'true'; // the built-in demo passwords are opt-in
       const hash = await bcryptjs.hash('StoredDifferentHash@999', 10);
       const user = new User({
         email: 'soundarya.shetty@sanjivani.in',
@@ -166,6 +168,7 @@ describe('Demo Authentication & Security Regression Test Suite', () => {
     });
 
     it('should gracefully accept Admin@123 or personalized password for explicit demo admins', async () => {
+      process.env.DEMO_MODE = 'true'; // the built-in demo passwords are opt-in
       const hash = await bcryptjs.hash('StoredDifferentHash@999', 10);
       const user = new User({
         email: 'prakash.rao@sanjivani.in',
@@ -180,6 +183,7 @@ describe('Demo Authentication & Security Regression Test Suite', () => {
     });
 
     it('should accept DemoAdmin@123 for system administrator demo account', async () => {
+      process.env.DEMO_MODE = 'true'; // the built-in demo passwords are opt-in
       const hash = await bcryptjs.hash('StoredDifferentHash@999', 10);
       const user = new User({
         email: 'admin@jeevacare.demo',
@@ -192,6 +196,7 @@ describe('Demo Authentication & Security Regression Test Suite', () => {
     });
 
     it('should accept DemoPassword123 for generic UI demo accounts', async () => {
+      process.env.DEMO_MODE = 'true'; // the built-in demo passwords are opt-in
       const hash = await bcryptjs.hash('StoredDifferentHash@999', 10);
       const patientDemo = new User({ email: 'patient@demo.com', passwordHash: hash, role: 'PATIENT', isDemoAccount: true });
       const doctorDemo = new User({ email: 'doctor@demo.com', passwordHash: hash, role: 'DOCTOR', isDemoAccount: true });
@@ -215,6 +220,61 @@ describe('Demo Authentication & Security Regression Test Suite', () => {
       // When demo mode is disabled, fallback must NOT trigger
       expect(await demoUser.comparePassword('Patient@123')).toBe(false);
       expect(await demoUser.comparePassword('OnlyThisPasswordWorks')).toBe(true);
+    });
+  });
+
+  describe('1b. Built-in demo passwords are off unless DEMO_MODE=true', () => {
+    const ACCOUNTS = [
+      { role: 'PATIENT', email: 'rajesh.kumar.pat@sanjivani.in', builtIn: ['Patient@123', 'DemoPassword123'] },
+      { role: 'DOCTOR', email: 'soundarya.shetty@sanjivani.in', builtIn: ['Doctor@123', 'DemoPassword123'] },
+      { role: 'HOSPITAL_ADMIN', email: 'prakash.rao@sanjivani.in', builtIn: ['Admin@123', 'DemoPassword123'] },
+      { role: 'SYSTEM_ADMIN', email: 'admin@jeevacare.demo', builtIn: ['DemoAdmin@123', 'DemoPassword123', 'Admin@123'] },
+    ];
+    const demoUser = async ({ role, email }) =>
+      new User({
+        email,
+        passwordHash: await bcryptjs.hash('TheRealPassword#9', 10),
+        role,
+        isDemoAccount: true,
+        profile: { firstName: 'Demo', lastName: 'Person' },
+      });
+
+    it.each(ACCOUNTS)('does not accept the built-in passwords for a demo $role by default', async (account) => {
+      const user = await demoUser(account);
+      for (const password of account.builtIn) expect(await user.comparePassword(password)).toBe(false);
+      expect(await user.comparePassword('DemoPerson@123')).toBe(false); // the personalized form too
+    });
+
+    it.each(ACCOUNTS)('still lets a demo $role in with their own password', async (account) => {
+      expect(await (await demoUser(account)).comparePassword('TheRealPassword#9')).toBe(true);
+    });
+
+    it.each(ACCOUNTS)('accepts the built-in passwords for a demo $role only when DEMO_MODE=true', async (account) => {
+      process.env.DEMO_MODE = 'true';
+      const user = await demoUser(account);
+      for (const password of account.builtIn) expect(await user.comparePassword(password)).toBe(true);
+    });
+
+    it('stays off for any other DEMO_MODE value, and when explicitly disabled', async () => {
+      const user = await demoUser(ACCOUNTS[0]);
+      for (const value of ['', 'yes', '1', 'on', 'false']) {
+        process.env.DEMO_MODE = value;
+        expect(await user.comparePassword('Patient@123')).toBe(false);
+      }
+      process.env.DEMO_MODE = 'true';
+      process.env.ENABLE_DEMO_AUTH_FALLBACK = 'false';
+      expect(await user.comparePassword('Patient@123')).toBe(false);
+    });
+
+    it('never applies to ordinary accounts, even with DEMO_MODE=true', async () => {
+      process.env.DEMO_MODE = 'true';
+      const user = new User({
+        email: 'ordinary@example.com',
+        passwordHash: await bcryptjs.hash('TheRealPassword#9', 10),
+        role: 'PATIENT',
+        profile: { firstName: 'Ordinary', lastName: 'Person' },
+      });
+      expect(await user.comparePassword('Patient@123')).toBe(false);
     });
   });
 
