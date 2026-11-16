@@ -1,18 +1,22 @@
 import React, { useState, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { Upload, FileText, AlertCircle, CheckCircle, Loader, Search, X } from 'lucide-react';
 import PageContainer from '../components/Layout/PageContainer';
 import SectionTitle from '../components/Layout/SectionTitle';
 import api from '../services/api';
 import { documentService } from '../services/documentService';
+import AssignedPatients from '../components/Patients/AssignedPatients';
 
 export default function StaffDocumentUpload() {
   const { user } = useAuthStore();
+  const location = useLocation();
   
   // Patient search state
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
-  const [selectedPatient, setSelectedPatient] = useState(null);
+  // A patient can be passed in from their record page or the Patients page.
+  const [selectedPatient, setSelectedPatient] = useState(location.state?.patient || null);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState(null);
 
@@ -220,6 +224,9 @@ export default function StaffDocumentUpload() {
 
             {!selectedPatient ? (
               <div className="space-y-3">
+                {user?.role === 'DOCTOR' && (
+                  <AssignedPatients title="My Patients" onSelect={handleSelectPatient} />
+                )}
                 <div className="relative">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Search for Patient

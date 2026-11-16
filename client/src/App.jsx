@@ -12,6 +12,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import ProviderDashboardV2 from './pages/ProviderDashboardV2';
 import EmergencyDashboardV2 from './pages/EmergencyDashboardV2';
 import HospitalPatientsPage from './pages/HospitalPatientsPage';
+import PatientRecordsPage from './pages/PatientRecordsPage';
 import HospitalAppointmentsPage from './pages/HospitalAppointmentsPage';
 import HospitalSchedulePage from './pages/HospitalSchedulePage';
 import HospitalStaffPage from './pages/HospitalStaffPage';
@@ -76,6 +77,7 @@ function App() {
             <Route path="hospital/dashboard" element={<HospitalAdminDashboardPage />} />
             <Route path="hospital/staff" element={<HospitalStaffPage />} />
             <Route path="hospital/patients" element={<HospitalPatientsPage />} />
+            <Route path="patient-records/:patientId" element={<PatientRecordsPage />} />
             <Route path="hospital/appointments" element={<HospitalAppointmentsPage />} />
             <Route path="hospital/schedule" element={<HospitalSchedulePage />} />
           </Route>

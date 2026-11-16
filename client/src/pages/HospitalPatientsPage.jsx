@@ -7,6 +7,8 @@ import PatientSearch from '../components/Search/PatientSearch';
 import LoadingSkeleton from '../components/State/LoadingSkeleton';
 import EmptyState from '../components/State/EmptyState';
 import { useAuthStore } from '../stores/authStore';
+import AssignedPatients from '../components/Patients/AssignedPatients';
+import { assignedFacilityId, patientName } from '../utils/patientDisplay';
 
 /**
  * HospitalPatientsPage
@@ -45,6 +47,11 @@ export default function HospitalPatientsPage() {
         icon={<Users size={32} />}
       />
 
+      {/* The doctor's own patients, so there is always something to pick */}
+      {user?.role === 'DOCTOR' && (
+        <AssignedPatients onSelect={handlePatientSelect} selectedId={selectedPatient?._id} />
+      )}
+
       {/* Search Section */}
       <div className="card mb-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
@@ -60,7 +67,7 @@ export default function HospitalPatientsPage() {
           <div className="flex items-start justify-between mb-4">
             <div>
               <h3 className="text-xl font-semibold text-gray-900">
-                {selectedPatient.name || `${selectedPatient.personalIdentity?.firstName} ${selectedPatient.personalIdentity?.lastName}`}
+                {patientName(selectedPatient)}
               </h3>
               <p className="text-sm text-gray-600 mt-1">
                 JeevaCare ID: {selectedPatient.jeevaId || 'N/A'}
@@ -104,15 +111,18 @@ export default function HospitalPatientsPage() {
             </button>
             <button
               className="btn-secondary"
-              onClick={() => navigate(`/encounter`, { state: { patient: selectedPatient } })}
+              onClick={() => {
+                const facility = assignedFacilityId(selectedPatient, user?._id) || user?.facilityId;
+                navigate(`/encounter?patientId=${selectedPatient._id}${facility ? `&facilityId=${facility}` : ''}`);
+              }}
             >
               Start Encounter
             </button>
             <button
               className="btn-secondary"
-              onClick={() => navigate(`/appointments`, { state: { patient: selectedPatient } })}
+              onClick={() => navigate('/staff/upload-documents', { state: { patient: selectedPatient } })}
             >
-              View Appointments
+              Upload Document
             </button>
           </div>
         </div>
@@ -130,9 +140,7 @@ export default function HospitalPatientsPage() {
                 className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors text-left"
               >
                 <div>
-                  <p className="font-medium text-gray-900">
-                    {patient.name || `${patient.personalIdentity?.firstName} ${patient.personalIdentity?.lastName}`}
-                  </p>
+                  <p className="font-medium text-gray-900">{patientName(patient)}</p>
                   <p className="text-sm text-gray-600">{patient.jeevaId}</p>
                 </div>
                 <ChevronRight size={20} className="text-gray-400" />

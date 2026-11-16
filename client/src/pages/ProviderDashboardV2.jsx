@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Users, Calendar, Clock, CheckCircle, Check, ArrowRight,
   Building2, RefreshCw, AlertCircle, UserPlus, UserCheck,
@@ -41,6 +42,7 @@ const formatDateSafe = (dateVal, fallback = 'N/A') => {
  * - Assigned Patients list (fetched from backend, facility-aware)
  */
 export default function ProviderDashboardV2() {
+  const navigate = useNavigate();
   const { toasts, success, error: showError, remove } = useToast();
   const user = useAuthStore((state) => state.user);
   const [selectedPatient, setSelectedPatient] = useState(null);
@@ -377,8 +379,22 @@ export default function ProviderDashboardV2() {
 
               {/* Quick Actions */}
               <div className="flex flex-wrap gap-3">
-                <button className="btn btn-primary btn-sm">View Full Record</button>
-                <button className="btn btn-secondary btn-sm">Create Encounter</button>
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={() => navigate(`/patient-records/${selectedPatient._id || selectedPatient.id}`)}
+                >
+                  View Full Record
+                </button>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    const patientId = selectedPatient._id || selectedPatient.id;
+                    const facility = activeFacilityId || user?.facilityId;
+                    navigate(`/encounter?patientId=${patientId}${facility ? `&facilityId=${facility}` : ''}`);
+                  }}
+                >
+                  Create Encounter
+                </button>
                 {user?.role === 'DOCTOR' && (
                   <button
                     className="btn btn-sm flex items-center gap-1.5 bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600"

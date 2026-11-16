@@ -29,24 +29,34 @@ class EncounterService {
         throw new Error('Only healthcare professionals can create encounters');
       }
 
-      // Get appointment
-      const appointment = await Appointment.findById(
-        encounterData.appointmentId
-      );
-      if (!appointment) {
-        throw new Error(`Appointment not found: ${encounterData.appointmentId}`);
+      // An encounter is usually for a booked appointment, but a doctor can also start a
+      // walk-in encounter for any patient they are allowed to treat at their hospital.
+      let appointment = null;
+      let patient;
+      let hospitalId;
+      if (encounterData.appointmentId) {
+        appointment = await Appointment.findById(encounterData.appointmentId);
+        if (!appointment) {
+          throw new Error(`Appointment not found: ${encounterData.appointmentId}`);
+        }
+        patient = await Patient.findById(appointment.patientId);
+        hospitalId = appointment.hospitalId;
+      } else {
+        if (!encounterData.patientId || !encounterData.facilityId) {
+          throw new Error('A patient and a facility are required to start an encounter');
+        }
+        patient = await Patient.findById(encounterData.patientId);
+        hospitalId = encounterData.facilityId;
       }
-
-      const patient = await Patient.findById(appointment.patientId);
       if (!patient) {
-        throw new Error(`Patient not found: ${appointment.patientId}`);
+        throw new Error('Patient not found');
       }
 
       // Verify provider authorization
       const { authorized } =
         await ClinicalAuthorizationBoundary.canCreateOfficialClinicalRecord(
           requestingUser._id,
-          appointment.hospitalId,
+          hospitalId,
           patient._id
         );
 
@@ -59,14 +69,14 @@ class EncounterService {
       // Create encounter
       const encounter = new Encounter({
         patientId: patient._id,
-        hospitalId: appointment.hospitalId,
+        hospitalId,
         providerId: requestingUser._id,
-        appointmentId: appointment._id,
+        appointmentId: appointment?._id,
         encounterDate: new Date(),
         encounterType: encounterData.encounterType || 'consultation',
-        reasonForVisit: appointment.reasonForVisit,
+        reasonForVisit: appointment?.reasonForVisit || encounterData.reasonForVisit,
         chiefComplaint: encounterData.chiefComplaint,
-        clinicalNotes: encounterData.clinicalNotes,
+        clinicalNotes: encounterData.clinicalNotes || encounterData.notes,
         vitals: encounterData.vitals,
         status: 'in_progress',
       });
@@ -74,9 +84,11 @@ class EncounterService {
       await encounter.save();
 
       // Link appointment to encounter
-      appointment.encounterId = encounter._id;
-      appointment.status = 'in_progress';
-      await appointment.save();
+      if (appointment) {
+        appointment.encounterId = encounter._id;
+        appointment.status = 'in_progress';
+        await appointment.save();
+      }
 
       // Audit event
       await AuditService.logEvent({
@@ -86,10 +98,10 @@ class EncounterService {
         resource: encounter._id,
         resourceType: 'encounter',
         patient: patient._id,
-        hospital: appointment.hospitalId,
+        hospital: hospitalId,
         status: 'success',
         details: {
-          appointmentId: appointment._id,
+          appointmentId: appointment?._id,
           encounterType: encounterData.encounterType,
         },
       });

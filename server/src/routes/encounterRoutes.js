@@ -39,9 +39,10 @@ router.post('/', authMiddleware, authorize(['DOCTOR', 'STAFF', 'ADMIN']), async 
     const { appointmentId, patientId, doctorId, facilityId, encounterType, notes } = req.body;
 
     // Validate required fields
-    if (!appointmentId || !patientId || !doctorId || !facilityId || !encounterType) {
+    // appointmentId is optional: without one this is a walk-in encounter at the facility.
+    if (!patientId || !facilityId || !encounterType) {
       return res.status(400).json({
-        error: 'Missing required fields: appointmentId, patientId, doctorId, facilityId, encounterType',
+        error: 'Missing required fields: patientId, facilityId, encounterType',
       });
     }
 
@@ -55,11 +56,7 @@ router.post('/', authMiddleware, authorize(['DOCTOR', 'STAFF', 'ADMIN']), async 
       status: 'in_progress',
     };
 
-    const encounter = await EncounterService.createEncounter(encounterData, {
-      id: req.user.id,
-      role: req.user.role,
-      facilityId: req.user.facilityId,
-    });
+    const encounter = await EncounterService.createEncounter(encounterData, req.user);
 
     res.status(201).json({
       success: true,
@@ -81,11 +78,7 @@ router.get('/:encounterId', authMiddleware, async (req, res) => {
   try {
     const { encounterId } = req.params;
 
-    const encounter = await EncounterService.getEncounterDetails(encounterId, {
-      id: req.user.id,
-      role: req.user.role,
-      facilityId: req.user.facilityId,
-    });
+    const encounter = await EncounterService.getEncounterDetails(encounterId, req.user);
 
     res.json({
       success: true,
@@ -123,11 +116,7 @@ router.patch('/:encounterId', authMiddleware, authorize(['DOCTOR', 'STAFF', 'ADM
       });
     }
 
-    const encounter = await EncounterService.updateEncounter(encounterId, updateData, {
-      id: req.user.id,
-      role: req.user.role,
-      facilityId: req.user.facilityId,
-    });
+    const encounter = await EncounterService.updateEncounter(encounterId, updateData, req.user);
 
     res.json({
       success: true,
@@ -161,11 +150,7 @@ router.post('/:encounterId/complete', authMiddleware, authorize(['DOCTOR', 'STAF
         completionNotes: completionNotes || '',
         completedBy: req.user.id,
       },
-      {
-        id: req.user.id,
-        role: req.user.role,
-        facilityId: req.user.facilityId,
-      }
+      req.user
     );
 
     res.json({
@@ -199,11 +184,7 @@ router.get('/patient/:patientId', authMiddleware, async (req, res) => {
     if (startDate) filters.startDate = new Date(startDate);
     if (endDate) filters.endDate = new Date(endDate);
 
-    const encounters = await EncounterService.getPatientEncounters(patientId, {
-      id: req.user.id,
-      role: req.user.role,
-      facilityId: req.user.facilityId,
-    }, filters);
+    const encounters = await EncounterService.getPatientEncounters(patientId, req.user, filters);
 
     res.json({
       success: true,

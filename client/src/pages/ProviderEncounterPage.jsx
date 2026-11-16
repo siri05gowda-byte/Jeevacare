@@ -31,6 +31,8 @@ export default function ProviderEncounterPage() {
 
   const appointmentId = searchParams.get('appointmentId');
   const patientId = searchParams.get('patientId');
+  // Without an appointment this is a walk-in encounter at the hospital named here (or the doctor's own).
+  const facilityId = searchParams.get('facilityId') || user?.facilityId;
 
   const [step, setStep] = useState(1); // 1: Encounter info, 2: Clinical capture, 3: Summary
   const [isLoading, setIsLoading] = useState(false);
@@ -46,7 +48,7 @@ export default function ProviderEncounterPage() {
 
   // Current record being added
   const [currentRecord, setCurrentRecord] = useState({
-    recordType: 'consultation',
+    recordType: 'clinical_note',
     diagnosis: '',
     symptoms: '',
     findings: '',
@@ -61,8 +63,8 @@ export default function ProviderEncounterPage() {
    * Create encounter
    */
   const handleCreateEncounter = async () => {
-    if (!patientId || !appointmentId) {
-      setError('Missing patient or appointment ID');
+    if (!patientId || !facilityId) {
+      setError('Missing patient or hospital. Open the encounter from a patient.');
       return;
     }
 
@@ -71,10 +73,10 @@ export default function ProviderEncounterPage() {
       setError(null);
 
       const encounterData = {
-        appointmentId,
+        ...(appointmentId ? { appointmentId } : {}),
         patientId,
         doctorId: user._id || user.id,
-        facilityId: user.facilityId,
+        facilityId,
         encounterType,
         notes: encounterNotes,
       };
@@ -90,7 +92,7 @@ export default function ProviderEncounterPage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to create encounter');
+        throw new Error(errorData.error?.message || errorData.error || 'Failed to create encounter');
       }
 
       const data = await response.json();
@@ -116,7 +118,7 @@ export default function ProviderEncounterPage() {
 
     setClinicalRecords([...clinicalRecords, { ...currentRecord, id: Date.now() }]);
     setCurrentRecord({
-      recordType: 'consultation',
+      recordType: 'clinical_note',
       diagnosis: '',
       symptoms: '',
       findings: '',
@@ -152,7 +154,7 @@ export default function ProviderEncounterPage() {
         const recordData = {
           patientId,
           encounterId: encounter._id,
-          facilityId: user.facilityId,
+          facilityId,
           providerId: user._id || user.id,
           recordType: record.recordType,
           data: {
@@ -245,7 +247,7 @@ export default function ProviderEncounterPage() {
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="consultation">Consultation</option>
-                <option value="follow-up">Follow-up</option>
+                <option value="follow_up">Follow-up</option>
                 <option value="procedure">Procedure</option>
                 <option value="emergency">Emergency</option>
                 <option value="telehealth">Telehealth</option>
@@ -315,11 +317,11 @@ export default function ProviderEncounterPage() {
                     }
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="consultation">Consultation</option>
+                    <option value="clinical_note">Consultation note</option>
                     <option value="diagnosis">Diagnosis</option>
                     <option value="medication">Medication</option>
                     <option value="procedure">Procedure</option>
-                    <option value="observation">Observation</option>
+                    <option value="vital_observation">Observation</option>
                   </select>
                 </div>
               </div>

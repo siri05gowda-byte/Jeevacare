@@ -51,19 +51,18 @@ router.post('/', authMiddleware, authorize(['DOCTOR', 'STAFF', 'ADMIN']), async 
     const recordData = {
       patientId,
       encounterId: encounterId || null,
+      // The service reads hospitalId and recordDate; facilityId is what the app sends.
+      hospitalId: facilityId || req.user.facilityId,
+      recordDate: verifiedAt || Date.now(),
       facilityId: facilityId || req.user.facilityId,
-      providerId: providerId || req.user.id,
+      providerId: providerId || req.user._id,
       recordType,
       data,
       provider_verified: provider_verified === true,
       verifiedAt: provider_verified ? new Date(verifiedAt || Date.now()) : null,
     };
 
-    const record = await ClinicalRecordService.createClinicalRecord(recordData, {
-      id: req.user.id,
-      role: req.user.role,
-      facilityId: req.user.facilityId,
-    });
+    const record = await ClinicalRecordService.createClinicalRecord(recordData, req.user);
 
     res.status(201).json({
       success: true,
@@ -86,11 +85,7 @@ router.get('/:recordId', authMiddleware, async (req, res) => {
   try {
     const { recordId } = req.params;
 
-    const record = await ClinicalRecordService.getClinicalRecord(recordId, {
-      id: req.user.id,
-      role: req.user.role,
-      facilityId: req.user.facilityId,
-    });
+    const record = await ClinicalRecordService.getClinicalRecord(recordId, req.user);
 
     res.json({
       success: true,
@@ -124,11 +119,7 @@ router.get('/patient/:patientId', authMiddleware, async (req, res) => {
     if (startDate) filters.startDate = new Date(startDate);
     if (endDate) filters.endDate = new Date(endDate);
 
-    const records = await ClinicalRecordService.getPatientRecords(patientId, {
-      id: req.user.id,
-      role: req.user.role,
-      facilityId: req.user.facilityId,
-    }, filters);
+    const records = await ClinicalRecordService.getPatientRecords(patientId, req.user, filters);
 
     res.json({
       success: true,
@@ -172,11 +163,7 @@ router.post('/:recordId/request-correction', authMiddleware, async (req, res) =>
       requestedBy: req.user.id,
     };
 
-    const result = await ClinicalRecordService.requestCorrection(recordId, correctionData, {
-      id: req.user.id,
-      role: req.user.role,
-      facilityId: req.user.facilityId,
-    });
+    const result = await ClinicalRecordService.requestCorrection(recordId, correctionData, req.user);
 
     res.status(201).json({
       success: true,
@@ -219,11 +206,7 @@ router.post('/:recordId/amendments/:amendmentId/accept', authMiddleware, authori
         acceptanceNotes: acceptanceNotes || '',
         acceptedBy: req.user.id,
       },
-      {
-        id: req.user.id,
-        role: req.user.role,
-        facilityId: req.user.facilityId,
-      }
+      req.user
     );
 
     res.json({
@@ -265,11 +248,7 @@ router.post('/:recordId/amendments/:amendmentId/reject', authMiddleware, authori
         rejectionReason,
         rejectedBy: req.user.id,
       },
-      {
-        id: req.user.id,
-        role: req.user.role,
-        facilityId: req.user.facilityId,
-      }
+      req.user
     );
 
     res.json({
