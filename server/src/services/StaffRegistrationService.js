@@ -58,6 +58,40 @@ class StaffRegistrationService {
    * Marks an approved applicant as verified: the user, a healthcare professional
    * profile and (for a licence number) a verified credential. Safe to run twice.
    */
+  static async activateInvitedStaff(staff, user, approvedBy) {
+    if (!Object.values(staff.permissions || {}).some(Boolean) && ROLE_PERMISSIONS[staff.role]) {
+      staff.permissions = ROLE_PERMISSIONS[staff.role];
+      await staff.save();
+    }
+    let active = staff;
+    if (staff.associationStatus !== 'active') {
+      active = await StaffService.approveStaffAssociation(
+        staff._id,
+        { approvalMethod: 'facility_admin' },
+        approvedBy
+      );
+    }
+    const fallbackName = (user.email || 'Staff').split('@')[0];
+    await StaffRegistrationService.verifyApprovedStaff(
+      {
+        userId: user._id,
+        firstName: user.profile?.firstName || fallbackName,
+        lastName: user.profile?.lastName || 'Staff',
+        email: user.email,
+        phone: user.profile?.phone,
+        requestedRole: staff.role,
+        specialization: Array.isArray(staff.specialization) ? staff.specialization : [],
+      },
+      active
+    );
+    // If they had also asked to join this hospital, that request is now settled.
+    await StaffRegistrationRequest.updateMany(
+      { userId: user._id, hospitalId: staff.hospitalId, status: 'pending' },
+      { $set: { status: 'approved', reviewedAt: new Date(), reviewedBy: approvedBy, reviewerRole: 'hospital_admin' } }
+    );
+    return active;
+  }
+
   static async verifyApprovedStaff(request, staffAssociation) {
     await User.updateOne(
       { _id: request.userId },

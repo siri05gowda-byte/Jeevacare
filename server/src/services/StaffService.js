@@ -373,7 +373,7 @@ class StaffService {
           { endDate: { $gte: new Date() } },
         ],
       })
-        .populate('userId', 'email name phone')
+        .populate('userId', 'email profile')
         .populate('professionalId', 'professionalId verificationStatus')
         .sort({ createdAt: -1 });
 

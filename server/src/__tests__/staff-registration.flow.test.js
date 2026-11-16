@@ -22,6 +22,7 @@ describeFlows('new staff registration and approval (local database)', () => {
   let app;
   let hospital;
   const ADMIN = { email: 'prakash.rao@sanjivani.in', password: 'PrakashRao@123' };
+  const LATE = { email: 'late.doctor.signup@example.test', password: 'LateDoctor@123' };
   const NEWBIE = { email: 'new.doctor.signup@example.test', password: 'NewDoctor@123' };
   const tokens = {};
   let requestId;
@@ -49,18 +50,29 @@ describeFlows('new staff registration and approval (local database)', () => {
       verificationStatus: 'pending',
       profile: { firstName: 'Nina', lastName: 'Newcomer' },
     });
-    const [auth, registration, errors] = await Promise.all([
+    await User.deleteOne({ email: LATE.email });
+    await User.create({
+      email: LATE.email,
+      passwordHash: LATE.password,
+      role: 'DOCTOR',
+      verificationStatus: 'pending',
+      profile: { firstName: 'Savi', lastName: 'Forgetful' },
+    });
+    const [auth, registration, staffRoutes, errors] = await Promise.all([
       import('../routes/authRoutes.js'),
       import('../routes/staffRegistrationRoutes.js'),
+      import('../routes/staffRoutes.js'),
       import('../middleware/errorHandler.js'),
     ]);
     app = express();
     app.use(express.json());
     app.use('/api/v1/auth', auth.default);
     app.use('/api/v1/staff-registration', registration.default);
+    app.use('/api/v1/staff', staffRoutes.default);
     app.use(errors.errorHandler);
     tokens.admin = await login(ADMIN);
     tokens.newbie = await login(NEWBIE);
+    tokens.late = await login(LATE);
   }, 60000);
 
   afterAll(async () => {
@@ -74,6 +86,20 @@ describeFlows('new staff registration and approval (local database)', () => {
         import('../models/StaffRegistrationRequest.js'),
         import('../models/Notification.js'),
       ]);
+    for (const email of [LATE.email]) {
+      const extra = await User.findOne({ email });
+      if (extra) {
+        const pro = await HealthcareProfessional.findOne({ userId: extra._id });
+        if (pro) await ProfessionalCredential.deleteMany({ professionalId: pro._id });
+        await Promise.all([
+          HealthcareProfessional.deleteMany({ userId: extra._id }),
+          HospitalStaff.deleteMany({ userId: extra._id }),
+          StaffRegistrationRequest.deleteMany({ userId: extra._id }),
+          Notification.deleteMany({ userId: extra._id }),
+          User.deleteOne({ _id: extra._id }),
+        ]);
+      }
+    }
     const user = await User.findOne({ email: NEWBIE.email });
     if (user) {
       const professional = await HealthcareProfessional.findOne({ userId: user._id });
@@ -118,6 +144,17 @@ describeFlows('new staff registration and approval (local database)', () => {
     expect(res.body.requests.some((r) => String(r._id) === String(requestId) && r.status === 'pending')).toBe(true);
   });
 
+  it('the admin sees unverified sign-ups, marking who has already asked to join', async () => {
+    const res = await as('get', '/api/v1/staff/unverified-users', 'admin');
+    expect(res.status, JSON.stringify(res.body).slice(0, 300)).toBe(200);
+    const byEmail = Object.fromEntries(res.body.data.map((u) => [u.email, u]));
+    expect(byEmail[NEWBIE.email].requested).toBe(true);
+    expect(byEmail[LATE.email].requested).toBe(false);
+    expect(byEmail[LATE.email].name).toBe('Savi Forgetful');
+    // People who are already verified staff are not offered.
+    expect(byEmail['soundarya.shetty@sanjivani.in']).toBeUndefined();
+  });
+
   it('approval makes them verified, active staff', async () => {
     const res = await as('post', `/api/v1/staff-registration/${requestId}/approve`, 'admin').send({});
     expect(res.status).toBe(200);
@@ -146,6 +183,43 @@ describeFlows('new staff registration and approval (local database)', () => {
     const result = await ClinicalAuth.canCreateOfficialClinicalRecord(user._id, hospital._id, patient._id);
     expect(result.error).toBeFalsy();
     expect(result.authorized).toBe(true);
+  });
+
+  it('the admin can list the hospital\'s staff, with names', async () => {
+    const res = await as('get', `/api/v1/staff/facility/${hospital._id}`, 'admin');
+    expect(res.status, JSON.stringify(res.body).slice(0, 300)).toBe(200);
+    const names = res.body.data.map((s) => s.userName);
+    expect(names).toContain('Soundarya Shetty');
+    expect(names).toContain('Nina Newcomer');
+  });
+
+  it('a doctor who never asked can be invited by the admin, and is then verified staff', async () => {
+    const { default: User } = await import('../models/User.js');
+    const late = await User.findOne({ email: LATE.email });
+    const res = await as('post', '/api/v1/staff/invite', 'admin').send({
+      userId: String(late._id),
+      hospitalId: String(hospital._id),
+      role: 'doctor',
+      employmentStatus: 'active',
+      startDate: new Date().toISOString().split('T')[0],
+    });
+    expect(res.status, JSON.stringify(res.body).slice(0, 300)).toBe(201);
+    expect(res.body.data.associationStatus).toBe('active');
+
+    const me = await as('get', '/api/v1/auth/current-user', 'late');
+    expect(me.body.user.verificationStatus).toBe('verified');
+
+    const list = await as('get', '/api/v1/staff/unverified-users', 'admin');
+    expect(list.body.data.map((u) => u.email)).not.toContain(LATE.email);
+
+    const again = await as('post', '/api/v1/staff/invite', 'admin').send({
+      userId: String(late._id),
+      hospitalId: String(hospital._id),
+      role: 'doctor',
+      employmentStatus: 'active',
+      startDate: new Date().toISOString().split('T')[0],
+    });
+    expect(again.status).toBe(409);
   });
 
   it('asking again after approval is refused politely, not with a crash', async () => {

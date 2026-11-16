@@ -13,6 +13,8 @@ import {
   attachFacilityContext,
 } from '../middleware/facilityRBAC.js';
 import StaffService from '../services/StaffService.js';
+import StaffRegistrationService from '../services/StaffRegistrationService.js';
+import StaffRegistrationRequest from '../models/StaffRegistrationRequest.js';
 import HospitalStaff from '../models/HospitalStaff.js';
 import User from '../models/User.js';
 import Hospital from '../models/Hospital.js';
@@ -26,6 +28,29 @@ const router = express.Router();
  * Middleware for validation error handling
  */
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// The hospitals an admin looks after: those on their staff records and on their profile.
+// A system admin looks after all of them (null means no restriction).
+async function adminFacilityIds(user) {
+  if (user.role === 'SYSTEM_ADMIN') return null;
+  const records = await HospitalStaff.find({
+    userId: user._id,
+    role: 'hospital_admin',
+    associationStatus: 'active',
+  }).select('hospitalId');
+  return [...records.map((r) => r.hospitalId), user.facilityId, user.profile?.hospitalId].filter(Boolean);
+}
+
+const STAFF_USER_ROLES = [
+  'DOCTOR',
+  'NURSE',
+  'LAB_TECHNICIAN',
+  'RADIOLOGY_TECHNICIAN',
+  'PHARMACIST',
+  'PARAMEDIC',
+  'RECEPTION_STAFF',
+  'OTHER_STAFF',
+];
 
 const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
@@ -104,23 +129,34 @@ router.post(
         });
       }
 
-      // Associate professional with facility
-      const staff = await StaffService.associateProfessionalWithFacility(
-        userId,
-        null, // professionalId optional for non-clinical staff
-        hospitalId,
-        {
-          role,
-          department,
-          employmentStatus,
-          startDate: new Date(startDate),
-          facilityContactEmail,
-          facilityContactPhone,
-          specialization,
-          notes,
-        },
-        req.user._id
-      );
+      // The hospital admin adding someone is the approval: the person becomes active, verified staff.
+      // A pending record (from an earlier invitation) is reused; an active one is refused.
+      let staff = await HospitalStaff.findOne({ userId, hospitalId });
+      if (staff?.associationStatus === 'active') {
+        return res.status(409).json({
+          success: false,
+          message: `${user.profile?.firstName || 'This person'} is already staff at ${hospital.name}`,
+        });
+      }
+      if (!staff) {
+        staff = await StaffService.associateProfessionalWithFacility(
+          userId,
+          null, // professionalId optional for non-clinical staff
+          hospitalId,
+          {
+            role,
+            department,
+            employmentStatus,
+            startDate: new Date(startDate),
+            facilityContactEmail,
+            facilityContactPhone,
+            specialization,
+            notes,
+          },
+          req.user._id
+        );
+      }
+      staff = await StaffRegistrationService.activateInvitedStaff(staff, user, req.user._id);
 
       await AuditService.logEvent({
         action: 'STAFF_INVITED',
@@ -140,8 +176,8 @@ router.post(
           await Notification.createNotification({
             userId,
             type: 'staff_invitation',
-            title: 'Staff Invitation Received',
-            message: `You have been invited to join ${hospital.name} as ${role.replace(/_/g, ' ')}. Your invitation is pending approval.`,
+            title: 'You have been added as staff',
+            message: `${hospital.name} has added you as ${role.replace(/_/g, ' ')}. Your account is now verified.`,
             link: '/hospital/staff',
             metadata: {
               staffId: staff._id,
@@ -157,7 +193,7 @@ router.post(
 
       res.status(201).json({
         success: true,
-        message: 'Staff invitation created',
+        message: 'Staff member added and verified',
         data: {
           staffId: staff._id,
           userId: staff.userId,
@@ -588,7 +624,8 @@ router.get(
         data: staff.map((s) => ({
           staffId: s._id,
           userId: s.userId?._id,
-          userName: s.userId?.name,
+          userEmail: s.userId?.email,
+          userName: `${s.userId?.profile?.firstName || ''} ${s.userId?.profile?.lastName || ''}`.trim(),
           role: s.role,
           employmentStatus: s.employmentStatus,
           associationStatus: s.associationStatus,
@@ -761,6 +798,82 @@ router.get(
 );
 
 /**
+ * GET /api/v1/staff/unverified-users
+ * Staff accounts that have signed up but are not verified yet and are not part of
+ * this admin's hospital, so the admin can invite them. `requested` says whether the
+ * person has already asked to join one of the admin's hospitals.
+ * HOSPITAL_ADMIN and SYSTEM_ADMIN only
+ */
+router.get(
+  '/unverified-users',
+  authMiddleware,
+  requireRole('SYSTEM_ADMIN', 'HOSPITAL_ADMIN'),
+  async (req, res) => {
+    try {
+      const facilityIds = await adminFacilityIds(req.user);
+      if (facilityIds && facilityIds.length === 0) {
+        return res.json({ success: true, count: 0, data: [] });
+      }
+      const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+
+      const userQuery = {
+        status: 'active',
+        role: { $in: STAFF_USER_ROLES },
+        verificationStatus: { $ne: 'verified' },
+      };
+      if (req.query.q) {
+        const pattern = escapeRegex(req.query.q);
+        userQuery.$or = [
+          { email: { $regex: pattern, $options: 'i' } },
+          { 'profile.firstName': { $regex: pattern, $options: 'i' } },
+          { 'profile.lastName': { $regex: pattern, $options: 'i' } },
+        ];
+      }
+
+      const users = await User.find(userQuery)
+        .select('_id email role profile jeevaId createdAt')
+        .sort({ createdAt: -1 })
+        .limit(limit);
+
+      // Leave out people who already belong to (or are waiting on) one of these hospitals.
+      const facilityFilter = facilityIds ? { hospitalId: { $in: facilityIds } } : {};
+      const [members, requests] = await Promise.all([
+        HospitalStaff.find({
+          ...facilityFilter,
+          userId: { $in: users.map((u) => u._id) },
+          associationStatus: { $in: ['active', 'pending'] },
+        }).select('userId'),
+        StaffRegistrationRequest.find({
+          ...facilityFilter,
+          userId: { $in: users.map((u) => u._id) },
+          status: 'pending',
+        }).select('userId'),
+      ]);
+      const memberIds = new Set(members.map((m) => String(m.userId)));
+      const requestedIds = new Set(requests.map((r) => String(r.userId)));
+
+      const data = users
+        .filter((u) => !memberIds.has(String(u._id)))
+        .map((u) => ({
+          _id: u._id,
+          userId: u._id,
+          email: u.email,
+          name: `${u.profile?.firstName || ''} ${u.profile?.lastName || ''}`.trim(),
+          role: u.role,
+          jeevaId: u.jeevaId,
+          createdAt: u.createdAt,
+          requested: requestedIds.has(String(u._id)),
+        }));
+
+      res.json({ success: true, count: data.length, data });
+    } catch (error) {
+      logger.error(`Unverified users lookup failed: ${error.message}`);
+      res.status(500).json({ success: false, message: 'Could not load unverified staff' });
+    }
+  }
+);
+
+/**
  * GET /api/v1/staff/search-users
  * Search registered users for staff invitation
  * HOSPITAL_ADMIN and SYSTEM_ADMIN only
@@ -850,21 +963,9 @@ router.get(
       const searchQuery = {};
 
       if (req.user.role === 'HOSPITAL_ADMIN') {
-        // A facility admin sees only their own facilities: those they administer
-        // through a staff record, plus the one on their profile.
-        const adminRecords = await HospitalStaff.find({
-          userId: req.user._id,
-          role: 'hospital_admin',
-          associationStatus: 'active',
-        }).select('hospitalId');
-
-        const facilityIds = [
-          ...adminRecords.map((r) => r.hospitalId),
-          req.user.facilityId,
-          req.user.profile?.hospitalId,
-        ].filter(Boolean);
-
-        // No facility of their own means no results, never every facility.
+        // A facility admin sees only their own facilities. No facility of their own means
+        // no results, never every facility.
+        const facilityIds = await adminFacilityIds(req.user);
         if (facilityIds.length === 0) {
           return res.json({ success: true, count: 0, data: [] });
         }

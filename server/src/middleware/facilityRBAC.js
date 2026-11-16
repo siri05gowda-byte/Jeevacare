@@ -412,7 +412,8 @@ export const requireHospitalAdmin = async (req, res, next) => {
     }
 
     // Check for facilityId or hospitalId (both used in different endpoints)
-    const facilityId = req.params.facilityId || req.body.facilityId || req.body.hospitalId;
+    const facilityId =
+      req.params.facilityId || req.params.hospitalId || req.body.facilityId || req.body.hospitalId;
 
     if (!facilityId) {
       return res.status(400).json({

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Users, UserPlus, CheckCircle, XCircle, Clock, AlertCircle, Search } from 'lucide-react';
+import { Users, UserPlus, CheckCircle, XCircle, Clock, AlertCircle, Search, UserCheck } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { staffService } from '../services/staffService';
 import LoadingState from '../components/LoadingState';
@@ -11,6 +11,11 @@ export default function HospitalStaffPage() {
   const [error, setError] = useState(null);
   const [pendingStaff, setPendingStaff] = useState([]);
   const [activeStaff, setActiveStaff] = useState([]);
+  const [unverifiedUsers, setUnverifiedUsers] = useState([]);
+  const [adminFacilities, setAdminFacilities] = useState([]);
+  const [addToFacilityId, setAddToFacilityId] = useState('');
+  const [addingUserId, setAddingUserId] = useState(null);
+  const [notice, setNotice] = useState(null);
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [selectedFacilityId, setSelectedFacilityId] = useState(null);
 
@@ -103,9 +108,31 @@ export default function HospitalStaffPage() {
         const pending = response?.data || response || [];
         setPendingStaff(Array.isArray(pending) ? pending : []);
       }
-      // For HOSPITAL_ADMIN, get facility staff (would need to know which facility)
-      // This requires getting user's active staff records first to find their facility
-      
+      // The hospitals this admin looks after, their current staff, and sign-ups still waiting to be verified.
+      if (['SYSTEM_ADMIN', 'HOSPITAL_ADMIN', 'ADMIN'].includes(user?.role)) {
+        const facilitiesResponse = await staffService.searchFacilities('');
+        const facilities = facilitiesResponse?.data || [];
+        setAdminFacilities(facilities);
+        setAddToFacilityId((current) => current || facilities[0]?._id || '');
+
+        const [staffLists, unverified] = await Promise.all([
+          Promise.all(
+            facilities.map(async (facility) => {
+              try {
+                const res = await staffService.getFacilityStaff(facility._id);
+                return (res?.data || []).map((member) => ({ ...member, facilityName: facility.name }));
+              } catch (staffError) {
+                console.error('Failed to load staff for', facility.name, staffError);
+                return [];
+              }
+            })
+          ),
+          staffService.getUnverifiedUsers().catch(() => ({ data: [] })),
+        ]);
+        setActiveStaff(staffLists.flat());
+        setUnverifiedUsers(unverified?.data || []);
+      }
+
     } catch (err) {
       console.error('Failed to load staff data:', err);
       setError(errorMessage(err, 'Failed to load staff data'));
@@ -157,10 +184,46 @@ export default function HospitalStaffPage() {
       // Reload staff data
       await loadStaffData();
       
-      alert('Staff invitation sent successfully');
+      setNotice('Staff member added and verified.');
     } catch (err) {
       console.error('Failed to invite staff:', err);
       setError(errorMessage(err, 'Failed to invite staff'));
+    }
+  };
+
+  const ROLE_FOR_ACCOUNT = {
+    DOCTOR: 'doctor',
+    NURSE: 'nurse',
+    LAB_TECHNICIAN: 'lab_technician',
+    RADIOLOGY_TECHNICIAN: 'radiology_technician',
+    PHARMACIST: 'pharmacist',
+    PARAMEDIC: 'paramedic',
+    RECEPTION_STAFF: 'reception_staff',
+    OTHER_STAFF: 'other_staff',
+  };
+
+  // One-click add for someone who signed up but never asked to join.
+  const handleAddUnverified = async (person) => {
+    if (!addToFacilityId) {
+      setError('Choose a hospital to add them to');
+      return;
+    }
+    try {
+      setAddingUserId(person._id);
+      setError(null);
+      await staffService.inviteStaff({
+        userId: person._id,
+        hospitalId: addToFacilityId,
+        role: ROLE_FOR_ACCOUNT[person.role] || 'other_staff',
+        employmentStatus: 'active',
+        startDate: new Date().toISOString().split('T')[0],
+      });
+      setNotice(`${person.name || person.email} was added and is now verified.`);
+      await loadStaffData();
+    } catch (err) {
+      setError(errorMessage(err, 'Could not add this person'));
+    } finally {
+      setAddingUserId(null);
     }
   };
 
@@ -478,6 +541,100 @@ export default function HospitalStaffPage() {
         </div>
       )}
 
+      {notice && (
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg text-green-900 flex items-center gap-2">
+          <CheckCircle size={20} />
+          <p>{notice}</p>
+        </div>
+      )}
+
+      {/* Signed up but not verified yet */}
+      <div className="mb-8">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+            <UserCheck size={24} />
+            Signed up, not verified yet ({unverifiedUsers.length})
+          </h2>
+          {adminFacilities.length > 1 && (
+            <label className="text-sm text-gray-700 flex items-center gap-2">
+              Add to
+              <select
+                value={addToFacilityId}
+                onChange={(e) => setAddToFacilityId(e.target.value)}
+                className="px-3 py-1 border border-gray-300 rounded-lg"
+              >
+                {adminFacilities.map((facility) => (
+                  <option key={facility._id} value={facility._id}>
+                    {facility.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+        {unverifiedUsers.length > 0 ? (
+          <div className="space-y-3">
+            {unverifiedUsers.map((person) => (
+              <div key={person._id} className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm flex justify-between items-center gap-4">
+                <div>
+                  <h3 className="font-semibold text-gray-900">{person.name || person.email}</h3>
+                  <p className="text-sm text-gray-600">
+                    {person.email} · {String(person.role).replace(/_/g, ' ').toLowerCase()}
+                  </p>
+                  <p className="text-xs mt-1">
+                    {person.requested ? (
+                      <span className="text-amber-700">Asked to join - review it in Staff Registrations</span>
+                    ) : (
+                      <span className="text-gray-500">Has not asked to join a hospital</span>
+                    )}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleAddUnverified(person)}
+                  disabled={addingUserId === person._id}
+                  className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 flex items-center gap-1"
+                >
+                  <UserPlus size={16} />
+                  {addingUserId === person._id ? 'Adding…' : 'Add to hospital'}
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-6 bg-gray-50 border border-gray-200 rounded-lg text-center text-gray-600">
+            Everyone who signed up as staff is already verified.
+          </div>
+        )}
+      </div>
+
+      {/* Current staff */}
+      <div className="mb-8">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <Users size={24} />
+          Current staff ({activeStaff.length})
+        </h2>
+        {activeStaff.length > 0 ? (
+          <div className="bg-white border border-gray-200 rounded-lg shadow-sm divide-y divide-gray-100">
+            {activeStaff.map((member) => (
+              <div key={member.staffId} className="p-4 flex justify-between items-center gap-4">
+                <div>
+                  <p className="font-medium text-gray-900">{member.userName || member.userEmail}</p>
+                  <p className="text-sm text-gray-600">{member.userEmail}</p>
+                </div>
+                <div className="text-right text-sm text-gray-600">
+                  <p className="font-medium capitalize">{String(member.role).replace(/_/g, ' ')}</p>
+                  <p>{member.facilityName}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-6 bg-gray-50 border border-gray-200 rounded-lg text-center text-gray-600">
+            No staff at your hospital yet.
+          </div>
+        )}
+      </div>
+
       {/* Pending Staff Approvals */}
       <div className="mb-8">
         <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -540,11 +697,10 @@ export default function HospitalStaffPage() {
           Staff Onboarding Process
         </h3>
         <ul className="text-sm text-blue-800 space-y-2">
-          <li>1. Staff member registers an account on JeevaCare</li>
-          <li>2. Hospital admin searches for and selects the user</li>
-          <li>3. Hospital admin invites the user to the facility with the desired role</li>
-          <li>4. Hospital admin (or SYSTEM_ADMIN) approves the invitation</li>
-          <li>5. Staff member can now log in and access facility features</li>
+          <li>1. Staff member signs up and asks to join a hospital (you approve it under Staff Registrations)</li>
+          <li>2. Or they forgot: they appear under "Signed up, not verified yet" and you add them with one click</li>
+          <li>3. Either way they become verified staff of your hospital</li>
+          <li>4. They no longer see "Register as Staff", and can use the hospital's features</li>
         </ul>
         <div className="mt-4 p-3 bg-blue-100 rounded">
           <p className="text-xs text-blue-900">

@@ -97,6 +97,16 @@ export const staffService = {
   },
 
   /**
+   * Staff accounts that signed up but are not verified yet (for the admin to invite)
+   */
+  getUnverifiedUsers: async (query) => {
+    const params = new URLSearchParams();
+    if (query) params.append('q', query);
+    const response = await api.get(`/staff/unverified-users?${params.toString()}`);
+    return response;
+  },
+
+  /**
    * Search facilities
    */
   searchFacilities: async (query) => {
