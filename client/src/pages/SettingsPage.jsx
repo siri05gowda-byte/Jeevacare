@@ -4,6 +4,7 @@ import { useAuthStore } from '../stores/authStore';
 import { staffService } from '../services/staffService';
 import api from '../services/api';
 import PasswordInput from '../components/PasswordInput';
+import { errorMessage } from '../utils/errorMessage';
 
 export default function SettingsPage() {
   const { user, setUser } = useAuthStore();
@@ -34,6 +35,15 @@ export default function SettingsPage() {
   // Facility affiliations state
   const [facilities, setFacilities] = useState([]);
   const [loadingFacilities, setLoadingFacilities] = useState(false);
+
+  // Keep the form in step with the signed-in user (it can arrive after the page first renders).
+  useEffect(() => {
+    setProfileData({
+      firstName: user?.profile?.firstName || '',
+      lastName: user?.profile?.lastName || '',
+      phone: user?.profile?.phone || '',
+    });
+  }, [user?._id, user?.profile?.firstName, user?.profile?.lastName, user?.profile?.phone]);
 
   // Load facility affiliations on mount
   useEffect(() => {
@@ -71,7 +81,7 @@ export default function SettingsPage() {
     } catch (error) {
       setProfileMessage({
         type: 'error',
-        text: error.response?.data?.error || error.message || 'Failed to update profile',
+        text: errorMessage(error, 'Failed to update profile'),
       });
     } finally {
       setProfileLoading(false);
@@ -119,7 +129,7 @@ export default function SettingsPage() {
     } catch (error) {
       setPasswordMessage({
         type: 'error',
-        text: error.response?.data?.error || error.message || 'Failed to change password',
+        text: errorMessage(error, 'Failed to change password'),
       });
     } finally {
       setPasswordLoading(false);
@@ -162,8 +172,8 @@ export default function SettingsPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || errorData.message || 'Upload failed');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorMessage({ response: { data: errorData } }, 'Upload failed'));
       }
 
       const data = await response.json();

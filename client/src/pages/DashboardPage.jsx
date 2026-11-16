@@ -1,4 +1,5 @@
 import React from 'react';
+import { Navigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import PatientDashboardV2 from './PatientDashboardV2';
 import ProviderDashboardV2 from './ProviderDashboardV2';
@@ -14,6 +15,7 @@ export default function DashboardPage() {
     case 'EMERGENCY':
       return <EmergencyDashboardV2 />;
     case 'HOSPITAL_ADMIN':
+      return <Navigate to="/hospital/dashboard" replace />;
     case 'SYSTEM_ADMIN':
     case 'ADMIN':
       return <IntegratedDashboardPage />;

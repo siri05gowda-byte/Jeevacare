@@ -145,36 +145,6 @@ const IntegratedDashboardPage = () => {
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="quick-actions">
-        <h3>Quick Actions</h3>
-        <div className="actions-grid">
-          <button 
-            className="action-btn"
-            onClick={() => setActiveTab('appointments')}
-          >
-            📅 View Appointments
-          </button>
-          <button 
-            className="action-btn"
-            onClick={() => setActiveTab('records')}
-          >
-            📋 View Records
-          </button>
-          <button 
-            className="action-btn"
-            onClick={() => setActiveTab('medical-summary')}
-          >
-            🧠 AI Summary
-          </button>
-          <button 
-            className="action-btn"
-            onClick={() => setActiveTab('audit')}
-          >
-            🔐 Audit Log
-          </button>
-        </div>
-      </div>
     </div>
   );
 
@@ -382,12 +352,6 @@ const IntegratedDashboardPage = () => {
           Records
         </button>
         <button 
-          className={`tab-btn ${activeTab === 'medical-summary' ? 'active' : ''}`}
-          onClick={() => setActiveTab('medical-summary')}
-        >
-          AI Summary
-        </button>
-        <button 
           className={`tab-btn ${activeTab === 'audit' ? 'active' : ''}`}
           onClick={() => setActiveTab('audit')}
         >
@@ -399,7 +363,6 @@ const IntegratedDashboardPage = () => {
         {activeTab === 'overview' && renderOverviewTab()}
         {activeTab === 'appointments' && renderAppointmentsTab()}
         {activeTab === 'records' && renderRecordsTab()}
-        {activeTab === 'medical-summary' && renderMedicalSummaryTab()}
         {activeTab === 'audit' && renderAuditTab()}
       </div>
     </div>

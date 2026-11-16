@@ -3,6 +3,7 @@ import { Users, UserPlus, CheckCircle, XCircle, Clock, AlertCircle, Search } fro
 import { useAuthStore } from '../stores/authStore';
 import { staffService } from '../services/staffService';
 import LoadingState from '../components/LoadingState';
+import { errorMessage } from '../utils/errorMessage';
 
 export default function HospitalStaffPage() {
   const { user } = useAuthStore();
@@ -107,8 +108,7 @@ export default function HospitalStaffPage() {
       
     } catch (err) {
       console.error('Failed to load staff data:', err);
-      const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to load staff data';
-      setError(errorMessage);
+      setError(errorMessage(err, 'Failed to load staff data'));
       setPendingStaff([]);
     } finally {
       setLoading(false);
@@ -160,7 +160,7 @@ export default function HospitalStaffPage() {
       alert('Staff invitation sent successfully');
     } catch (err) {
       console.error('Failed to invite staff:', err);
-      setError(err.response?.data?.message || err.message || 'Failed to invite staff');
+      setError(errorMessage(err, 'Failed to invite staff'));
     }
   };
 
@@ -180,7 +180,7 @@ export default function HospitalStaffPage() {
       alert('Staff member approved successfully');
     } catch (err) {
       console.error('Failed to approve staff:', err);
-      alert(err.response?.data?.message || err.message || 'Failed to approve staff');
+      alert(errorMessage(err, 'Failed to approve staff'));
     }
   };
 
@@ -199,7 +199,7 @@ export default function HospitalStaffPage() {
       alert('Staff member rejected');
     } catch (err) {
       console.error('Failed to reject staff:', err);
-      alert(err.response?.data?.message || err.message || 'Failed to reject staff');
+      alert(errorMessage(err, 'Failed to reject staff'));
     }
   };
 
