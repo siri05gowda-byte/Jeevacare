@@ -143,6 +143,9 @@ export const useAuthStore = create((set, get) => ({
   // Clear error
   clearError: () => set({ error: null }),
 
+  // Replace the signed-in user's details (after a profile save or an approval)
+  setUser: (user) => set({ user }),
+
   // Check if user is authenticated
   isAuthenticated: () => !!get().token,
 

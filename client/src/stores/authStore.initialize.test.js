@@ -77,3 +77,10 @@ describe('authStore.initialize after a page refresh', () => {
     expect(useAuthStore.getState().isInitialized).toBe(true);
   });
 });
+
+describe('authStore.setUser', () => {
+  it('replaces the signed-in user, which Settings relies on after a save', () => {
+    useAuthStore.getState().setUser({ _id: '1', profile: { firstName: 'Asha' } });
+    expect(useAuthStore.getState().user.profile.firstName).toBe('Asha');
+  });
+});

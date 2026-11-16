@@ -184,6 +184,45 @@ export const AAROGYA_PATIENTS = [
  * Bootstrap demonstration hospitals, admins, clinicians, and patients.
  * Completely safe and idempotent. Never overwrites or deletes existing accounts.
  */
+/**
+ * The email and password every seeded demo account is supposed to accept.
+ */
+export function expectedDemoLogins() {
+  const people = [
+    ...ADMINS_DATA,
+    ...SANJIVANI_DOCTORS,
+    ...AAROGYA_DOCTORS,
+    SHARED_DOCTOR,
+  ].map((p) => ({ email: p.email, password: getDemoPassword(p.firstName, p.lastName) }));
+  const patients = [...SANJIVANI_PATIENTS, ...AAROGYA_PATIENTS].map((p) => ({
+    email: p.email,
+    password: p.password || 'Patient@123',
+  }));
+  return [...people, ...patients];
+}
+
+/**
+ * Checks that each demo account can really sign in with its documented password,
+ * and says which ones cannot. Logs only; it never changes anything.
+ */
+export async function verifyDemoLogins({ findUser, log = logger } = {}) {
+  const lookup =
+    findUser || ((email) => User.findOne({ email }).select('+passwordHash'));
+  const failed = [];
+  const logins = expectedDemoLogins();
+  for (const { email, password } of logins) {
+    const user = await lookup(email);
+    const ok = user && user.status === 'active' && (await user.comparePassword(password));
+    if (!ok) failed.push(email);
+  }
+  if (failed.length) {
+    log.warn(`Demo sign-in check: ${failed.length} of ${logins.length} accounts cannot sign in: ${failed.join(', ')}`);
+  } else {
+    log.info(`Demo sign-in check: all ${logins.length} accounts accept their documented password.`);
+  }
+  return { checked: logins.length, failed };
+}
+
 export async function bootstrapDemoHospitalsAndAccounts() {
   try {
     logger.info('🏥 Bootstrapping JeevaCare demo hospitals and accounts...');
@@ -729,6 +768,12 @@ export async function bootstrapDemoHospitalsAndAccounts() {
       }
     } catch (kunalErr) {
       logger.warn(`Kunal accounts preserve warning: ${kunalErr.message}`);
+    }
+
+    try {
+      await verifyDemoLogins();
+    } catch (checkErr) {
+      logger.warn(`Demo sign-in check could not run: ${checkErr.message}`);
     }
 
     logger.info('✅ JeevaCare demo hospitals and accounts bootstrap COMPLETE.');
