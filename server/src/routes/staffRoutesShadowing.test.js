@@ -100,6 +100,36 @@ describe('Staff Routes - Route Shadowing Regression Tests', () => {
     expect(res.body.data[0].name).toBe('City Care Hospital');
   });
 
+  it('GET /staff/search-facilities gives a facility admin with no facility an empty list, never every facility', async () => {
+    const adminApp = express();
+    adminApp.use(express.json());
+    adminApp.use((req, res, next) => {
+      req.user = { _id: adminUserId, role: 'HOSPITAL_ADMIN', email: 'admin@x.in', profile: {} };
+      next();
+    });
+    adminApp.use('/staff', staffRoutes);
+    vi.spyOn(HospitalStaff, 'find').mockReturnValue({ select: vi.fn().mockResolvedValue([]) });
+    const hospitalFind = vi.spyOn(Hospital, 'find');
+
+    const res = await request(adminApp).get('/staff/search-facilities');
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual([]);
+    expect(hospitalFind).not.toHaveBeenCalled();
+  });
+
+  it('GET /staff/search-facilities treats the search text as plain text, not a pattern', async () => {
+    const find = vi.spyOn(Hospital, 'find').mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      sort: vi.fn().mockResolvedValue([]),
+    });
+
+    await request(app).get('/staff/search-facilities?q=a.*(b');
+
+    expect(find.mock.calls[0][0].$or[0].name.$regex).toBe('a\\.\\*\\(b');
+  });
+
   it('GET /staff/:staffId still resolves correctly when given a valid MongoID', async () => {
     vi.spyOn(StaffService, 'getStaffRecord').mockResolvedValue({
       _id: sampleStaffId,

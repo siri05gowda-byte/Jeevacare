@@ -10,7 +10,7 @@ export default function MainLayout() {
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       {/* Sidebar - responsive: hidden on mobile, visible on lg and up */}
-      <div className="hidden lg:flex lg:flex-col lg:w-64">
+      <div className="hidden lg:flex lg:flex-col lg:w-64 lg:flex-shrink-0">
         <Sidebar isOpen={true} />
       </div>
 

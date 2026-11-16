@@ -25,6 +25,8 @@ const router = express.Router();
 /**
  * Middleware for validation error handling
  */
+const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -784,14 +786,16 @@ router.get(
       const { q, role } = req.query;
       const limit = Math.min(parseInt(req.query.limit) || 20, 50);
 
-      const searchQuery = { status: 'active' };
+      // Patients are never invited as staff.
+      const searchQuery = { status: 'active', role: { $ne: 'PATIENT' } };
 
       // Search by email, firstName, or lastName
       if (q) {
+        const pattern = escapeRegex(q);
         searchQuery.$or = [
-          { email: { $regex: q, $options: 'i' } },
-          { 'profile.firstName': { $regex: q, $options: 'i' } },
-          { 'profile.lastName': { $regex: q, $options: 'i' } },
+          { email: { $regex: pattern, $options: 'i' } },
+          { 'profile.firstName': { $regex: pattern, $options: 'i' } },
+          { 'profile.lastName': { $regex: pattern, $options: 'i' } },
         ];
       }
 
@@ -843,29 +847,35 @@ router.get(
       const { q } = req.query;
       const limit = Math.min(parseInt(req.query.limit) || 20, 50);
 
-      let facilityIds = [];
+      const searchQuery = {};
 
       if (req.user.role === 'HOSPITAL_ADMIN') {
-        // Get facilities where user is admin
+        // A facility admin sees only their own facilities: those they administer
+        // through a staff record, plus the one on their profile.
         const adminRecords = await HospitalStaff.find({
           userId: req.user._id,
           role: 'hospital_admin',
           associationStatus: 'active',
         }).select('hospitalId');
 
-        facilityIds = adminRecords.map(r => r.hospitalId);
-      }
+        const facilityIds = [
+          ...adminRecords.map((r) => r.hospitalId),
+          req.user.facilityId,
+          req.user.profile?.hospitalId,
+        ].filter(Boolean);
 
-      const searchQuery = {};
-
-      if (facilityIds.length > 0) {
+        // No facility of their own means no results, never every facility.
+        if (facilityIds.length === 0) {
+          return res.json({ success: true, count: 0, data: [] });
+        }
         searchQuery._id = { $in: facilityIds };
       }
 
       if (q) {
+        const pattern = escapeRegex(q);
         searchQuery.$or = [
-          { name: { $regex: q, $options: 'i' } },
-          { facilityId: { $regex: q, $options: 'i' } },
+          { name: { $regex: pattern, $options: 'i' } },
+          { facilityId: { $regex: pattern, $options: 'i' } },
         ];
       }
 

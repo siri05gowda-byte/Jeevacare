@@ -45,7 +45,6 @@ export default function Sidebar({ isOpen = true, onClose }) {
       { name: 'Staff Registrations', path: '/hospital/dashboard', icon: Users },
       { name: 'Staff', path: '/hospital/staff', icon: Users },
       { name: 'Patients', path: '/hospital/patients', icon: Users },
-      { name: 'Facilities', path: '/hospital/facilities', icon: FileText },
     ],
     SYSTEM_ADMIN: [
       { name: 'Dashboard', path: '/integrated-dashboard', icon: Home },
@@ -91,7 +90,7 @@ export default function Sidebar({ isOpen = true, onClose }) {
       />
 
       {/* Sidebar */}
-      <aside className="fixed lg:static inset-y-0 left-0 w-64 bg-jeevacare-navy text-white p-6 overflow-y-auto z-40 shadow-xl lg:shadow-none flex flex-col animate-slide-in-left lg:animate-none">
+      <aside className="fixed lg:static inset-y-0 left-0 w-64 lg:h-full bg-gradient-to-b from-jeevacare-blue to-blue-900 text-white p-6 overflow-y-auto z-40 shadow-xl lg:shadow-none flex flex-col animate-slide-in-left lg:animate-none">
         {/* Close button for mobile */}
         <button
           onClick={onClose}
@@ -108,7 +107,7 @@ export default function Sidebar({ isOpen = true, onClose }) {
             className="flex items-center gap-2 hover:opacity-80 transition-opacity focus-visible:outline-offset-2 rounded"
             onClick={handleLinkClick}
           >
-            <Logo variant="dark" size="md" showText={true} />
+            <Logo variant="dark" size="md" showText={true} onDark />
           </Link>
         </div>
 
@@ -127,7 +126,7 @@ export default function Sidebar({ isOpen = true, onClose }) {
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={handleLinkClick}
-                  className={`${linkClasses} text-gray-300 hover:bg-white/10 hover:text-white`}
+                  className={`${linkClasses} text-blue-100 hover:bg-white/10 hover:text-white`}
                 >
                   <Icon size={18} className="flex-shrink-0" />
                   <span>{item.name}</span>
@@ -144,8 +143,8 @@ export default function Sidebar({ isOpen = true, onClose }) {
                 onClick={handleLinkClick}
                 className={`${linkClasses} ${
                   active
-                    ? 'bg-jeevacare-blue text-white shadow-lg'
-                    : 'text-gray-300 hover:bg-white/10 hover:text-white'
+                    ? 'bg-white/20 text-white shadow-lg ring-1 ring-white/30'
+                    : 'text-blue-100 hover:bg-white/10 hover:text-white'
                 }`}
                 aria-current={active ? 'page' : undefined}
               >
@@ -157,12 +156,12 @@ export default function Sidebar({ isOpen = true, onClose }) {
         </nav>
 
         {/* User Info Section */}
-        <div className="mt-auto pt-6 border-t border-white/10">
+        <div className="mt-auto pt-6 border-t border-white/20">
           <div className="px-4 py-3">
             <p className="text-sm font-medium text-white truncate">
               {user?.profile?.firstName} {user?.profile?.lastName}
             </p>
-            <p className="text-xs text-gray-400 truncate">
+            <p className="text-xs text-blue-200 truncate">
               {user?.role === 'HOSPITAL_ADMIN' ? 'Admin' : user?.role?.charAt(0) + user?.role?.slice(1).toLowerCase()}
             </p>
           </div>

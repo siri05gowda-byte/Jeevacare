@@ -31,6 +31,7 @@ export default function Logo({
   showText = true,
   text = 'JeevaCare',
   autoDetectTheme = false,
+  onDark = false,
 }) {
   // Auto-detect theme if enabled
   const finalVariant = autoDetectTheme
@@ -88,10 +89,10 @@ export default function Logo({
           {/* Text (only for icon variants) */}
           {showText && variant !== 'icon' && (
             <div className="flex flex-col">
-              <span className={`${sizeConfig.text} font-bold text-jeevacare-blue`}>
+              <span className={`${sizeConfig.text} font-bold ${onDark ? 'text-white' : 'text-jeevacare-blue'}`}>
                 {text}
               </span>
-              <span className="text-xs text-gray-600 leading-none">
+              <span className={`text-xs leading-none ${onDark ? 'text-blue-200' : 'text-gray-600'}`}>
                 One Life. One Health Journey.
               </span>
             </div>

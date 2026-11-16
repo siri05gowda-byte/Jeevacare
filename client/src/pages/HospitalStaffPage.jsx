@@ -55,13 +55,9 @@ export default function HospitalStaffPage() {
 
   // Debounced search for facilities
   const searchFacilities = useCallback(async (query) => {
-    if (!query || query.trim().length < 2) {
-      setFacilitySearchResults([]);
-      return;
-    }
-    
     try {
-      const response = await staffService.searchFacilities(query);
+      // An empty search lists the facilities this admin can use, so there is something to pick.
+      const response = await staffService.searchFacilities(query?.trim());
       setFacilitySearchResults(response.data || []);
     } catch (err) {
       console.error('Facility search failed:', err);
@@ -78,14 +74,22 @@ export default function HospitalStaffPage() {
     return () => clearTimeout(timer);
   }, [userSearchQuery, searchUsers]);
 
-  // Handle facility search input
+  // Handle facility search input (only while the invite form is open)
   useEffect(() => {
+    if (!showInviteForm) return undefined;
     const timer = setTimeout(() => {
       searchFacilities(facilitySearchQuery);
     }, 300);
     
     return () => clearTimeout(timer);
-  }, [facilitySearchQuery, searchFacilities]);
+  }, [facilitySearchQuery, searchFacilities, showInviteForm]);
+
+  // An admin with exactly one facility does not need to search for it.
+  useEffect(() => {
+    if (showInviteForm && !selectedFacility && !facilitySearchQuery && facilitySearchResults.length === 1) {
+      setSelectedFacility(facilitySearchResults[0]);
+    }
+  }, [showInviteForm, selectedFacility, facilitySearchQuery, facilitySearchResults]);
 
   const loadStaffData = async () => {
     setLoading(true);
@@ -346,7 +350,7 @@ export default function HospitalStaffPage() {
                       className="w-full text-left px-4 py-2 hover:bg-blue-50 transition"
                     >
                       <div className="font-medium text-gray-900">{facility.name}</div>
-                      <div className="text-sm text-gray-600">{facility.type}</div>
+                      {facility.facilityId && <div className="text-sm text-gray-600">{facility.facilityId}</div>}
                       {facility.address && (
                         <div className="text-xs text-gray-500">{facility.address}</div>
                       )}
@@ -359,7 +363,7 @@ export default function HospitalStaffPage() {
                   <div className="flex justify-between items-start">
                     <div>
                       <div className="font-medium text-green-900">{selectedFacility.name}</div>
-                      <div className="text-sm text-green-700">{selectedFacility.type}</div>
+                      <div className="text-sm text-green-700">{selectedFacility.facilityId}</div>
                     </div>
                     <button
                       type="button"
@@ -372,7 +376,7 @@ export default function HospitalStaffPage() {
                 </div>
               )}
               <p className="text-xs text-gray-500 mt-1">
-                Search for hospitals and clinics by name
+                Pick a facility from the list, or type to narrow it down
               </p>
             </div>
 
