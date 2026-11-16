@@ -949,7 +949,7 @@ gc.collect()
 ### Test 1: Upload Chest X-Ray and Verify Job Creation
 
 **Steps:**
-1. Login as doctor: `doctor@demo.com` / `DemoPassword123`
+1. Login as a doctor (see your local `DEMO_CREDENTIALS.json`)
 2. Upload new chest X-ray image
 3. Verify RadiologyRecord created with `aiAnalysis.status: 'queued'`
 4. Verify InferenceJob created with `status: 'pending'`

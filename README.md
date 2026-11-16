@@ -240,10 +240,7 @@ npm run start:client
 
 ### Testing Demo Accounts
 
-**Local Development** (using demo seed):
-- Patient: `patient@demo.com` / `DemoPassword123`
-- Doctor: `doctor@demo.com` / `DemoPassword123`
-- Admin: `admin@demo.com` / `DemoPassword123`
+Demo logins are not published here or on the login page. They are kept in your local `DEMO_CREDENTIALS.json` (never committed). To try the app as a new patient, use **Register**.
 
 **Synthetic Multi-Hospital Demo:**
 On every start the server creates two demo hospitals (Sanjivani Hospital and Aarogya Kendra) with their administrators, 11 doctors and 20 patients. It gives every user a JeevaCare ID, then links the doctors to the patients and adds an appointment history, so the dashboards look like a working hospital. This is safe to repeat and only touches the demo accounts. See [docs/DEMO_DATA_LINKING.md](docs/DEMO_DATA_LINKING.md). The logins are kept in your local `DEMO_CREDENTIALS.json` (never committed); see also `docs/RENDER_DEPLOYMENT_GUIDE.md`.
@@ -423,7 +420,7 @@ npm run seed:synthetic        # Seed synthetic demo data
 - **Synthetic credentials** kept in local `DEMO_CREDENTIALS.json` (ignored by Git, never committed)
 - **Plaintext demo passwords** are fictional and only for development/testing
 - **Mock AI modes** clearly labeled and cannot be mistaken for real analysis
-- **Built-in demo passwords:** while `DEMO_MODE` is not `false`, demo accounts also accept fixed fallback passwords (for example `Patient@123`) in addition to their own, even after a password change. Some of these appear in the repository's tests. Set `DEMO_MODE=false` before real patients use a deployment.
+- **Built-in demo passwords:** while `DEMO_MODE` is not `false`, demo accounts also accept fixed fallback passwords in addition to their own, even after a password change. Some of these appear in the repository's tests. Set `DEMO_MODE=false` before real patients use a deployment.
 
 ---
 

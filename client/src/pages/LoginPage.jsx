@@ -154,36 +154,6 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Demo Account Info Card */}
-        <div className="mt-8 bg-white/10 backdrop-blur p-6 rounded-lg text-white border border-white/20 animate-slide-in-up">
-          <h3 className="font-semibold mb-3 flex items-center gap-2">
-            <span className="text-lg">👤</span> Demo Accounts
-          </h3>
-          <div className="text-sm space-y-2">
-            <div className="flex items-center justify-between">
-              <span><strong>Patient:</strong></span>
-              <code className="bg-white/20 px-2 py-1 rounded text-xs font-mono">patient@demo.com</code>
-            </div>
-            <div className="flex items-center justify-between">
-              <span><strong>Doctor:</strong></span>
-              <code className="bg-white/20 px-2 py-1 rounded text-xs font-mono">doctor@demo.com</code>
-            </div>
-            <div className="flex items-center justify-between">
-              <span><strong>Hospital Admin:</strong></span>
-              <code className="bg-white/20 px-2 py-1 rounded text-xs font-mono">admin@demo.com</code>
-            </div>
-            <div className="mt-3 pt-3 border-t border-white/20">
-              <span className="text-xs"><strong>Password:</strong></span>
-              <code className="bg-white/20 px-2 py-1 rounded text-xs font-mono block mt-1">DemoPassword123</code>
-            </div>
-            <div className="mt-3 pt-3 border-t border-white/20 text-xs text-white/80">
-              <p><strong>Patient:</strong> View personal health records</p>
-              <p><strong>Doctor:</strong> Clinical workflows & patient care</p>
-              <p><strong>Hospital Admin:</strong> Facility management</p>
-            </div>
-          </div>
-        </div>
-
         {/* Footer Info */}
         <p className="text-center text-white/70 text-xs mt-6">
           JeevaCare — Comprehensive Lifelong Health Management Platform

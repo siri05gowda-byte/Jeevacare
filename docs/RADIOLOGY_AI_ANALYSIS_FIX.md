@@ -432,7 +432,7 @@ python -c "import torch, torchvision, torchxrayvision; print('✅ All dependenci
 **Test Case 1: Chest X-Ray**
 1. Start backend: `npm run dev` in `server/`
 2. Start frontend: `npm run dev` in `client/`
-3. Login as patient (patient@demo.com / DemoPassword123)
+3. Login as a patient (see your local `DEMO_CREDENTIALS.json`)
 4. Navigate to Radiology page
 5. Upload a chest X-ray image (JPEG/PNG)
 6. Wait for processing (should complete in 30-60 seconds)

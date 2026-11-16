@@ -123,23 +123,7 @@ In Render logs after deploy:
 
 ### 2. Test Login (Frontend)
 
-Use credentials from `DEMO_CREDENTIALS.json` (local, never committed):
-
-**Admin - Sanjivani Hospital:**
-- Email: `prakash.rao@sanjivani.in`
-- Password: `PrakashRao@123`
-
-**Admin - Aarogya Kendra:**
-- Email: `revathi.kumar@aarogya.in`
-- Password: `RevathiKumar@123`
-
-**Doctor - Aarogya Kendra:**
-- Email: `harshith.bagrecha@aarogya.in`
-- Password: `HarshithBagrecha@123`
-
-**Doctor - Shared (both hospitals):**
-- Email: `swami.murti@jeevacare.in`
-- Password: `SwamiMurti@123`
+Use the credentials in `DEMO_CREDENTIALS.json` (local, never committed). Sign in with a hospital administrator from each hospital, a doctor from each hospital, and the doctor who works at both hospitals, and confirm each reaches the right dashboard.
 
 ### 3. Check Database Records
 
