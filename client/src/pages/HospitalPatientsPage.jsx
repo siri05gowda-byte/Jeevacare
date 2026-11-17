@@ -8,6 +8,8 @@ import LoadingSkeleton from '../components/State/LoadingSkeleton';
 import EmptyState from '../components/State/EmptyState';
 import { useAuthStore } from '../stores/authStore';
 import AssignedPatients from '../components/Patients/AssignedPatients';
+import FacilityPatientList from '../components/Patients/FacilityPatientList';
+import { ADMIN_ROLES } from '../utils/roleHome';
 import { assignedFacilityId, patientName } from '../utils/patientDisplay';
 
 /**
@@ -21,6 +23,9 @@ export default function HospitalPatientsPage() {
   const navigate = useNavigate();
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [recentPatients, setRecentPatients] = useState([]);
+
+  // Admins get a plain list of their hospital's patients; treating them is for clinicians.
+  if (ADMIN_ROLES.includes(user?.role)) return <FacilityPatientList />;
 
   const handlePatientSelect = (patient) => {
     setSelectedPatient(patient);

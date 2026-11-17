@@ -3,6 +3,14 @@ import { useAuthStore } from '../stores/authStore';
 import { AlertCircle, CheckCircle, XCircle, Loader, Eye, EyeOff } from 'lucide-react';
 import PageContainer from '../components/Layout/PageContainer';
 
+const roleName = (role) =>
+  String(role || 'staff')
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/^\w/, (c) => c.toUpperCase());
+
+const specializationText = (value) => (Array.isArray(value) ? value.filter(Boolean).join(', ') : value || '');
+
 export default function HospitalAdminDashboardPage() {
   const { user } = useAuthStore();
   const [loading, setLoading] = useState(true);
@@ -94,7 +102,8 @@ export default function HospitalAdminDashboardPage() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to approve request');
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error?.message || body.error || body.message || 'Failed to approve request');
       }
 
       setSuccess('Request approved successfully!');
@@ -127,7 +136,8 @@ export default function HospitalAdminDashboardPage() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to reject request');
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error?.message || body.error || body.message || 'Failed to reject request');
       }
 
       setSuccess('Request rejected successfully!');
@@ -158,10 +168,10 @@ export default function HospitalAdminDashboardPage() {
             </p>
             <div className="mt-2 flex items-center gap-4">
               <span className="inline-block px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                {request.role}
+                {roleName(request.requestedRole || request.role)}
               </span>
-              {request.specialization && (
-                <span className="text-xs text-gray-600">{request.specialization}</span>
+              {specializationText(request.specialization) && (
+                <span className="text-xs text-gray-600">{specializationText(request.specialization)}</span>
               )}
             </div>
           </div>
@@ -178,7 +188,7 @@ export default function HospitalAdminDashboardPage() {
             <div>
               <p className="text-gray-600">Submitted:</p>
               <p className="font-medium">
-                {new Date(request.createdAt).toLocaleDateString()}
+                {new Date(request.submittedAt || request.createdAt).toLocaleDateString()}
               </p>
             </div>
             <div>
@@ -188,7 +198,7 @@ export default function HospitalAdminDashboardPage() {
           </div>
 
           {/* Approval/Rejection Actions (for PENDING) */}
-          {request.status === 'PENDING' && (
+          {String(request.status).toLowerCase() === 'pending' && (
             <div className="space-y-3 pt-4 border-t border-gray-200">
               {/* Rejection Reason Input */}
               <div>
@@ -345,10 +355,10 @@ export default function HospitalAdminDashboardPage() {
                         <p className="text-sm text-gray-600">{request.userId?.email}</p>
                         <div className="mt-2 flex items-center gap-4">
                           <span className="inline-block px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                            {request.role}
+                            {roleName(request.requestedRole || request.role)}
                           </span>
-                          {request.specialization && (
-                            <span className="text-xs text-gray-600">{request.specialization}</span>
+                          {specializationText(request.specialization) && (
+                            <span className="text-xs text-gray-600">{specializationText(request.specialization)}</span>
                           )}
                         </div>
                       </div>
@@ -383,10 +393,10 @@ export default function HospitalAdminDashboardPage() {
                         <p className="text-sm text-gray-600">{request.userId?.email}</p>
                         <div className="mt-2 flex items-center gap-4">
                           <span className="inline-block px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                            {request.role}
+                            {roleName(request.requestedRole || request.role)}
                           </span>
-                          {request.specialization && (
-                            <span className="text-xs text-gray-600">{request.specialization}</span>
+                          {specializationText(request.specialization) && (
+                            <span className="text-xs text-gray-600">{specializationText(request.specialization)}</span>
                           )}
                         </div>
                         {request.rejectionReason && (

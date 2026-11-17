@@ -7,6 +7,7 @@ import express from 'express';
 import { body, param, query, validationResult } from 'express-validator';
 import { authMiddleware, requireRole, requirePatientIsolation } from '../middleware/authentication.js';
 import PatientService from '../services/PatientService.js';
+import { adminFacilityIds } from '../utils/adminFacilities.js';
 import AuditService from '../services/AuditService.js';
 import Patient from '../models/Patient.js';
 import User from '../models/User.js';
@@ -142,6 +143,35 @@ router.get(
         success: false,
         message: error.message,
       });
+    }
+  }
+);
+
+/**
+ * GET /api/v1/patients/facility-list
+ * The patients registered at the admin's hospital(s): names and IDs only, for the admin's list.
+ * HOSPITAL_ADMIN and SYSTEM_ADMIN only. MUST be defined before /:patientId.
+ */
+router.get(
+  '/facility-list',
+  authMiddleware,
+  requireRole('SYSTEM_ADMIN', 'HOSPITAL_ADMIN'),
+  async (req, res) => {
+    try {
+      const facilityIds = await adminFacilityIds(req.user);
+      if (facilityIds && facilityIds.length === 0) {
+        return res.json({ success: true, count: 0, data: [] });
+      }
+      const filter = { status: 'active' };
+      if (facilityIds) filter['facilities.facilityId'] = { $in: facilityIds };
+      const patients = await Patient.find(filter)
+        .select('jeevaId personalIdentity.firstName personalIdentity.lastName personalIdentity.dateOfBirth createdAt')
+        .sort({ 'personalIdentity.lastName': 1 })
+        .limit(500);
+      res.json({ success: true, count: patients.length, data: patients });
+    } catch (error) {
+      logger.error(`Facility patient list failed: ${error.message}`);
+      res.status(500).json({ success: false, message: 'Could not load patients' });
     }
   }
 );

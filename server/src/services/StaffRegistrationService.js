@@ -58,7 +58,7 @@ class StaffRegistrationService {
    * Marks an approved applicant as verified: the user, a healthcare professional
    * profile and (for a licence number) a verified credential. Safe to run twice.
    */
-  static async activateInvitedStaff(staff, user, approvedBy) {
+  static async activateInvitedStaff(staff, user, approvedBy, approvalMethod = 'facility_admin') {
     if (!Object.values(staff.permissions || {}).some(Boolean) && ROLE_PERMISSIONS[staff.role]) {
       staff.permissions = ROLE_PERMISSIONS[staff.role];
       await staff.save();
@@ -67,7 +67,7 @@ class StaffRegistrationService {
     if (staff.associationStatus !== 'active') {
       active = await StaffService.approveStaffAssociation(
         staff._id,
-        { approvalMethod: 'facility_admin' },
+        { approvalMethod },
         approvedBy
       );
     }
@@ -318,6 +318,17 @@ class StaffRegistrationService {
       const query = { hospitalId };
       if (status && status !== 'all') {
         query.status = status;
+      }
+
+      // A request is settled once its person is already active staff here (for example the admin
+      // added them directly): mark it approved so it never lingers under Pending.
+      const activeStaff = await HospitalStaff.find({ hospitalId, associationStatus: 'active' }).select('userId');
+      const activeIds = activeStaff.map((member) => member.userId);
+      if (activeIds.length) {
+        await StaffRegistrationRequest.updateMany(
+          { hospitalId, status: 'pending', userId: { $in: activeIds } },
+          { $set: { status: 'approved', reviewedAt: new Date() } }
+        );
       }
 
       const requests = await StaffRegistrationRequest.find(query)

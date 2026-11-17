@@ -4,6 +4,7 @@ import { useAuthStore } from '../stores/authStore';
 import api from '../services/api';
 import Logo from '../components/Logo';
 import PasswordInput from '../components/PasswordInput';
+import { homeFor } from '../utils/roleHome';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -36,16 +37,7 @@ export default function LoginPage() {
 
     try {
       const response = await login(formData.email, formData.password);
-      const role = response?.user?.role;
-      if (role === 'DOCTOR') {
-        navigate('/provider');
-      } else if (role === 'EMERGENCY') {
-        navigate('/emergency');
-      } else if (role === 'HOSPITAL_ADMIN' || role === 'SYSTEM_ADMIN') {
-        navigate('/integrated-dashboard');
-      } else {
-        navigate('/dashboard');
-      }
+      navigate(homeFor(response?.user?.role));
     } catch (err) {
       const isTimeout =
         err.code === 'ECONNABORTED' ||

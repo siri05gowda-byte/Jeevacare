@@ -13,6 +13,7 @@ import {
   attachFacilityContext,
 } from '../middleware/facilityRBAC.js';
 import StaffService from '../services/StaffService.js';
+import { adminFacilityIds } from '../utils/adminFacilities.js';
 import StaffRegistrationService from '../services/StaffRegistrationService.js';
 import StaffRegistrationRequest from '../models/StaffRegistrationRequest.js';
 import HospitalStaff from '../models/HospitalStaff.js';
@@ -28,18 +29,6 @@ const router = express.Router();
  * Middleware for validation error handling
  */
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-// The hospitals an admin looks after: those on their staff records and on their profile.
-// A system admin looks after all of them (null means no restriction).
-async function adminFacilityIds(user) {
-  if (user.role === 'SYSTEM_ADMIN') return null;
-  const records = await HospitalStaff.find({
-    userId: user._id,
-    role: 'hospital_admin',
-    associationStatus: 'active',
-  }).select('hospitalId');
-  return [...records.map((r) => r.hospitalId), user.facilityId, user.profile?.hospitalId].filter(Boolean);
-}
 
 const STAFF_USER_ROLES = [
   'DOCTOR',
@@ -262,11 +251,11 @@ router.post(
         });
       }
 
-      const approvedStaff = await StaffService.approveStaffAssociation(
-        req.params.staffId,
-        req.body,
-        req.user._id
-      );
+      // Approving is what verifies the person, the same as when the admin adds them directly.
+      const person = await User.findById(staff.userId);
+      const approvedStaff = person
+        ? await StaffRegistrationService.activateInvitedStaff(staff, person, req.user._id, req.body.approvalMethod)
+        : await StaffService.approveStaffAssociation(req.params.staffId, req.body, req.user._id);
 
       await AuditService.logEvent({
         action: 'STAFF_APPROVED',
@@ -621,7 +610,8 @@ router.get(
       res.json({
         success: true,
         count: staff.length,
-        data: staff.map((s) => ({
+        // A staff record whose account no longer exists has nobody to show, so it is left out.
+        data: staff.filter((s) => s.userId).map((s) => ({
           staffId: s._id,
           userId: s.userId?._id,
           userEmail: s.userId?.email,

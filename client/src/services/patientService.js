@@ -190,6 +190,14 @@ export const patientService = {
    * Get all active patients assigned to the current authenticated doctor.
    * @param {string|null} facilityId  Optional facility filter
    */
+  /**
+   * The patients registered at the signed-in admin's hospital(s): names and IDs only.
+   */
+  getFacilityPatients: async () => {
+    const response = await api.get('/patients/facility-list');
+    return response;
+  },
+
   getMyAssignedPatients: async (facilityId = null) => {
     const url = facilityId
       ? `/patients/assigned-to/me?facilityId=${facilityId}`

@@ -22,6 +22,8 @@ describeFlows('new staff registration and approval (local database)', () => {
   let app;
   let hospital;
   const ADMIN = { email: 'prakash.rao@sanjivani.in', password: 'PrakashRao@123' };
+  const REJECTED = { email: 'rejected.doctor.signup@example.test', password: 'Rejected@123' };
+  const DIRECT = { email: 'direct.doctor.signup@example.test', password: 'Direct@123' };
   const LATE = { email: 'late.doctor.signup@example.test', password: 'LateDoctor@123' };
   const NEWBIE = { email: 'new.doctor.signup@example.test', password: 'NewDoctor@123' };
   const tokens = {};
@@ -58,10 +60,22 @@ describeFlows('new staff registration and approval (local database)', () => {
       verificationStatus: 'pending',
       profile: { firstName: 'Savi', lastName: 'Forgetful' },
     });
-    const [auth, registration, staffRoutes, errors] = await Promise.all([
+    for (const person of [REJECTED, DIRECT]) {
+      await User.deleteOne({ email: person.email });
+      await User.create({
+        email: person.email,
+        passwordHash: person.password,
+        role: 'DOCTOR',
+        verificationStatus: 'pending',
+        profile: { firstName: person === REJECTED ? 'Rita' : 'Dev', lastName: 'Tester' },
+      });
+    }
+    const [auth, registration, staffRoutes, patientRoutes, encounterRoutes, errors] = await Promise.all([
       import('../routes/authRoutes.js'),
       import('../routes/staffRegistrationRoutes.js'),
       import('../routes/staffRoutes.js'),
+      import('../routes/patientRoutes.js'),
+      import('../routes/encounterRoutes.js'),
       import('../middleware/errorHandler.js'),
     ]);
     app = express();
@@ -69,10 +83,15 @@ describeFlows('new staff registration and approval (local database)', () => {
     app.use('/api/v1/auth', auth.default);
     app.use('/api/v1/staff-registration', registration.default);
     app.use('/api/v1/staff', staffRoutes.default);
+    app.use('/api/v1/patients', patientRoutes.default);
+    app.use('/api/v1/encounters', encounterRoutes.default);
     app.use(errors.errorHandler);
     tokens.admin = await login(ADMIN);
     tokens.newbie = await login(NEWBIE);
     tokens.late = await login(LATE);
+    tokens.rejected = await login(REJECTED);
+    tokens.direct = await login(DIRECT);
+    tokens.doctor = await login({ email: 'soundarya.shetty@sanjivani.in', password: 'SoundaryaShetty@123' });
   }, 60000);
 
   afterAll(async () => {
@@ -86,7 +105,7 @@ describeFlows('new staff registration and approval (local database)', () => {
         import('../models/StaffRegistrationRequest.js'),
         import('../models/Notification.js'),
       ]);
-    for (const email of [LATE.email]) {
+    for (const email of [LATE.email, REJECTED.email, DIRECT.email]) {
       const extra = await User.findOne({ email });
       if (extra) {
         const pro = await HealthcareProfessional.findOne({ userId: extra._id });
@@ -220,6 +239,66 @@ describeFlows('new staff registration and approval (local database)', () => {
       startDate: new Date().toISOString().split('T')[0],
     });
     expect(again.status).toBe(409);
+  });
+
+  it('the admin can reject a request, with a reason, and it leaves Pending', async () => {
+    const asked = await as('post', '/api/v1/staff-registration/request', 'rejected').send({ hospitalId: String(hospital._id) });
+    expect(asked.status).toBe(201);
+    const res = await as('post', `/api/v1/staff-registration/${asked.body.data._id}/reject`, 'admin').send({
+      rejectionReason: 'Licence could not be checked',
+    });
+    expect(res.status, JSON.stringify(res.body).slice(0, 300)).toBe(200);
+
+    const list = await as('get', `/api/v1/staff-registration/hospital/${hospital._id}/pending?status=pending`, 'admin');
+    expect(list.body.requests.map((r) => r.email)).not.toContain(REJECTED.email);
+    const me = await as('get', '/api/v1/auth/current-user', 'rejected');
+    expect(me.body.user.verificationStatus).not.toBe('verified');
+  });
+
+  it('someone who is added directly never lingers under Pending, even if they had asked first', async () => {
+    const asked = await as('post', '/api/v1/staff-registration/request', 'direct').send({ hospitalId: String(hospital._id) });
+    expect(asked.status).toBe(201);
+    const { default: HospitalStaff } = await import('../models/HospitalStaff.js');
+    const { default: User } = await import('../models/User.js');
+    const direct = await User.findOne({ email: DIRECT.email });
+    // Added without going through the invite route, as older data was.
+    await HospitalStaff.create({
+      userId: direct._id, hospitalId: hospital._id, role: 'doctor', associationStatus: 'active',
+      employmentStatus: 'active', startDate: new Date(),
+    });
+    const list = await as('get', `/api/v1/staff-registration/hospital/${hospital._id}/pending?status=pending`, 'admin');
+    expect(list.body.requests.map((r) => r.email)).not.toContain(DIRECT.email);
+    const all = await as('get', `/api/v1/staff-registration/hospital/${hospital._id}/pending?status=all`, 'admin');
+    expect(all.body.requests.find((r) => r.email === DIRECT.email).status).toBe('approved');
+  });
+
+  it('the staff list leaves out records whose account no longer exists', async () => {
+    const { default: HospitalStaff } = await import('../models/HospitalStaff.js');
+    const ghost = await HospitalStaff.create({
+      userId: new mongoose.Types.ObjectId(), hospitalId: hospital._id, role: 'doctor',
+      associationStatus: 'active', employmentStatus: 'active', startDate: new Date(),
+    });
+    const res = await as('get', `/api/v1/staff/facility/${hospital._id}`, 'admin');
+    expect(res.body.data.map((m) => String(m.staffId))).not.toContain(String(ghost._id));
+    expect(res.body.data.every((m) => m.userName || m.userEmail)).toBe(true);
+    await HospitalStaff.deleteOne({ _id: ghost._id });
+  });
+
+  it('the admin gets a read-only patient list for their hospital; a doctor does not', async () => {
+    const res = await as('get', '/api/v1/patients/facility-list', 'admin');
+    expect(res.status, JSON.stringify(res.body).slice(0, 300)).toBe(200);
+    expect(res.body.data.length).toBeGreaterThanOrEqual(10);
+    expect(res.body.data[0].personalIdentity.firstName).toBeTruthy();
+    const denied = await as('get', '/api/v1/patients/facility-list', 'doctor');
+    expect(denied.status).toBe(403);
+  });
+
+  it('an admin cannot start an encounter', async () => {
+    const mine = await as('get', '/api/v1/patients/facility-list', 'admin');
+    const res = await as('post', '/api/v1/encounters', 'admin').send({
+      patientId: mine.body.data[0]._id, facilityId: String(hospital._id), encounterType: 'consultation',
+    });
+    expect(res.status).toBeGreaterThanOrEqual(400);
   });
 
   it('asking again after approval is refused politely, not with a crash', async () => {

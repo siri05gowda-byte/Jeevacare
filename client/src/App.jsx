@@ -9,6 +9,8 @@ import DashboardPage from './pages/DashboardPage';
 import IntegratedDashboardPage from './pages/IntegratedDashboardPage';
 import PatientDashboardV2 from './pages/PatientDashboardV2';
 import ProtectedRoute from './components/ProtectedRoute';
+import RoleRoute from './components/RoleRoute';
+import { ADMIN_ROLES, CLINICAL_ROLES } from './utils/roleHome';
 import ProviderDashboardV2 from './pages/ProviderDashboardV2';
 import EmergencyDashboardV2 from './pages/EmergencyDashboardV2';
 import HospitalPatientsPage from './pages/HospitalPatientsPage';
@@ -57,29 +59,29 @@ function App() {
             <Route path="" element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="patient" element={<PatientDashboardV2 />} />
-            <Route path="provider" element={<ProviderDashboardV2 />} />
+            <Route path="provider" element={<RoleRoute roles={CLINICAL_ROLES}><ProviderDashboardV2 /></RoleRoute>} />
             <Route path="emergency" element={<EmergencyDashboardV2 />} />
             <Route path="documents" element={<DocumentsPage />} />
             <Route path="radiology" element={<RadiologyPage />} />
             <Route path="appointments" element={<PatientAppointmentsPage />} />
             <Route path="appointments/book" element={<AppointmentBookingPage />} />
-            <Route path="encounter" element={<ProviderEncounterPage />} />
+            <Route path="encounter" element={<RoleRoute roles={['DOCTOR', 'NURSE']}><ProviderEncounterPage /></RoleRoute>} />
             <Route path="emergency-access" element={<EmergencyAccessPage />} />
             <Route path="emergency-profile" element={<PatientEmergencyProfilePage />} />
             <Route path="upload-documents" element={<DocumentUploadPage />} />
-            <Route path="staff/upload-documents" element={<StaffDocumentUpload />} />
+            <Route path="staff/upload-documents" element={<RoleRoute roles={CLINICAL_ROLES}><StaffDocumentUpload /></RoleRoute>} />
             <Route path="staff/registration" element={<StaffRegistrationPage />} />
             <Route path="integrated-dashboard" element={<IntegratedDashboardPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="notifications" element={<NotificationCenterPage />} />
             
             {/* Hospital/Doctor routes */}
-            <Route path="hospital/dashboard" element={<HospitalAdminDashboardPage />} />
-            <Route path="hospital/staff" element={<HospitalStaffPage />} />
+            <Route path="hospital/dashboard" element={<RoleRoute roles={ADMIN_ROLES}><HospitalAdminDashboardPage /></RoleRoute>} />
+            <Route path="hospital/staff" element={<RoleRoute roles={ADMIN_ROLES}><HospitalStaffPage /></RoleRoute>} />
             <Route path="hospital/patients" element={<HospitalPatientsPage />} />
-            <Route path="patient-records/:patientId" element={<PatientRecordsPage />} />
-            <Route path="hospital/appointments" element={<HospitalAppointmentsPage />} />
-            <Route path="hospital/schedule" element={<HospitalSchedulePage />} />
+            <Route path="patient-records/:patientId" element={<RoleRoute roles={['DOCTOR', 'NURSE']}><PatientRecordsPage /></RoleRoute>} />
+            <Route path="hospital/appointments" element={<RoleRoute roles={['DOCTOR', 'NURSE']}><HospitalAppointmentsPage /></RoleRoute>} />
+            <Route path="hospital/schedule" element={<RoleRoute roles={['DOCTOR', 'NURSE']}><HospitalSchedulePage /></RoleRoute>} />
           </Route>
 
           {/* Catch-all */}
