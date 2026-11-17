@@ -770,8 +770,12 @@ export async function bootstrapDemoHospitalsAndAccounts() {
       logger.warn(`Kunal accounts preserve warning: ${kunalErr.message}`);
     }
 
+    // Optional extra check (DEMO_VERIFY_ON_STARTUP=true): it repeats dozens of password hashes,
+    // so it is off by default to keep restarts quick. The seeding above already repairs passwords.
     try {
-      await verifyDemoLogins();
+      if (String(process.env.DEMO_VERIFY_ON_STARTUP || '').toLowerCase() === 'true') {
+        await verifyDemoLogins();
+      }
     } catch (checkErr) {
       logger.warn(`Demo sign-in check could not run: ${checkErr.message}`);
     }

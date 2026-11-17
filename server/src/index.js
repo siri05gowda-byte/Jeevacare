@@ -139,54 +139,59 @@ app.use(notFoundHandler);
 // Global error handler (must be last)
 app.use(errorHandler);
 
+// Demo hospitals, accounts, IDs and doctor-patient links. This runs AFTER the server is listening:
+// it hashes dozens of passwords and used to hold up every cold start, so the site looked down.
+const runStartupSeeding = async () => {
+  // Ensure demo hospitals, clinicians, and patients are securely bootstrapped
+  try {
+    const { bootstrapDemoHospitalsAndAccounts } = await import('./utils/bootstrapDemoData.js');
+    await bootstrapDemoHospitalsAndAccounts();
+  } catch (bootErr) {
+    logger.warn(`Startup demo bootstrap warning: ${bootErr.message}`);
+  }
+
+  // Make sure every user has a JeevaCare ID, and that patients' accounts match their dashboard ID.
+  try {
+    const { ensureJeevaIds } = await import('./utils/jeevaIdBackfill.js');
+    const { usersUpdated, patientsUpdated } = await ensureJeevaIds();
+    if (usersUpdated || patientsUpdated) {
+      logger.info(`JeevaCare IDs assigned or synced: ${usersUpdated} users, ${patientsUpdated} patients`);
+    }
+  } catch (idErr) {
+    logger.warn(`JeevaCare ID backfill warning: ${idErr.message}`);
+  }
+
+  // Give the demo patients doctors and appointments, so dashboards look like a working hospital.
+  // On by default and safe to repeat; set DEMO_LINK_ON_STARTUP=false to turn it off.
+  try {
+    const { linkDemoDataOnStartup } = await import('./utils/demoLinkStartup.js');
+    await linkDemoDataOnStartup({ logger });
+  } catch (linkErr) {
+    logger.warn(`Startup demo linking warning: ${linkErr.message}`);
+  }
+
+  // Recover any stale or interrupted radiology AI jobs after restart
+  try {
+    const RadiologyAIService = (await import('./services/RadiologyAIService.js')).default;
+    RadiologyAIService.recoverStaleJobs().then(res => {
+      if (res?.recovered > 0) {
+        logger.info(`✓ Recovered ${res.recovered} stale radiology AI job(s)`);
+      }
+    }).catch(err => {
+      logger.warn(`Radiology AI job recovery warning: ${err.message}`);
+    });
+  } catch (recErr) {
+    logger.warn(`Failed to initialize job recovery: ${recErr.message}`);
+  }
+  logger.info('Startup seeding finished');
+};
+
 // Database connection and server startup
 const startServer = async () => {
   try {
     // Connect to MongoDB (only in production/development mode)
     if (process.env.NODE_ENV !== 'test') {
       await connectDatabase();
-
-      // Ensure demo hospitals, clinicians, and patients are securely bootstrapped
-      try {
-        const { bootstrapDemoHospitalsAndAccounts } = await import('./utils/bootstrapDemoData.js');
-        await bootstrapDemoHospitalsAndAccounts();
-      } catch (bootErr) {
-        logger.warn(`Startup demo bootstrap warning: ${bootErr.message}`);
-      }
-
-      // Make sure every user has a JeevaCare ID, and that patients' accounts match their dashboard ID.
-      try {
-        const { ensureJeevaIds } = await import('./utils/jeevaIdBackfill.js');
-        const { usersUpdated, patientsUpdated } = await ensureJeevaIds();
-        if (usersUpdated || patientsUpdated) {
-          logger.info(`JeevaCare IDs assigned or synced: ${usersUpdated} users, ${patientsUpdated} patients`);
-        }
-      } catch (idErr) {
-        logger.warn(`JeevaCare ID backfill warning: ${idErr.message}`);
-      }
-
-      // Give the demo patients doctors and appointments, so dashboards look like a working hospital.
-      // On by default and safe to repeat; set DEMO_LINK_ON_STARTUP=false to turn it off.
-      try {
-        const { linkDemoDataOnStartup } = await import('./utils/demoLinkStartup.js');
-        await linkDemoDataOnStartup({ logger });
-      } catch (linkErr) {
-        logger.warn(`Startup demo linking warning: ${linkErr.message}`);
-      }
-
-      // Recover any stale or interrupted radiology AI jobs after restart
-      try {
-        const RadiologyAIService = (await import('./services/RadiologyAIService.js')).default;
-        RadiologyAIService.recoverStaleJobs().then(res => {
-          if (res?.recovered > 0) {
-            logger.info(`✓ Recovered ${res.recovered} stale radiology AI job(s)`);
-          }
-        }).catch(err => {
-          logger.warn(`Radiology AI job recovery warning: ${err.message}`);
-        });
-      } catch (recErr) {
-        logger.warn(`Failed to initialize job recovery: ${recErr.message}`);
-      }
     }
 
     // Start server
@@ -195,6 +200,10 @@ const startServer = async () => {
       logger.info(`📚 Environment: ${config.environment}`);
       // Database connection status logged separately by database.js
     });
+
+    if (process.env.NODE_ENV !== 'test') {
+      runStartupSeeding().catch((seedErr) => logger.warn(`Startup seeding stopped: ${seedErr.message}`));
+    }
 
     // Schedule periodic TTS cleanup (every hour)
     if (config.piperTTS.enabled) {

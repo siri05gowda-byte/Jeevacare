@@ -1,14 +1,29 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 
-function Spinner({ label }) {
+// After a while with no answer, say why: the free server sleeps when nobody has used it for a bit.
+export const SLOW_HINT_AFTER_MS = 6000;
+
+export function Spinner({ label, hintAfterMs = SLOW_HINT_AFTER_MS }) {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (!label) return undefined;
+    const timer = setTimeout(() => setSlow(true), hintAfterMs);
+    return () => clearTimeout(timer);
+  }, [label, hintAfterMs]);
+
   return (
-    <div className="flex flex-col items-center justify-center h-screen gap-4">
+    <div className="flex flex-col items-center justify-center h-screen gap-4 px-6 text-center">
       <div className="animate-spin-slow">
         <div className="w-16 h-16 border-4 border-gray-200 border-t-jeevacare-blue rounded-full"></div>
       </div>
       {label && <p className="text-sm text-gray-600">{label}</p>}
+      {slow && (
+        <p className="text-sm text-gray-500 max-w-md">
+          The server is waking up after a quiet spell. This can take up to a minute, and you are still signed in.
+        </p>
+      )}
     </div>
   );
 }
