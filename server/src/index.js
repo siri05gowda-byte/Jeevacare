@@ -170,6 +170,17 @@ const runStartupSeeding = async () => {
     logger.warn(`Startup demo linking warning: ${linkErr.message}`);
   }
 
+  // Staff records left behind by deleted accounts show up as blank rows, so they are removed.
+  // Set STAFF_ORPHAN_CLEANUP=false to switch this off.
+  if (String(process.env.STAFF_ORPHAN_CLEANUP || '').toLowerCase() !== 'false') {
+    try {
+      const { removeOrphanedStaffRecords } = await import('./utils/orphanStaffCleanup.js');
+      await removeOrphanedStaffRecords({ logger });
+    } catch (cleanupErr) {
+      logger.warn(`Orphaned staff cleanup warning: ${cleanupErr.message}`);
+    }
+  }
+
   // Recover any stale or interrupted radiology AI jobs after restart
   try {
     const RadiologyAIService = (await import('./services/RadiologyAIService.js')).default;

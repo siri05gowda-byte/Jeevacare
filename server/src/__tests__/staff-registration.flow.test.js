@@ -284,6 +284,36 @@ describeFlows('new staff registration and approval (local database)', () => {
     await HospitalStaff.deleteOne({ _id: ghost._id });
   });
 
+  it('records for deleted accounts are removed from the database, and real staff are kept', async () => {
+    const { default: HospitalStaff } = await import('../models/HospitalStaff.js');
+    const { default: StaffRegistrationRequest } = await import('../models/StaffRegistrationRequest.js');
+    const { removeOrphanedStaffRecords } = await import('../utils/orphanStaffCleanup.js');
+    const ghostUser = new mongoose.Types.ObjectId();
+    await HospitalStaff.create({
+      userId: ghostUser, hospitalId: hospital._id, role: 'doctor', associationStatus: 'active',
+      employmentStatus: 'active', startDate: new Date(),
+    });
+    await StaffRegistrationRequest.collection.insertOne({
+      userId: ghostUser, hospitalId: hospital._id, status: 'pending', requestedRole: 'doctor',
+      email: 'gone@example.test', firstName: 'Gone', lastName: 'Away', submittedAt: new Date(),
+    });
+    const before = await HospitalStaff.countDocuments({ hospitalId: hospital._id });
+
+    const removed = await removeOrphanedStaffRecords();
+
+    expect(removed.staff).toBeGreaterThanOrEqual(1);
+    expect(removed.requests).toBeGreaterThanOrEqual(1);
+    expect(await HospitalStaff.countDocuments({ userId: ghostUser })).toBe(0);
+    expect(await StaffRegistrationRequest.countDocuments({ userId: ghostUser })).toBe(0);
+    expect(await HospitalStaff.countDocuments({ hospitalId: hospital._id })).toBe(before - removed.staff);
+    // The demo doctors and the admin are untouched.
+    const { default: User } = await import('../models/User.js');
+    const soundarya = await User.findOne({ email: 'soundarya.shetty@sanjivani.in' });
+    expect(await HospitalStaff.countDocuments({ userId: soundarya._id, associationStatus: 'active' })).toBeGreaterThanOrEqual(1);
+    // Running it again finds nothing more.
+    expect(await removeOrphanedStaffRecords()).toEqual({ staff: 0, requests: 0 });
+  });
+
   it('the admin gets a read-only patient list for their hospital; a doctor does not', async () => {
     const res = await as('get', '/api/v1/patients/facility-list', 'admin');
     expect(res.status, JSON.stringify(res.body).slice(0, 300)).toBe(200);
